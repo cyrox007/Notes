@@ -13,7 +13,8 @@
         'system.health',
         'system.storage',
         'security.policy',
-        'messenger.realtime'
+        'messenger.realtime',
+        'messenger.messages'
     ];
     const CATEGORY_LABELS = {
         'calendar.reminders': 'Напоминания календаря',
@@ -23,7 +24,8 @@
         'system.health': 'Состояние системы',
         'system.storage': 'Хранилище',
         'security.policy': 'Безопасность',
-        'messenger.realtime': 'Связь Messenger'
+        'messenger.realtime': 'Связь Messenger',
+        'messenger.messages': 'Новые сообщения Messenger'
     };
     const IMPORTANCE_LABELS = {
         low: 'Низкая',
