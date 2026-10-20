@@ -20,6 +20,7 @@ window.wspace.page.register('modules/admin/assets/admin-settings-nav.js', (pageS
             ['/admin/registration', 'fa-user-plus', 'Регистрация'],
             ['/admin/modules', 'fa-cubes', 'Модули'],
             ['/admin/settings', 'fa-sliders', 'Системные настройки'],
+            ['/admin/notifications', 'fa-envelope', 'Каналы уведомлений'],
             ['/admin/license', 'fa-key', 'Лицензия'],
             ['/admin/updates', 'fa-refresh', 'Обновления'],
         ];
