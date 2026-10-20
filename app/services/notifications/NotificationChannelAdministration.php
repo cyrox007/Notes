@@ -122,7 +122,7 @@ final class NotificationChannelAdministration
      */
     public function testChannel(int $actorId, string $channel): array
     {
-        if ($actorId <= 0 || !in_array($channel, ['email', 'telegram', 'max', 'webhook'], true)) {
+        if ($actorId <= 0 || !in_array($channel, ['email', 'telegram', 'max', 'webhook', 'sms'], true)) {
             throw new InvalidArgumentException('Недопустимый канал или получатель');
         }
 
