@@ -43,6 +43,17 @@ final class PushSubscriptionService
 
         $this->db->beginTransaction();
         try {
+            // Блокировка получателя сериализует конкурирующую регистрацию
+            // устройств и не позволяет обойти ограничение их количества.
+            $owner = $this->db->fetchValue(
+                "SELECT id FROM users WHERE id=:uid AND is_active=1
+                 AND account_status='active' AND deletion_requested_at IS NULL
+                 AND anonymized_at IS NULL FOR UPDATE",
+                [':uid' => $userId]
+            );
+            if ((int) $owner !== $userId) {
+                throw new DomainException('Пользователь неактивен или удалён');
+            }
             $current = $this->db->fetchOne(
                 'SELECT id,user_id FROM notification_push_subscriptions
                  WHERE endpoint_hash=:digest LIMIT 1 FOR UPDATE',
@@ -51,15 +62,20 @@ final class PushSubscriptionService
             if ($current !== null && (int) $current['user_id'] !== $userId) {
                 throw new DomainException('Браузер привязан к другой учётной записи. Удалите прежнюю подписку в настройках устройства.');
             }
+            $activeCount = (int) $this->db->fetchValue(
+                'SELECT COUNT(*) FROM notification_push_subscriptions
+                 WHERE user_id=:uid AND revoked_at IS NULL',
+                [':uid' => $userId]
+            );
+            $isAlreadyActive = $current !== null && (int) $this->db->fetchValue(
+                'SELECT COUNT(*) FROM notification_push_subscriptions
+                 WHERE id=:id AND user_id=:uid AND revoked_at IS NULL',
+                [':id' => (int) $current['id'], ':uid' => $userId]
+            ) === 1;
+            if (!$isAlreadyActive && $activeCount >= self::MAX_DEVICES) {
+                throw new DomainException('Достигнут предел пяти устройств. Отключите неиспользуемое устройство.');
+            }
             if ($current === null) {
-                $count = (int) $this->db->fetchValue(
-                    'SELECT COUNT(*) FROM notification_push_subscriptions
-                     WHERE user_id=:uid AND revoked_at IS NULL',
-                    [':uid' => $userId]
-                );
-                if ($count >= self::MAX_DEVICES) {
-                    throw new DomainException('Достигнут предел пяти устройств. Отключите неиспользуемое устройство.');
-                }
                 $this->db->execute(
                     'INSERT INTO notification_push_subscriptions
                      (user_id,endpoint_hash,endpoint,p256dh,auth)
