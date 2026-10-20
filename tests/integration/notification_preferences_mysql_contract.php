@@ -248,18 +248,18 @@ $normalized = $db->fetchOne(
     [':user_id' => $userA, ':category' => $category]
 );
 notificationPreferencesMysqlAssert((int) ($normalized['in_app_enabled'] ?? 0) === 1, 'API должен восстанавливать обязательный встроенный канал');
-notificationPreferencesMysqlAssert((int) ($normalized['browser_enabled'] ?? 0) === 0, 'API должен сбрасывать Push без активной привязки устройства');
+notificationPreferencesMysqlAssert((int) ($normalized['browser_enabled'] ?? 0) === 1,
+    'Выбор поддерживаемого канала должен сохраняться до привязки устройства');
 
-$unsupportedRejected = false;
-try {
-    $preferences->updateForUser($userA, [
-        'category' => $category,
-        'channels' => ['browser' => true],
-    ]);
-} catch (InvalidArgumentException) {
-    $unsupportedRejected = true;
-}
-notificationPreferencesMysqlAssert($unsupportedRejected, 'Нельзя включить Push без зарегистрированного адресата');
+$browserChoice = $preferences->updateForUser($userA, [
+    'category' => $category,
+    'channels' => ['browser' => true],
+]);
+notificationPreferencesMysqlAssert(
+    $browserChoice['subscription']['channels']['browser'] === true
+    && $browserChoice['subscription']['effective_channels']['browser'] === false,
+    'Можно заранее выбрать Browser Push, но без устройства доставка должна остаться недоступной'
+);
 
 $unknownFieldRejected = false;
 try {
