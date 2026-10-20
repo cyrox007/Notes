@@ -52,6 +52,14 @@ jobs:
           php -l tests/integration/module_lifecycle_noop_12.php
           php tests/integration/module_lifecycle_noop_12.php
 
+      - name: Проверить повторные чтения и отзыв лицензии без кэша
+        run: |
+          php -l core/ModuleLifecycleStore.php
+          php -l core/SchemaReadiness.php
+          php -l app/services/LicenseService.php
+          php -l tests/integration/license_status_single_read_12.php
+          php tests/integration/license_status_single_read_12.php
+
       - name: Verify module registry, isolated runtime and capability contracts
         run: php tests/integration/module_registry_contract.php
 
