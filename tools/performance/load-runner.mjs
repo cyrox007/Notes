@@ -24,6 +24,18 @@ if (!credentialPath || !fs.existsSync(credentialPath)) {
 
 const credentials = loadCredentials(credentialPath);
 const settings = resolveSettings(profile, mode, args);
+if (mode === 'full') {
+  if (process.env.PERF_FIXTURE_CONFIRM !== 'WORKSPACE_PERFORMANCE_ONLY'
+      || process.env.PERF_ISOLATED_STAND !== '1') {
+    fail('Полный тест разрешён только на явно подтверждённом изолированном стенде.');
+  }
+  if (settings.nominalUsers < 1000 || settings.peakUsers < 1200
+      || settings.rampSeconds < 300 || settings.steadySeconds < 1800
+      || settings.soakSeconds < 7200 || settings.peakSeconds < 300
+      || settings.recoverySeconds < 300) {
+    fail('Полный профиль нельзя сокращать или выдавать укороченный прогон за приёмку.');
+  }
+}
 if (credentials.length < settings.maxUsers) {
   fail(`Недостаточно учётных записей: нужно ${settings.maxUsers}, доступно ${credentials.length}.`);
 }
@@ -52,18 +64,22 @@ process.on('SIGINT', () => {
 try {
   console.log(`Профиль: ${mode}; база: ${baseUrl}; пользователей: ${settings.nominalUsers}; пик: ${settings.peakUsers}`);
   currentPhase = 'ramp';
+  metrics.sampleActive(currentPhase);
   await rampUsers(settings.nominalUsers, settings.rampSeconds);
 
   if (!stopping) {
     currentPhase = 'steady';
+    metrics.sampleActive(currentPhase);
     await sleepSeconds(settings.steadySeconds);
   }
   if (!stopping && settings.soakSeconds > 0) {
     currentPhase = 'soak';
+    metrics.sampleActive(currentPhase);
     await sleepSeconds(settings.soakSeconds);
   }
   if (!stopping && settings.peakUsers > settings.nominalUsers && settings.peakSeconds > 0) {
     currentPhase = 'peak';
+    metrics.sampleActive(currentPhase);
     const peakRamp = Math.min(60, settings.peakSeconds);
     await rampUsers(settings.peakUsers, peakRamp);
     await sleepSeconds(Math.max(0, settings.peakSeconds - peakRamp));
@@ -74,10 +90,12 @@ try {
   }
   if (!stopping && settings.recoverySeconds > 0) {
     currentPhase = 'recovery';
+    metrics.sampleActive(currentPhase);
     await sleepSeconds(settings.recoverySeconds);
   }
 } finally {
   currentPhase = 'shutdown';
+  metrics.sampleActive(currentPhase);
   stopping = true;
   for (const vu of virtualUsers) vu.enabled = false;
   await Promise.allSettled(virtualUsers.map(vu => vu.promise).filter(Boolean));
@@ -124,15 +142,18 @@ async function runVirtualUser(vu) {
     return;
   }
   metrics.recordSessionReady();
-
-  while (!stopping && vu.enabled) {
-    const op = chooseOperation(profile.operations);
-    try {
-      await executeOperation(vu, op);
-    } catch (error) {
-      metrics.recordTransportFailure(error);
+  try {
+    while (!stopping && vu.enabled) {
+      const op = chooseOperation(profile.operations);
+      try {
+        await executeOperation(vu, op);
+      } catch (error) {
+        metrics.recordTransportFailure(error);
+      }
+      await sleep(randomInt(settings.thinkMinMs, settings.thinkMaxMs));
     }
-    await sleep(randomInt(settings.thinkMinMs, settings.thinkMaxMs));
+  } finally {
+    metrics.recordSessionInactive();
   }
 }
 
@@ -140,10 +161,15 @@ async function login(vu) {
   for (let attempt = 1; attempt <= 5 && !stopping; attempt += 1) {
     const started = performance.now();
     try {
-      await request(vu, 'GET', '/auth/login', { captureBody: false });
+      const loginPage = await request(vu, 'GET', '/auth/login/', { captureBody: true });
+      const loginCsrf = extractCsrf(loginPage.body);
+      if (loginPage.status !== 200 || !loginCsrf) {
+        throw new Error('Не удалось получить защитный токен штатной формы входа.');
+      }
       const body = new URLSearchParams({
         login: vu.credential.username,
         password: vu.credential.password,
+        csrf_token: loginCsrf,
       }).toString();
       const response = await request(vu, 'POST', '/auth/login', {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -158,6 +184,7 @@ async function login(vu) {
           const home = await request(vu, 'GET', '/', { captureBody: true });
           vu.csrfToken = extractCsrf(home.body);
         }
+        if (!vu.csrfToken) throw new Error('После входа нет CSRF-токена для команд записи.');
         metrics.recordLogin(performance.now() - started, true, response.status);
         return true;
       }
@@ -180,6 +207,8 @@ async function executeOperation(vu, op) {
       return measuredRequest(vu, op, 'GET', `/notes/?q=${encodeURIComponent('perf')}&page=1&limit=50`);
     case 'tasks_list':
       return measuredRequest(vu, op, 'GET', '/tasks/');
+    case 'tasks_boards':
+      return measuredRequest(vu, op, 'GET', '/tasks/boards');
     case 'calendar_page':
       return measuredRequest(vu, op, 'GET', '/calendar/');
     case 'calendar_range': {
@@ -190,12 +219,20 @@ async function executeOperation(vu, op) {
     }
     case 'files_list':
       return measuredRequest(vu, op, 'GET', '/files/');
+    case 'files_spaces':
+      return measuredRequest(vu, op, 'GET', '/files/spaces/global/');
     case 'messenger_page':
       return measuredRequest(vu, op, 'GET', '/messenger/');
     case 'notifications_count':
       return measuredRequest(vu, op, 'GET', '/api/notifications/unread-count');
+    case 'notifications_center':
+      return measuredRequest(vu, op, 'GET', '/api/notifications/');
     case 'messenger_long_poll':
       return measuredRequest(vu, op, 'GET', '/messenger/realtime/poll?wait_seconds=1');
+    case 'defects_list':
+      return measuredRequest(vu, op, 'GET', '/api/defects/?status=open&limit=40');
+    case 'defects_report':
+      return measuredRequest(vu, op, 'GET', '/api/defects/report?status=all&area_limit=10');
     case 'calendar_create':
       return calendarCreate(vu, op);
     case 'calendar_update':
@@ -282,7 +319,8 @@ async function measuredRequest(vu, op, method, requestPath, options = {}) {
   try {
     const response = await request(vu, method, requestPath, options);
     const duration = performance.now() - started;
-    const ok = response.status >= 200 && response.status < 400;
+    const ok = response.status >= 200 && response.status < 400
+      && !response.url.pathname.includes('/auth/login');
     metrics.record(op.name, op.kind, currentPhase, duration, response.status, ok);
     return response;
   } catch (error) {
@@ -307,6 +345,9 @@ async function request(vu, method, requestPath, options = {}) {
     if (redirect === maxRedirects) throw new Error('Превышен предел HTTP-переходов.');
 
     url = new URL(location, url);
+    if (url.origin !== target.origin) {
+      throw new Error('Переход на сторонний узел запрещён для авторизованного нагрузочного клиента.');
+    }
     if ([301, 302, 303].includes(response.status) && currentMethod !== 'GET' && currentMethod !== 'HEAD') {
       currentMethod = 'GET';
       body = null;
@@ -323,7 +364,7 @@ function requestOnce(vu, url, method, headers, body, captureBody) {
     const client = isHttps ? https : http;
     const requestHeaders = {
       Accept: headers.Accept || 'text/html,application/json;q=0.9,*/*;q=0.8',
-      'User-Agent': `Workspace-Performance-Runner/1.1 vu/${vu.id}`,
+      'User-Agent': `Workspace-Performance-Runner/1.2 vu/${vu.id}`,
       ...headers,
     };
     const cookie = vu.cookies.header();
