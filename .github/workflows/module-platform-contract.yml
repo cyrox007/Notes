@@ -46,6 +46,12 @@ jobs:
           php -l tests/integration/module_user_avatar_contract.php
           php -l tests/e2e/router.php
 
+      - name: Не записывать неизменное состояние модулей при каждом HTTP-запросе
+        run: |
+          php -l core/ModuleLifecycleStore.php
+          php -l tests/integration/module_lifecycle_noop_12.php
+          php tests/integration/module_lifecycle_noop_12.php
+
       - name: Verify module registry, isolated runtime and capability contracts
         run: php tests/integration/module_registry_contract.php
 
