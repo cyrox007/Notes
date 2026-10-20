@@ -21,7 +21,20 @@ function checkLifecycleNoop(bool $condition, string $message): void
     }
 }
 
-$pdo = new PDO('sqlite::memory:');
+final class LifecycleCountingConnection extends PDO
+{
+    public int $readCount = 0;
+
+    public function prepare(string $query, array $options = []): PDOStatement|false
+    {
+        if (preg_match('/^\\s*SELECT\\s+module_id,installed_version/i', $query) === 1) {
+            $this->readCount++;
+        }
+        return parent::prepare($query, $options);
+    }
+}
+
+$pdo = new LifecycleCountingConnection('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $pdo->exec('CREATE TABLE module_lifecycle (
     module_id TEXT PRIMARY KEY, installed_version TEXT, manifest_hash TEXT,
@@ -52,14 +65,24 @@ $store = new ModuleLifecycleStore($database);
 $modules = ['defects' => $manifest];
 $writes = static fn (): int => (int) $database->fetchValue('SELECT changes FROM lifecycle_writes');
 
+$initialReads = $pdo->readCount;
 checkLifecycleNoop($store->reconcile($modules, Version::VERSION)['defects']['effective_state'] === 'enabled',
     'корректная композиция неожиданно отключена');
+checkLifecycleNoop($pdo->readCount - $initialReads === 1,
+    'неизменный состав должен проверяться одной выборкой БД');
+
+$readsBeforeNext = $pdo->readCount;
 $store->reconcile($modules, Version::VERSION);
+checkLifecycleNoop($pdo->readCount - $readsBeforeNext === 1,
+    'повторное согласование должно заново читать состояние, но только один раз');
 checkLifecycleNoop($writes() === 0, 'повторная проверка неизменного модуля выполнила SQL UPDATE');
 
 $pdo->exec("UPDATE module_lifecycle SET manifest_hash='старый_отпечаток'");
 $pdo->exec('UPDATE lifecycle_writes SET changes=0');
+$beforeChanged = $pdo->readCount;
 $store->reconcile($modules, Version::VERSION);
+checkLifecycleNoop($pdo->readCount - $beforeChanged === 2,
+    'при изменённом манифесте необходимо перечитать подтверждённое состояние');
 checkLifecycleNoop($writes() === 1, 'изменение контрольной суммы не привело к одной записи');
 checkLifecycleNoop((string) $database->fetchValue('SELECT manifest_hash FROM module_lifecycle') === $manifest->integrityHash(),
     'новая контрольная сумма не сохранена');
