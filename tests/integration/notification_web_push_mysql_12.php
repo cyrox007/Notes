@@ -10,6 +10,9 @@ $user = getenv('TEST_DB_USER') ?: 'workspace';
 $pass = getenv('TEST_DB_PASS') ?: 'workspace';
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+if (!str_contains(strtolower($name), 'test')) {
+    throw new RuntimeException('Проверка Push разрешена только на отдельной тестовой БД');
+}
 $mysqli = new mysqli($host, $user, $pass, $name, $port);
 $mysqli->set_charset('utf8mb4');
 
@@ -208,8 +211,7 @@ pushMysqlCheck(!$expired->success && $expired->code === 'push_expired'
     && !$service->ownsHash($firstUser, $second['endpoint_hash']),
     'push-сервис 410 должен отозвать неподдерживаемое устройство');
 
-$db->execute('DELETE FROM users WHERE id=:id', [':id'=>$firstUser]);
-$db->execute('DELETE FROM users WHERE id=:id', [':id'=>$secondUser]);
+// Тестовая база одноразовая: данные остаются для диагностики состояния очереди.
 \Core\DatabaseManager::resetInstance();
 $mysqli->close();
 echo "Проверена MySQL-привязка нескольких устройств, изоляция, очередь, отзыв и 410\n";
