@@ -104,6 +104,7 @@ runtimeCheck(strlen($largeOutput['stderr']) === 1048576, 'stderr должен б
 
 // Запись двух каналов существенно больше системных pipe-буферов не должна
 // блокировать proc_close, терять код завершения или расширять результат.
+$beforeStreamingPeak = memory_get_peak_usage(true);
 $streaming = (new \Core\UpdateProcessRunner())->run(
     [PHP_BINARY, '-r',
         'for ($i = 0; $i < 12; $i++) { fwrite(STDOUT, str_repeat("S", 524288)); fwrite(STDERR, str_repeat("E", 524288)); } exit(29);'],
@@ -113,6 +114,8 @@ $streaming = (new \Core\UpdateProcessRunner())->run(
 runtimeCheck($streaming['code'] === 29, 'многократный большой вывод не должен блокировать обновлятор');
 runtimeCheck(strlen($streaming['stdout']) === 1048576, 'поток stdout не должен расширять буфер');
 runtimeCheck(strlen($streaming['stderr']) === 1048576, 'поток stderr не должен расширять буфер');
+runtimeCheck(memory_get_peak_usage(true) - $beforeStreamingPeak <= 16777216,
+    'большой вывод не должен вызывать рост памяти процесса PHP на десятки мегабайт');
 
 $emptyOutput = (new \Core\UpdateProcessRunner())->run(
     [PHP_BINARY, '-r', 'exit(31);'],
