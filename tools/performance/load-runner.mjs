@@ -523,6 +523,19 @@ class Metrics {
     const operationCoverage = missingOperations.length === 0
       && (this.byKind.get('write')?.total || 0) > 0
       && (this.byKind.get('realtime')?.total || 0) > 0;
+    const phasesToCheck = ['steady', 'soak', 'peak', 'recovery'];
+    const phaseAcceptance = Object.fromEntries(phasesToCheck.map(name => {
+      const bucket = this.byPhase.get(name);
+      const latency = bucket?.histogram.summary() || emptySummary();
+      const errorRate = bucket?.total ? bucket.errors / bucket.total : 1;
+      return [name, {
+        requests: bucket?.total || 0,
+        error_rate: errorRate,
+        p99_ms: latency.p99_ms,
+        passed: !!bucket && bucket.total > 0 && errorRate < 0.005 && latency.p99_ms <= 2500,
+      }];
+    }));
+    const phasesPassed = Object.values(phaseAcceptance).every(item => item.passed);
     const acceptance = {
       passed: this.runMode === 'full'
         && this.sessionsReady >= this.runSettings.peakUsers
@@ -530,6 +543,7 @@ class Metrics {
         && simultaneousSessions
         && completedDuration
         && operationCoverage
+        && phasesPassed
         && errorRate < 0.005
         && read.p95_ms <= 700
         && write.p95_ms <= 1200
@@ -541,6 +555,7 @@ class Metrics {
         simultaneous_session_coverage: { expected: true, actual: simultaneousSessions },
         complete_phase_duration: { expected: true, actual: completedDuration },
         all_operations_exercised: { expected: true, actual: operationCoverage, missing: missingOperations },
+        phase_requirements: phaseAcceptance,
         no_failed_sessions: { expected: 0, actual: this.sessionFailures },
         error_rate_lt_0_5_percent: { expected: 0.005, actual: errorRate },
         read_p95_ms_le_700: { expected: 700, actual: read.p95_ms },
