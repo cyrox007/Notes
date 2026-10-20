@@ -50,6 +50,13 @@ final class UpdateProcessRunner implements UpdateCommandRunner
             throw new RuntimeException('Timeout команды обновлятора должен быть положительным');
         }
 
+        // На Windows каналы proc_open нередко остаются блокирующими даже
+        // после stream_set_blocking(false). Чтение по очереди может навсегда
+        // заблокировать stdout и stderr друг другом.
+        if (PHP_OS_FAMILY === 'Windows') {
+            return $this->runWithTemporaryFiles($command, $cwd, $timeoutSeconds);
+        }
+
         $descriptors = [
             0 => ['pipe', 'r'],
             1 => ['pipe', 'w'],
@@ -114,6 +121,97 @@ final class UpdateProcessRunner implements UpdateCommandRunner
         }
 
         return ['code' => $exit, 'stdout' => $stdout, 'stderr' => $stderr];
+    }
+
+    /**
+     * Windows: вывод дочерней команды направляется в защищённые временные
+     * файлы, поскольку неблокирующий ввод-вывод из proc_open там ненадёжен.
+     * Файлы удаляются при любом исходе, в память читается лишь первый 1 МиБ.
+     *
+     * @param list<string> $command
+     * @return array{code:int,stdout:string,stderr:string}
+     */
+    private function runWithTemporaryFiles(array $command, string $cwd, int $timeoutSeconds): array
+    {
+        $stdoutPath = tempnam(sys_get_temp_dir(), 'notes-up-out-');
+        if (!is_string($stdoutPath)) {
+            throw new RuntimeException('Не удалось создать временный файл stdout обновлятора');
+        }
+
+        $stderrPath = tempnam(sys_get_temp_dir(), 'notes-up-err-');
+        if (!is_string($stderrPath)) {
+            @unlink($stdoutPath);
+            throw new RuntimeException('Не удалось создать временный файл stderr обновлятора');
+        }
+
+        $process = null;
+        try {
+            $descriptors = [
+                0 => ['pipe', 'r'],
+                1 => ['file', $stdoutPath, 'w'],
+                2 => ['file', $stderrPath, 'w'],
+            ];
+            $process = @proc_open($command, $descriptors, $pipes, $cwd, null, ['bypass_shell' => true]);
+            if (!is_resource($process)) {
+                throw new RuntimeException('Не удалось запустить внутреннюю команду обновлятора');
+            }
+
+            fclose($pipes[0]);
+
+            $deadline = microtime(true) + $timeoutSeconds;
+            $exit = -1;
+            $timedOut = false;
+            while (true) {
+                $status = proc_get_status($process);
+                if (!($status['running'] ?? false)) {
+                    $exit = (int) ($status['exitcode'] ?? -1);
+                    break;
+                }
+
+                if (microtime(true) >= $deadline) {
+                    $timedOut = true;
+                    proc_terminate($process);
+                    usleep(200_000);
+                    $status = proc_get_status($process);
+                    if ($status['running'] ?? false) {
+                        proc_terminate($process, 9);
+                    }
+                    $exit = 124;
+                    break;
+                }
+
+                usleep(50_000);
+            }
+
+            $closeCode = proc_close($process);
+            $process = null;
+            if (!$timedOut && $exit < 0 && is_int($closeCode)) {
+                $exit = $closeCode;
+            }
+
+            return [
+                'code' => $exit,
+                'stdout' => self::readTemporaryOutput($stdoutPath),
+                'stderr' => self::readTemporaryOutput($stderrPath),
+            ];
+        } finally {
+            if (is_resource($process)) {
+                proc_terminate($process);
+                proc_close($process);
+            }
+            @unlink($stdoutPath);
+            @unlink($stderrPath);
+        }
+    }
+
+    private static function readTemporaryOutput(string $path): string
+    {
+        $content = @file_get_contents($path, false, null, 0, self::MAX_CAPTURE_BYTES);
+        if (!is_string($content)) {
+            throw new RuntimeException('Не удалось прочитать вывод дочерней команды обновлятора');
+        }
+
+        return $content;
     }
 
     /**
