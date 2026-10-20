@@ -1,4 +1,4 @@
-name: Performance runner contract
+name: Контракт эталонного нагрузочного стенда
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ on:
       - 'tests/integration/performance_runner_smoke_12.mjs'
       - '.github/workflows/performance-runner-contract.yml'
   push:
-    branches: ['1.1', 'perf/1.1-1000-users-runner-*', 'perf/1.1-reference-baseline-*', 'test/1.2-reference-capacity-*']
+    branches: ['1.1', '1.2', 'perf/1.1-1000-users-runner-*', 'perf/1.1-reference-baseline-*', 'test/1.2-reference-capacity-*']
     paths:
       - 'tools/performance/**'
       - 'tests/integration/performance_runner_contract.php'
