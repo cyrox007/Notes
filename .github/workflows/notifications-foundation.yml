@@ -9,6 +9,8 @@ on:
       - 'app/services/notifications/**'
       - 'app/controllers/NotificationController.php'
       - 'app/controllers/NotificationPushController.php'
+      - 'modules/messenger/services/MessengerMessageNotificationPublisher.php'
+      - 'modules/messenger/services/MessengerService.php'
       - 'service-worker.js'
       - 'manifest.webmanifest'
       - 'assets/js/pwa-push.js'
@@ -39,6 +41,7 @@ on:
       - 'tests/integration/notification_external_channels_12.php'
       - 'tests/integration/notification_sms_gateway_12.php'
       - 'tests/integration/notification_web_push_*_12.php'
+      - 'tests/integration/notification_messenger_events_mysql_12.php'
       - 'tests/integration/notification_pwa_push_12.mjs'
       - 'database/notifications_schema.sql'
       - 'tests/integration/calendar_reminders_*contract.php'
@@ -52,6 +55,8 @@ on:
       - 'app/services/notifications/**'
       - 'app/controllers/NotificationController.php'
       - 'app/controllers/NotificationPushController.php'
+      - 'modules/messenger/services/MessengerMessageNotificationPublisher.php'
+      - 'modules/messenger/services/MessengerService.php'
       - 'service-worker.js'
       - 'manifest.webmanifest'
       - 'assets/js/pwa-push.js'
@@ -82,6 +87,7 @@ on:
       - 'tests/integration/notification_external_channels_12.php'
       - 'tests/integration/notification_sms_gateway_12.php'
       - 'tests/integration/notification_web_push_*_12.php'
+      - 'tests/integration/notification_messenger_events_mysql_12.php'
       - 'tests/integration/notification_pwa_push_12.mjs'
       - 'database/notifications_schema.sql'
       - 'tests/integration/calendar_reminders_*contract.php'
@@ -167,6 +173,7 @@ jobs:
           set -euo pipefail
           php tests/integration/notification_preferences_mysql_contract.php
           php tests/integration/notification_web_push_mysql_12.php
+          php tests/integration/notification_messenger_events_mysql_12.php
 
       - name: Проверить SMTP, API, UI, CLI worker и HTTP fallback без внешней сети
         run: |
@@ -176,6 +183,8 @@ jobs:
           php tests/integration/notification_external_channels_12.php
           php tests/integration/notification_sms_gateway_12.php
           php tests/integration/notification_web_push_crypto_12.php
+          php -l modules/messenger/services/MessengerMessageNotificationPublisher.php
+          php -l modules/messenger/services/MessengerService.php
           php -l app/services/notifications/PushSubscriptionService.php
           php -l app/services/notifications/WebPushCrypto.php
           php -l app/services/notifications/WebPushNotificationChannel.php

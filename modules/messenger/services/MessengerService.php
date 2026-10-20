@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+require_once __DIR__ . '/MessengerMessageNotificationPublisher.php';
+
 use App\Helpers\MessengerCrypto;
 use Core\DatabaseManager;
 use DomainException;
@@ -501,6 +503,16 @@ final class MessengerService
         } catch (\Throwable $e) {
             $this->db->endTransaction(false);
             throw $e;
+        }
+
+        // Содержимое сообщения не отправляется платформе уведомлений.
+        // Ошибка внешней подсистемы не отменяет уже сохранённое сообщение.
+        try {
+            (new MessengerMessageNotificationPublisher($this->db))->publish(
+                (int) $user['id'], (int) $dialog['id'], $dialogUid, $messageUid
+            );
+        } catch (\Throwable $error) {
+            error_log('Публикация уведомления Messenger: ' . $error::class);
         }
 
         return $this->messageById($messageId);
