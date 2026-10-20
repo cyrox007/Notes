@@ -130,6 +130,19 @@ final class PushSubscriptionService
         return ['active' => $active, 'current' => $current];
     }
 
+    public function ownsHash(int $userId, string $hex): bool
+    {
+        self::assertUser($userId);
+        if (preg_match('/^[a-f0-9]{64}$/', $hex) !== 1) {
+            return false;
+        }
+        return (int) $this->db->fetchValue(
+            'SELECT COUNT(*) FROM notification_push_subscriptions
+             WHERE user_id=:uid AND endpoint_hash=:digest AND revoked_at IS NULL',
+            [':uid' => $userId, ':digest' => hex2bin($hex)]
+        ) > 0;
+    }
+
     public function revoke(int $userId, string $endpoint): bool
     {
         self::assertUser($userId);
