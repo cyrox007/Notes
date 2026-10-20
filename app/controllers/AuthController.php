@@ -426,6 +426,17 @@ class AuthController extends Controller
     public function logout(Request $request): void
     {
         $actorId = (int) $request->session('user_id', 0);
+        // При выходе отключаем Push именно этого устройства. Сбои базы
+        // не должны препятствовать безопасному завершению сессии.
+        $pushHash = $request->session('notes_push_hash', '');
+        if ($actorId > 0 && is_string($pushHash) && preg_match('/^[a-f0-9]{64}$/', $pushHash) === 1) {
+            try {
+                require_once dirname(__DIR__) . '/services/notifications/PushSubscriptionService.php';
+                (new \\App\\Services\\Notifications\\PushSubscriptionService())->revokeByHash($actorId, $pushHash);
+            } catch (\\Throwable $error) {
+                error_log('Отзыв Push при выходе: ' . $error::class);
+            }
+        }
         SessionSecurity::destroyCurrentSession();
         SecurityEventLog::emit(
             'auth.logout',
