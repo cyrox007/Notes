@@ -131,6 +131,9 @@ try {
   assert.equal(report.sessions.failed, 0);
   assert.equal(report.sessions.active_peak, 3);
   assert.equal(report.acceptance.passed, false);
+  assert.equal(report.sessions.phase_activity.steady.min, 3);
+  assert.equal(report.acceptance.requirements.phase_requirements.soak.passed, false);
+  assert.equal(report.acceptance.requirements.phase_requirements.peak.passed, false);
   assert.ok(report.requests.total > 0);
   assert.equal(report.requests.errors, 0, 'Ошибки маршрутов: ' + smoke.transcript);
   assert.equal(authenticated.size, 3);
