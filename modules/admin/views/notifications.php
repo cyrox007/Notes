@@ -7,6 +7,13 @@ $details = is_array($notification_settings ?? null) ? $notification_settings : [
 $mail = is_array($details['smtp'] ?? null) ? $details['smtp'] : [];
 $config = is_array($mail['settings'] ?? null) ? $mail['settings'] : [];
 $jobs = is_array($details['jobs'] ?? null) ? $details['jobs'] : [];
+$externalChannels = is_array($external_channels ?? null) ? $external_channels : [];
+$webhook = [];
+foreach ($externalChannels as $row) {
+    if (($row['channel'] ?? null) === 'webhook' && $webhook === []) {
+        $webhook = is_array($row['settings'] ?? null) ? $row['settings'] : [];
+    }
+}
 $counts = is_array($details['counts'] ?? null) ? $details['counts'] : [];
 $siteName = isset($sitename) ? (string) $sitename : 'Notes';
 $workspaceVersion = isset($version) ? (string) $version : '';
@@ -138,8 +145,116 @@ ob_start();
     </section>
 
     <section class="admin-panel-card">
-        <h2>Другие каналы</h2>
-        <p>Web Push, Telegram, MAX, Webhook и SMS подключаются к общей очереди. Пока адаптер канала не прошёл проверки, он не обозначается рабочим и не предлагается для включения.</p>
+        <div class="admin-panel-card__header">
+            <div>
+                <h2>Подписанный Webhook</h2>
+                <p>Только публичный HTTPS-адрес, подпись HMAC-SHA256 и минимальные метаданные. Внешней системе не передаются тексты сообщений и персональные данные.</p>
+            </div>
+        </div>
+        <form action="<?= $view->e($view->route('admin_notifications_external')) ?>" method="post"
+              data-notification-ajax-form class="custom-fields-form">
+            <?= $view->csrfInput() ?>
+            <input type="hidden" name="channel" value="webhook">
+            <div class="admin-notification-fields">
+                <label class="custom-field__control">HTTPS-адрес
+                    <input type="url" name="url" required placeholder="https://hooks.example.org/notes"
+                           value="<?= $view->e($webhook['url'] ?? '') ?>">
+                </label>
+                <label class="custom-field__control">Секрет подписи
+                    <input type="text" name="secret_ref" pattern="env:[A-Z][A-Z0-9_]{1,127}"
+                           placeholder="env:NOTES_WEBHOOK_KEY" autocomplete="off">
+                    <small>Минимум 32 символа в переменной окружения.</small>
+                </label>
+                <label class="custom-field__control">Состояние
+                    <select name="enabled"><option value="1">Включить</option><option value="0">Отключить</option></select>
+                </label>
+                <label class="custom-field__control">Пароль администратора
+                    <input type="password" name="current_password" autocomplete="current-password" required>
+                </label>
+            </div>
+            <button class="admin-action admin-action--primary" type="submit">Сохранить Webhook</button>
+        </form>
+        <form action="<?= $view->e($view->route('admin_notifications_test')) ?>" method="post"
+              data-notification-ajax-form><?= $view->csrfInput() ?>
+            <input type="hidden" name="channel" value="webhook">
+            <button type="submit" class="admin-action admin-action--secondary">Проверить Webhook для себя</button>
+        </form>
+    </section>
+
+    <?php foreach (['telegram' => 'Telegram', 'max' => 'MAX'] as $channelKey => $label): ?>
+    <section class="admin-panel-card">
+        <div class="admin-panel-card__header">
+            <div>
+                <h2><?= $view->e($label) ?></h2>
+                <p>Адресат закрепляется за определённым пользователем. Общий чат для всех пользователей не используется. Сам текст личных сообщений во внешний сервис не отправляется.</p>
+            </div>
+        </div>
+        <form action="<?= $view->e($view->route('admin_notifications_external')) ?>" method="post"
+              data-notification-ajax-form class="custom-fields-form">
+            <?= $view->csrfInput() ?>
+            <input type="hidden" name="channel" value="<?= $view->e($channelKey) ?>">
+            <div class="admin-notification-fields">
+                <label class="custom-field__control">Идентификатор пользователя Notes
+                    <input type="number" name="owner_user_id" min="1" required>
+                </label>
+                <?php if ($channelKey === 'telegram'): ?>
+                <label class="custom-field__control">Chat ID Telegram
+                    <input type="text" name="chat_id" required placeholder="123456789">
+                </label>
+                <?php else: ?>
+                <label class="custom-field__control">ID пользователя MAX
+                    <input type="text" name="max_user_id" required placeholder="123456789">
+                </label>
+                <?php endif; ?>
+                <label class="custom-field__control">Токен бота
+                    <input type="text" name="secret_ref" pattern="env:[A-Z][A-Z0-9_]{1,127}"
+                           placeholder="env:NOTES_BOT_TOKEN" autocomplete="off">
+                    <small>Укажите имя переменной окружения, а не значение токена.</small>
+                </label>
+                <label class="custom-field__control">Состояние
+                    <select name="enabled"><option value="1">Включить</option><option value="0">Отключить</option></select>
+                </label>
+                <label class="custom-field__control">Пароль администратора
+                    <input type="password" name="current_password" autocomplete="current-password" required>
+                </label>
+            </div>
+            <button class="admin-action admin-action--primary" type="submit">Сохранить <?= $view->e($label) ?></button>
+        </form>
+        <form action="<?= $view->e($view->route('admin_notifications_test')) ?>" method="post"
+              data-notification-ajax-form><?= $view->csrfInput() ?>
+            <input type="hidden" name="channel" value="<?= $view->e($channelKey) ?>">
+            <button type="submit" class="admin-action admin-action--secondary">Пробная доставка себе в <?= $view->e($label) ?></button>
+        </form>
+    </section>
+    <?php endforeach; ?>
+
+    <section class="admin-panel-card">
+        <h2>Настроенные внешние адресаты</h2>
+        <?php if ($externalChannels === []): ?>
+        <p>Дополнительных адресатов пока нет.</p>
+        <?php else: ?>
+        <div class="admin-users-table-wrap">
+            <table class="admin-users-table">
+                <thead><tr><th>Канал</th><th>Пользователь</th><th>Назначение</th><th>Включён</th><th>Секрет</th></tr></thead>
+                <tbody>
+                <?php foreach ($externalChannels as $entry): ?>
+                    <tr>
+                        <td><?= $view->e($entry['channel'] ?? '') ?></td>
+                        <td><?= $view->e($entry['owner_user_id'] ?? 'системный') ?></td>
+                        <td><?= $view->e(($entry['settings']['chat_id'] ?? $entry['settings']['user_id'] ?? $entry['settings']['url'] ?? '—')) ?></td>
+                        <td><?= !empty($entry['enabled']) ? 'Да' : 'Нет' ?></td>
+                        <td><?= !empty($entry['has_secret']) ? 'Задан в окружении' : 'Нет' ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+    </section>
+
+    <section class="admin-panel-card">
+        <h2>Следующий транспорт</h2>
+        <p>Web Push и локальный SMS-шлюз требуют отдельной подписки или устройства. Они пока не включены в пользовательских настройках.</p>
     </section>
     <p data-notification-feedback role="status" aria-live="polite" hidden></p>
 </section>
