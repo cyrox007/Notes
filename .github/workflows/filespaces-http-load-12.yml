@@ -6,6 +6,8 @@ on:
     paths:
       - 'tests/integration/filespaces_http_seed_12.php'
       - 'tests/integration/filespaces_http_load_12.py'
+      - 'tests/integration/notes_staged_http_capacity_12.py'
+      - 'tests/integration/notes_files_staged_http_capacity_12.py'
       - 'tests/integration/filespaces_http_sql_profile_12.py'
       - '.github/workflows/filespaces-http-load-12.yml'
       - 'modules/files/**'
@@ -90,7 +92,8 @@ jobs:
           RATE_LIMIT_STORAGE_PATH=$PRIVATE_STORAGE_PATH/rate-limit
           # Лимит входа остаётся включённым; для восьми независимых сеансов
           # на одном loopback-адресе тестовому стенду нужно более пяти попыток.
-          MAX_LOGIN_ATTEMPTS=25
+          # Независимые HTTP-входы для трёх ступеней только на loopback.
+          MAX_LOGIN_ATTEMPTS=50
           AUTH_RATE_LIMIT_WINDOW_SECONDS=60
           UPLOAD_RATE_LIMIT_ATTEMPTS=500
           UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
@@ -100,7 +103,9 @@ jobs:
           chmod 600 .env
           php -l tests/integration/filespaces_http_seed_12.php
           python3 -m py_compile tests/integration/filespaces_http_load_12.py \
-            tests/integration/filespaces_http_sql_profile_12.py
+            tests/integration/filespaces_http_sql_profile_12.py \
+            tests/integration/notes_staged_http_capacity_12.py \
+            tests/integration/notes_files_staged_http_capacity_12.py
           php tests/integration/filespaces_http_seed_12.php > /tmp/fsp-http-fixture.json
           php tests/support/ci_license_fixture.php
           # На одноразовом CI-исполнителе файлы находятся под /home/runner.
@@ -209,6 +214,30 @@ jobs:
           test "$DUPLICATES" = 0
           echo "Проверка завершена: $FILES общих файлов, совпадающих имён в каталоге нет."
 
+      - name: Ступенчатые испытания Files 4–8–12, каталог, скачивание, загрузка
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Четыре свободных процесса оставляем для служебных запросов
+          # и замеров во время максимальной ступени в 12 HTTP-клиентов.
+          sudo sed -i 's/^pm.max_children = .*/pm.max_children = 16/' \
+            /etc/php/8.3/fpm/pool.d/www.conf
+          sudo service php8.3-fpm restart
+          python3 tests/integration/notes_files_staged_http_capacity_12.py \
+            --origin http://127.0.0.1:18096 \
+            --fixture /tmp/fsp-http-fixture.json \
+            --out /tmp/notes-files-staged-capacity-12.json \
+            --stages 4,8,12 --seconds 8 \
+            --max-p99-ms 3000 \
+            --max-php-memory-mib 1536 \
+            --max-fpm-queue 8
+          test -s /tmp/notes-files-staged-capacity-12.json
+          if grep -E 'PHP (Warning|Fatal error|Parse error)|Uncaught' \
+            /var/log/php8.3-fpm.log /tmp/workspace-organizer-startup.log 2>/dev/null; then
+            echo 'Обнаружены ошибки PHP во время ступенчатой нагрузки Files' >&2
+            exit 1
+          fi
+
       - name: Сохранить обезличенные результаты
         if: always()
         uses: actions/upload-artifact@v4
@@ -217,6 +246,7 @@ jobs:
           path: |
             /tmp/fsp-http-load-report.json
             /tmp/fsp-http-sql-profile.json
+            /tmp/notes-files-staged-capacity-12.json
           if-no-files-found: warn
           retention-days: 7
 
