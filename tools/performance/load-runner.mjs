@@ -54,63 +54,13 @@ let currentPhase = 'startup';
 let stopping = false;
 let globalSequence = 0;
 const virtualUsers = [];
-const metrics = new Metrics(settings, baseUrl, profilePath, mode);
+let metrics;
 
 process.on('SIGINT', () => {
   console.error('\nПолучен SIGINT: завершаю новые действия и сохраняю накопленный отчёт.');
   stopping = true;
 });
 
-try {
-  console.log(`Профиль: ${mode}; база: ${baseUrl}; пользователей: ${settings.nominalUsers}; пик: ${settings.peakUsers}`);
-  currentPhase = 'ramp';
-  metrics.sampleActive(currentPhase);
-  await rampUsers(settings.nominalUsers, settings.rampSeconds);
-
-  if (!stopping) {
-    currentPhase = 'steady';
-    metrics.sampleActive(currentPhase);
-    await sleepSeconds(settings.steadySeconds);
-  }
-  if (!stopping && settings.soakSeconds > 0) {
-    currentPhase = 'soak';
-    metrics.sampleActive(currentPhase);
-    await sleepSeconds(settings.soakSeconds);
-  }
-  if (!stopping && settings.peakUsers > settings.nominalUsers && settings.peakSeconds > 0) {
-    currentPhase = 'peak';
-    metrics.sampleActive(currentPhase);
-    const peakRamp = Math.min(60, settings.peakSeconds);
-    await rampUsers(settings.peakUsers, peakRamp);
-    await sleepSeconds(Math.max(0, settings.peakSeconds - peakRamp));
-
-    for (let i = settings.nominalUsers; i < virtualUsers.length; i += 1) {
-      virtualUsers[i].enabled = false;
-    }
-  }
-  if (!stopping && settings.recoverySeconds > 0) {
-    currentPhase = 'recovery';
-    metrics.sampleActive(currentPhase);
-    await sleepSeconds(settings.recoverySeconds);
-  }
-} finally {
-  currentPhase = 'shutdown';
-  metrics.sampleActive(currentPhase);
-  stopping = true;
-  for (const vu of virtualUsers) vu.enabled = false;
-  await Promise.allSettled(virtualUsers.map(vu => vu.promise).filter(Boolean));
-  agents.http.destroy();
-  agents.https.destroy();
-
-  const report = metrics.report();
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-  fs.writeFileSync(outputPath, JSON.stringify(report, null, 2) + '\n', { mode: 0o600 });
-  printSummary(report, outputPath);
-
-  if (!report.acceptance.passed) {
-    process.exitCode = 2;
-  }
-}
 
 async function rampUsers(targetCount, seconds) {
   const missing = Math.max(0, targetCount - virtualUsers.length);
@@ -854,3 +804,56 @@ function fail(message) {
   console.error(message);
   process.exit(1);
 }
+
+metrics = new Metrics(settings, baseUrl, profilePath, mode);
+try {
+  console.log(`Профиль: ${mode}; база: ${baseUrl}; пользователей: ${settings.nominalUsers}; пик: ${settings.peakUsers}`);
+  currentPhase = 'ramp';
+  metrics.sampleActive(currentPhase);
+  await rampUsers(settings.nominalUsers, settings.rampSeconds);
+
+  if (!stopping) {
+    currentPhase = 'steady';
+    metrics.sampleActive(currentPhase);
+    await sleepSeconds(settings.steadySeconds);
+  }
+  if (!stopping && settings.soakSeconds > 0) {
+    currentPhase = 'soak';
+    metrics.sampleActive(currentPhase);
+    await sleepSeconds(settings.soakSeconds);
+  }
+  if (!stopping && settings.peakUsers > settings.nominalUsers && settings.peakSeconds > 0) {
+    currentPhase = 'peak';
+    metrics.sampleActive(currentPhase);
+    const peakRamp = Math.min(60, settings.peakSeconds);
+    await rampUsers(settings.peakUsers, peakRamp);
+    await sleepSeconds(Math.max(0, settings.peakSeconds - peakRamp));
+
+    for (let i = settings.nominalUsers; i < virtualUsers.length; i += 1) {
+      virtualUsers[i].enabled = false;
+    }
+  }
+  if (!stopping && settings.recoverySeconds > 0) {
+    currentPhase = 'recovery';
+    metrics.sampleActive(currentPhase);
+    await sleepSeconds(settings.recoverySeconds);
+  }
+} finally {
+  currentPhase = 'shutdown';
+  metrics.sampleActive(currentPhase);
+  stopping = true;
+  for (const vu of virtualUsers) vu.enabled = false;
+  await Promise.allSettled(virtualUsers.map(vu => vu.promise).filter(Boolean));
+  agents.http.destroy();
+  agents.https.destroy();
+
+  const report = metrics.report();
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, JSON.stringify(report, null, 2) + '\n', { mode: 0o600 });
+  printSummary(report, outputPath);
+
+  if (!report.acceptance.passed) {
+    process.exitCode = 2;
+  }
+}
+
