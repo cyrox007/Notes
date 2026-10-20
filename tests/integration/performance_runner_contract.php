@@ -74,6 +74,20 @@ foreach (['notes_search', 'files_list', 'messenger_long_poll', 'calendar_create'
     }
 }
 
+$workflow = (string) file_get_contents($root . '/.github/workflows/performance-runner-contract.yml');
+if (!str_contains($workflow, "branches: ['1.1', '1.2']")) {
+    throw new RuntimeException('Проверка эталонного стенда должна запускаться для ветки 1.2');
+}
+if (!str_contains($workflow, 'php tests/integration/performance_runner_contract.php')) {
+    throw new RuntimeException('В CI отсутствует исполнение контракта эталонного стенда');
+}
+if (preg_match('/PERF_MODE[=:]\\s*full/', $workflow) === 1) {
+    throw new RuntimeException('Полную нагрузку нельзя запускать на случайном исполнителе CI');
+}
+if (str_contains((string) file_get_contents($files['reference']), 'Workspace Organizer 1.1 —')) {
+    throw new RuntimeException('Отчёт эталонного прогона не должен выдавать ветку 1.2 за версию 1.1');
+}
+
 assertMarkers($files['runner'], [
     'new CookieJar()',
     "'/messenger/realtime/poll?wait_seconds=1'",
