@@ -92,7 +92,7 @@ final class SignedWebhookNotificationChannel implements NotificationDeliveryChan
         $parts = parse_url($url);
         if (!is_array($parts) || ($parts['scheme'] ?? null) !== 'https'
             || empty($parts['host']) || isset($parts['user']) || isset($parts['pass'])
-            || isset($parts['fragment']) || isset($parts['port'])
+            || isset($parts['fragment']) || isset($parts['query']) || isset($parts['port'])
             || strlen($url) > 1000) {
             throw new InvalidArgumentException('Webhook допускает только внешний HTTPS-адрес без учётных данных');
         }
