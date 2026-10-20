@@ -48,7 +48,7 @@ function notificationApplySql(mysqli $db, string $path): void
 }
 
 notificationApplySql($mysqli, $root . '/database/core_identity_schema.sql');
-notificationApplySql($mysqli, $root . '/database/migrations/20261010_notifications_foundation.sql');
+notificationApplySql($mysqli, $root . '/database/notifications_schema.sql');
 
 $insertUser = $mysqli->prepare(
     'INSERT INTO users (
