@@ -35,24 +35,24 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
-def mysql(sql):
+def mysql(sql, database="defects_http_load"):
     args = [
         "mysql", "-h", os.environ.get("DBHOST", "127.0.0.1"),
         "-P", os.environ.get("DBPORT", "3306"),
         "-u", os.environ.get("DBUSER", "root"), "-N", "-B",
-        "defects_http_load", "-e", sql,
+        database, "-e", sql,
     ]
     return subprocess.run(
         args, text=True, capture_output=True, check=True, timeout=8
     ).stdout.strip()
 
 
-def mysql_status():
+def mysql_status(database="defects_http_load"):
     quoted = ",".join("'" + key + "'" for key in MYSQL_STATUS)
     result = {}
     for line in mysql(
         "SHOW GLOBAL STATUS WHERE Variable_name IN (" + quoted + ")"
-    ).splitlines():
+    , database).splitlines():
         parts = line.split("\t")
         if len(parts) == 2 and parts[1].isdigit():
             result[parts[0]] = int(parts[1])
@@ -97,13 +97,13 @@ def php_snapshot():
     }
 
 
-def record_resource(origin, measurements, stop):
+def record_resource(origin, measurements, stop, database="defects_http_load"):
     while not stop.is_set():
         try:
             measurements.append({
                 "fpm": fpm_snapshot(origin),
                 "php": php_snapshot(),
-                "mysql": mysql_status(),
+                "mysql": mysql_status(database),
             })
         except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
             measurements.append({"ошибка": type(error).__name__ + ": " + str(error)})
