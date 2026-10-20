@@ -7,6 +7,7 @@ namespace App\Services\Notifications;
 require_once dirname(__DIR__, 3) . '/core/DatabaseManager.php';
 require_once __DIR__ . '/SignedWebhookNotificationChannel.php';
 require_once __DIR__ . '/BotNotificationChannel.php';
+require_once __DIR__ . '/SmsGatewayNotificationChannel.php';
 require_once __DIR__ . '/EnvironmentNotificationSecretResolver.php';
 
 use Core\DatabaseManager;
@@ -26,7 +27,7 @@ final class NotificationExternalChannelAdministration
             "SELECT id, channel, owner_user_id, label, enabled, config_json,
                     (secret_ref IS NOT NULL AND secret_ref <> '') AS has_secret
              FROM notification_channel_configs
-             WHERE channel IN ('webhook','telegram','max')
+             WHERE channel IN ('webhook','telegram','max','sms')
              ORDER BY channel,owner_user_id,id LIMIT 100"
         );
         foreach ($rows as &$row) {
@@ -42,7 +43,7 @@ final class NotificationExternalChannelAdministration
     public function save(array $input): void
     {
         $channel = (string) ($input['channel'] ?? '');
-        if (!in_array($channel, ['telegram', 'max', 'webhook'], true)) {
+        if (!in_array($channel, ['telegram', 'max', 'webhook', 'sms'], true)) {
             throw new InvalidArgumentException('Неизвестный канал доставки');
         }
         $enabled = $input['enabled'] ?? false;
@@ -75,12 +76,21 @@ final class NotificationExternalChannelAdministration
             if ((int) $exists !== 1) {
                 throw new InvalidArgumentException('Получатель не найден или отключён');
             }
-            $settings = $channel === 'telegram'
-                ? ['chat_id' => trim((string) ($input['chat_id'] ?? ''))]
-                : ['user_id' => trim((string) ($input['max_user_id'] ?? ''))];
-            BotNotificationChannel::configuration($channel, $settings);
+            if ($channel === 'sms') {
+                $settings = SmsGatewayNotificationChannel::configuration([
+                    'url' => trim((string) ($input['url'] ?? '')),
+                    'phone' => trim((string) ($input['phone'] ?? '')),
+                    'timeout_seconds' => 10,
+                ]);
+                $label = 'Личный SMS-шлюз';
+            } else {
+                $settings = $channel === 'telegram'
+                    ? ['chat_id' => trim((string) ($input['chat_id'] ?? ''))]
+                    : ['user_id' => trim((string) ($input['max_user_id'] ?? ''))];
+                BotNotificationChannel::configuration($channel, $settings);
+                $label = $channel === 'telegram' ? 'Личный Telegram' : 'Личный MAX';
+            }
             $scope = $owner;
-            $label = $channel === 'telegram' ? 'Личный Telegram' : 'Личный MAX';
         }
 
         $prior = $this->db->fetchOne(
@@ -92,7 +102,7 @@ final class NotificationExternalChannelAdministration
             $secret = trim((string) ($prior['secret_ref'] ?? ''));
         }
         if ($enabled && !$this->secretAvailable($secret)) {
-            throw new InvalidArgumentException('Секрет бота/Webhook не доступен PHP. Проверьте окружение.');
+            throw new InvalidArgumentException('Секрет внешнего канала не доступен PHP. Проверьте окружение.');
         }
 
         $parameters = [
