@@ -432,8 +432,8 @@ class AuthController extends Controller
         if ($actorId > 0 && is_string($pushHash) && preg_match('/^[a-f0-9]{64}$/', $pushHash) === 1) {
             try {
                 require_once dirname(__DIR__) . '/services/notifications/PushSubscriptionService.php';
-                (new \\App\\Services\\Notifications\\PushSubscriptionService())->revokeByHash($actorId, $pushHash);
-            } catch (\\Throwable $error) {
+                (new \App\Services\Notifications\PushSubscriptionService())->revokeByHash($actorId, $pushHash);
+            } catch (\Throwable $error) {
                 error_log('Отзыв Push при выходе: ' . $error::class);
             }
         }
