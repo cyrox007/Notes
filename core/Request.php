@@ -207,6 +207,21 @@ class Request
         return $this->sanitize($data);
     }
 
+    /**
+     * Возвращает исходное JSON-значение без HTML-экранирования.
+     * Применяется для точного сохранения пользовательского текста; при выводе
+     * в HTML вызывающий код обязан экранировать текст на границе представления.
+     */
+    public function rawJson(string|int|null $key = null, mixed $default = null): mixed
+    {
+        if ($this->jsonError !== null) {
+            return $default;
+        }
+        return $key === null
+            ? $this->json
+            : (is_array($this->json) ? ($this->json[$key] ?? $default) : $default);
+    }
+
     public function server(string|int|null $key = null, mixed $default = null): mixed
     {
         return $this->sanitize($this->valueFrom($this->server, $key, $default));

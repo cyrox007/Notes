@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "id": "defects",
+  "name": "Дефекты",
+  "version": "1.2.0",
+  "core": {
+    "min": "0.13.0-alpha",
+    "max_exclusive": "2.0.0"
+  },
+  "dependencies": [],
+  "capabilities": [
+    "workspace.defects"
+  ],
+  "package": {
+    "bundled": true,
+    "default_enabled": false,
+    "required": false
+  },
+  "license": {
+    "feature": "workspace.defects"
+  },
+  "runtime": {
+    "mode": "isolated",
+    "entrypoint": "runtime.php"
+  },
+  "storage_namespaces": [],
+  "database": {
+    "tables": [
+      "defect_areas",
+      "defect_object_categories",
+      "defect_objects",
+      "defect_services",
+      "defects",
+      "defect_responsible_services",
+      "defect_history"
+    ],
+    "schemas": [
+      "database/defects_schema.sql"
+    ],
+    "migrations": [
+      "database/migrations/20261019_defects_foundation.sql",
+      "database/migrations/20261019_defects_history.sql",
+      "database/migrations/20261019_defects_reference_versions.sql"
+    ]
+  },
+  "background": {
+    "account_purge_guard": "none",
+    "retention_cleanup": "none"
+  }
+}

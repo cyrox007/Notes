@@ -64,16 +64,22 @@ final class ModuleLifecycleStore
             }
         }
 
+        $added = false;
         foreach ($modules as $moduleId => $manifest) {
             if (!isset($rows[$moduleId])) {
                 $configured = $manifest->bundled()
                     ? ($manifest->defaultEnabled() ? 'enabled' : 'disabled')
                     : 'discovered';
                 $this->insert($manifest, $configured, $configured);
+                $added = true;
             }
         }
 
-        $rows = $this->rows();
+        // Перечитываем состав только при фактическом добавлении модуля.
+        if ($added) {
+            $rows = $this->rows();
+        }
+        $written = false;
         $effective = [];
         $errors = [];
         $visiting = [];
@@ -111,6 +117,7 @@ final class ModuleLifecycleStore
                 );
                 $configured = 'enabled';
                 $rows[$moduleId]['configured_state'] = 'enabled';
+                $written = true;
             }
 
             $entitlement = $this->entitlementDecision($manifest);
@@ -160,7 +167,23 @@ final class ModuleLifecycleStore
 
         foreach ($modules as $moduleId => $manifest) {
             $row = $rows[$moduleId];
+            $version = $manifest->version();
+            $hash = $manifest->integrityHash();
+            $error = $errors[$moduleId] ?? null;
             $stateChanged = (string) $row['effective_state'] !== $effective[$moduleId];
+
+            // HTTP-запросы сверяют доступность модулей, но не должны писать
+            // в таблицу, когда лицензия, манифест и состояние не изменились.
+            if (
+                (string) ($row['installed_version'] ?? '') === $version
+                && (string) ($row['manifest_hash'] ?? '') === $hash
+                && !$stateChanged
+                && ($row['last_error'] ?? null) === $error
+            ) {
+                continue;
+            }
+
+            $written = true;
             $this->db->execute(
                 'UPDATE module_lifecycle '
                 . 'SET installed_version = :installed_version, manifest_hash = :manifest_hash, '
@@ -168,17 +191,20 @@ final class ModuleLifecycleStore
                 . 'state_changed_at = CASE WHEN :state_changed = 1 THEN CURRENT_TIMESTAMP ELSE state_changed_at END '
                 . 'WHERE module_id = :module_id',
                 [
-                    ':installed_version' => $manifest->version(),
-                    ':manifest_hash' => $manifest->integrityHash(),
+                    ':installed_version' => $version,
+                    ':manifest_hash' => $hash,
                     ':effective_state' => $effective[$moduleId],
-                    ':last_error' => $errors[$moduleId],
+                    ':last_error' => $error,
                     ':state_changed' => $stateChanged ? 1 : 0,
                     ':module_id' => $moduleId,
                 ]
             );
         }
 
-        return $this->rows();
+        // Никакого долгоживущего кэша: на каждом новом HTTP-запросе первый
+        // SELECT всё равно читает актуальные состояния. Но когда запись не
+        // потребовалась, третий SELECT этой же операции ничего не добавляет.
+        return $written ? $this->rows() : $rows;
     }
 
     /**

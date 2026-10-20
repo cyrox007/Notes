@@ -120,6 +120,10 @@ function workspaceEnsureCiLicense(): void
                     'workspace.admin',
                 ],
             ];
+            // Только явный тестовый стенд включает новый модуль.
+            if (getenv('E2E_ENABLE_DEFECTS') === '1') {
+                $payload['features'][] = 'workspace.defects';
+            }
             $json = json_encode(
                 $payload,
                 JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR

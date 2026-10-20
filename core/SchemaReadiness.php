@@ -47,11 +47,25 @@ final class SchemaReadiness
         $db = self::connect();
         try {
             $existingTables = [];
+            $existingUserColumns = [];
+
+            // Схему проверяем заново при запуске запроса, но обе группы
+            // сведений получаем за одно чтение метаданных СУБД.
             $result = $db->query(
-                'SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()'
+                'SELECT t.table_name, c.column_name '
+                . 'FROM information_schema.tables t '
+                . 'LEFT JOIN information_schema.columns c '
+                . 'ON c.table_schema = t.table_schema '
+                . 'AND c.table_name = t.table_name '
+                . "AND t.table_name = 'users' "
+                . 'WHERE t.table_schema = DATABASE()'
             );
             while ($row = $result->fetch_row()) {
-                $existingTables[$db->namespace->logical((string) ($row[0] ?? ''))] = true;
+                $table = $db->namespace->logical((string) ($row[0] ?? ''));
+                $existingTables[$table] = true;
+                if ($table === 'users' && isset($row[1])) {
+                    $existingUserColumns[(string) $row[1]] = true;
+                }
             }
             $result->free();
 
@@ -60,18 +74,6 @@ final class SchemaReadiness
                 if (!isset($existingTables[$table])) {
                     $missingTables[] = $table;
                 }
-            }
-
-            $existingUserColumns = [];
-            if (isset($existingTables['users'])) {
-                $columns = $db->query(
-                    "SELECT column_name FROM information_schema.columns "
-                    . "WHERE table_schema = DATABASE() AND table_name = 'users'"
-                );
-                while ($row = $columns->fetch_row()) {
-                    $existingUserColumns[(string) ($row[0] ?? '')] = true;
-                }
-                $columns->free();
             }
 
             $missingUserColumns = [];

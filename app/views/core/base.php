@@ -29,7 +29,7 @@ $workspaceSection = 'home';
 $workspaceRouteName = '';
 $currentPath = rtrim((string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH), '/') ?: '/';
 $bestSectionLength = -1;
-foreach (['main' => 'home', 'notes' => 'notes', 'tasks' => 'tasks', 'files' => 'files', 'messenger' => 'messenger', 'profile' => 'profile', 'adminpanel' => 'admin', 'admin_settings' => 'admin', 'system_license' => 'license'] as $routeName => $sectionName) {
+foreach (['main' => 'home', 'notes' => 'notes', 'tasks' => 'tasks', 'defects' => 'defects', 'files' => 'files', 'messenger' => 'messenger', 'profile' => 'profile', 'adminpanel' => 'admin', 'admin_settings' => 'admin', 'system_license' => 'license'] as $routeName => $sectionName) {
     $routeUrl = $view->route($routeName);
     if ($routeUrl === '') {
         continue;

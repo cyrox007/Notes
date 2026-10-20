@@ -47,6 +47,13 @@ $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
             </a>
         <?php endif; ?>
 
+        <?php if (!empty($access['defects'])): ?>
+            <a href="<?= $view->e($view->route('defects')) ?>" class="sidebar__menu-link"<?= $activeRouteName === 'defects' ? ' aria-current="page"' : '' ?> data-nav-key="defects" title="Дефекты">
+                <span class="sidebar__menu-icon"><i class="fa fa-exclamation-triangle" aria-hidden="true"></i></span>
+                <span class="sidebar__menu-label">Дефекты</span>
+            </a>
+        <?php endif; ?>
+
         <?php if (!empty($access['files'])): ?>
             <a href="<?= $view->e($view->route('files')) ?>" class="sidebar__menu-link"<?= $activeRouteName === 'files' ? ' aria-current="page"' : '' ?> data-nav-key="files" title="Файлы">
                 <span class="sidebar__menu-icon"><i class="fa fa-folder-o" aria-hidden="true"></i></span>
