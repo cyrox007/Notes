@@ -81,18 +81,25 @@ final class NotificationChannelAdministration
             throw new InvalidArgumentException('Состояние канала должно быть логическим');
         }
 
+        $params = [
+            ':enabled' => $enabled ? 1 : 0,
+            ':config_json' => json_encode($settings, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
+            ':secret_ref' => $reference === '' ? null : $reference,
+        ];
+        if ($existing !== null) {
+            $this->db->execute(
+                'UPDATE notification_channel_configs
+                 SET enabled = :enabled, config_json = :config_json, secret_ref = :secret_ref
+                 WHERE id = :id AND channel = \'email\' AND owner_user_id IS NULL',
+                $params + [':id' => (int) $existing['id']]
+            );
+            return;
+        }
         $this->db->execute(
             'INSERT INTO notification_channel_configs
              (channel, owner_user_id, owner_scope, label, enabled, config_json, secret_ref)
-             VALUES (\'email\', NULL, 0, :label, :enabled, :config_json, :secret_ref)
-             ON DUPLICATE KEY UPDATE enabled = VALUES(enabled),
-                config_json = VALUES(config_json), secret_ref = VALUES(secret_ref)',
-            [
-                ':label' => self::EMAIL_LABEL,
-                ':enabled' => $enabled ? 1 : 0,
-                ':config_json' => json_encode($settings, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
-                ':secret_ref' => $reference === '' ? null : $reference,
-            ]
+             VALUES (\'email\', NULL, 0, :label, :enabled, :config_json, :secret_ref)',
+            $params + [':label' => self::EMAIL_LABEL]
         );
     }
 
@@ -192,10 +199,10 @@ final class NotificationChannelAdministration
     private function smtpConfig(): ?array
     {
         return $this->db->fetchOne(
-            'SELECT enabled,config_json,secret_ref FROM notification_channel_configs
-             WHERE channel = :channel AND owner_user_id IS NULL AND label = :label
-             LIMIT 1',
-            [':channel' => 'email', ':label' => self::EMAIL_LABEL]
+            'SELECT id,enabled,config_json,secret_ref FROM notification_channel_configs
+             WHERE channel = :channel AND owner_user_id IS NULL
+             ORDER BY id ASC LIMIT 1',
+            [':channel' => 'email']
         );
     }
 
