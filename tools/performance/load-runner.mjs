@@ -489,6 +489,9 @@ class Metrics {
     this.statuses = {};
     this.sessionsReady = 0;
     this.sessionFailures = 0;
+    this.sessionsActive = 0;
+    this.sessionsActivePeak = 0;
+    this.phaseActivity = new Map();
     this.login = new Histogram();
     this.loginFailures = 0;
     this.byKind = new Map();
@@ -499,6 +502,26 @@ class Metrics {
 
   recordSessionReady() {
     this.sessionsReady += 1;
+    this.sessionsActive += 1;
+    this.sessionsActivePeak = Math.max(this.sessionsActivePeak, this.sessionsActive);
+    this.sampleActive(currentPhase);
+  }
+
+  recordSessionInactive() {
+    this.sessionsActive = Math.max(0, this.sessionsActive - 1);
+    this.sampleActive(currentPhase);
+  }
+
+  sampleActive(phase) {
+    if (!['steady', 'soak', 'peak', 'recovery'].includes(phase)) return;
+    const old = this.phaseActivity.get(phase);
+    if (!old) {
+      this.phaseActivity.set(phase, { min: this.sessionsActive, max: this.sessionsActive, samples: 1 });
+      return;
+    }
+    old.min = Math.min(old.min, this.sessionsActive);
+    old.max = Math.max(old.max, this.sessionsActive);
+    old.samples += 1;
   }
 
   recordSessionFailure() {
@@ -536,9 +559,27 @@ class Metrics {
     const read = this.byKind.get('read')?.histogram.summary() || emptySummary();
     const write = this.byKind.get('write')?.histogram.summary() || emptySummary();
     const overall = mergeBuckets([...this.byKind.values()]).histogram.summary();
+    const activity = Object.fromEntries(this.phaseActivity);
+    const missingOperations = profile.operations
+      .map(op => op.name).filter(name => (this.byOperation.get(name)?.total || 0) === 0);
+    const requiredSeconds = this.runSettings.rampSeconds + this.runSettings.steadySeconds
+      + this.runSettings.soakSeconds + this.runSettings.peakSeconds
+      + this.runSettings.recoverySeconds;
+    const completedDuration = elapsedSeconds >= requiredSeconds * 0.98;
+    const simultaneousSessions = (activity.steady?.min || 0) >= this.runSettings.nominalUsers
+      && (activity.soak?.min || 0) >= this.runSettings.nominalUsers
+      && (activity.peak?.max || 0) >= this.runSettings.peakUsers
+      && (activity.recovery?.min || 0) >= this.runSettings.nominalUsers;
+    const operationCoverage = missingOperations.length === 0
+      && (this.byKind.get('write')?.total || 0) > 0
+      && (this.byKind.get('realtime')?.total || 0) > 0;
     const acceptance = {
       passed: this.runMode === 'full'
-        && this.sessionsReady >= this.runSettings.nominalUsers
+        && this.sessionsReady >= this.runSettings.peakUsers
+        && this.sessionFailures === 0
+        && simultaneousSessions
+        && completedDuration
+        && operationCoverage
         && errorRate < 0.005
         && read.p95_ms <= 700
         && write.p95_ms <= 1200
@@ -546,6 +587,11 @@ class Metrics {
       evaluated_as_release_evidence: this.runMode === 'full',
       requirements: {
         nominal_sessions_ready: { expected: this.runSettings.nominalUsers, actual: this.sessionsReady },
+        peak_sessions_ready: { expected: this.runSettings.peakUsers, actual: this.sessionsReady },
+        simultaneous_session_coverage: { expected: true, actual: simultaneousSessions },
+        complete_phase_duration: { expected: true, actual: completedDuration },
+        all_operations_exercised: { expected: true, actual: operationCoverage, missing: missingOperations },
+        no_failed_sessions: { expected: 0, actual: this.sessionFailures },
         error_rate_lt_0_5_percent: { expected: 0.005, actual: errorRate },
         read_p95_ms_le_700: { expected: 700, actual: read.p95_ms },
         write_p95_ms_le_1200: { expected: 1200, actual: write.p95_ms },
@@ -565,6 +611,8 @@ class Metrics {
       settings: this.runSettings,
       sessions: {
         ready: this.sessionsReady,
+        active_peak: this.sessionsActivePeak,
+        phase_activity: activity,
         failed: this.sessionFailures,
         login_failures: this.loginFailures,
         login_latency: this.login.summary(),
@@ -789,6 +837,7 @@ function sleep(ms) {
 async function sleepSeconds(seconds) {
   const until = Date.now() + Math.max(0, seconds) * 1000;
   while (!stopping && Date.now() < until) {
+    metrics.sampleActive(currentPhase);
     await sleep(Math.min(1000, until - Date.now()));
   }
 }
