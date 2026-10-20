@@ -22,7 +22,7 @@ final class DefectReportCountingConnection extends PDO
 
     public function prepare(string $query, array $options = []): PDOStatement|false
     {
-        if (preg_match('/^\\s*SELECT\\b/i', $query) === 1) {
+        if (preg_match('/^\s*SELECT\b/i', $query) === 1) {
             $this->selectStatements++;
         }
         return parent::prepare($query, $options);
