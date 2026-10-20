@@ -73,6 +73,7 @@ final class DatabaseOwnership
         '20261010_notifications_foundation.sql',
         '20261012_notifications_http_fallback.sql',
         '20261020_notifications_max_channel.sql',
+        '20261020_notifications_push_subscriptions.sql',
         '20261017_mutation_commands.sql',
     ];
 
@@ -161,6 +162,7 @@ final class DatabaseOwnership
                 'notification_delivery_jobs',
                 'notification_delivery_attempts',
                 'notification_runtime_state',
+                'notification_push_subscriptions',
             ] : [])],
             'table',
             static fn (ModuleManifest $m): array => $m->databaseTables()
