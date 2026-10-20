@@ -2,12 +2,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PROFILE="${PERF_PROFILE:-$ROOT/tools/performance/profile.json}"
+PROFILE="${PERF_PROFILE:-$ROOT/tools/performance/profile-1.2.json}"
 OUTPUT_DIR="${PERF_OUTPUT_DIR:-$ROOT/private/performance/run-$(date -u +%Y%m%dT%H%M%SZ)}"
 CONFIRM="${PERF_FIXTURE_CONFIRM:-}"
 
-if [[ "$CONFIRM" != "WORKSPACE_PERFORMANCE_ONLY" ]]; then
-  echo "Нужно задать PERF_FIXTURE_CONFIRM=WORKSPACE_PERFORMANCE_ONLY." >&2
+if [[ "$CONFIRM" != "WORKSPACE_PERFORMANCE_ONLY" || "${PERF_ISOLATED_STAND:-}" != "1" ]]; then
+  echo "Нужно подтвердить отдельный стенд: PERF_FIXTURE_CONFIRM=WORKSPACE_PERFORMANCE_ONLY и PERF_ISOLATED_STAND=1." >&2
   exit 2
 fi
 if [[ -z "${PERF_BASE_URL:-}" || -z "${PERF_CREDENTIALS:-}" ]]; then
@@ -34,6 +34,7 @@ mkdir -p "$OUTPUT_DIR"
 chmod 700 "$OUTPUT_DIR"
 
 export PERF_MODE=full
+export PERF_ISOLATED_STAND=1
 export PERF_COMMIT_SHA="$COMMIT_SHA"
 export PERF_ENVIRONMENT_NAME="${PERF_ENVIRONMENT_NAME:-reference-1}"
 export PERF_PROFILE="$PROFILE"
@@ -90,7 +91,7 @@ METRICS_STATUS="${METRICS_STATUS:-0}"
 trap - EXIT INT TERM
 
 {
-  echo "Workspace Organizer 1.1 — эталонный нагрузочный прогон"
+  echo "Workspace Organizer 1.2 — эталонный нагрузочный прогон"
   echo "commit=$COMMIT_SHA"
   echo "environment=$PERF_ENVIRONMENT_NAME"
   echo "started_profile_seconds=$TOTAL_SECONDS"

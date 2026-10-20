@@ -24,6 +24,18 @@ if (!credentialPath || !fs.existsSync(credentialPath)) {
 
 const credentials = loadCredentials(credentialPath);
 const settings = resolveSettings(profile, mode, args);
+if (mode === 'full') {
+  if (process.env.PERF_FIXTURE_CONFIRM !== 'WORKSPACE_PERFORMANCE_ONLY'
+      || process.env.PERF_ISOLATED_STAND !== '1') {
+    fail('Полный тест разрешён только на явно подтверждённом изолированном стенде.');
+  }
+  if (settings.nominalUsers < 1000 || settings.peakUsers < 1200
+      || settings.rampSeconds < 300 || settings.steadySeconds < 1800
+      || settings.soakSeconds < 7200 || settings.peakSeconds < 300
+      || settings.recoverySeconds < 300) {
+    fail('Полный профиль нельзя сокращать или выдавать укороченный прогон за приёмку.');
+  }
+}
 if (credentials.length < settings.maxUsers) {
   fail(`Недостаточно учётных записей: нужно ${settings.maxUsers}, доступно ${credentials.length}.`);
 }
@@ -42,55 +54,20 @@ let currentPhase = 'startup';
 let stopping = false;
 let globalSequence = 0;
 const virtualUsers = [];
-const metrics = new Metrics(settings, baseUrl, profilePath, mode);
+let metrics;
 
 process.on('SIGINT', () => {
   console.error('\nПолучен SIGINT: завершаю новые действия и сохраняю накопленный отчёт.');
   stopping = true;
 });
 
-try {
-  console.log(`Профиль: ${mode}; база: ${baseUrl}; пользователей: ${settings.nominalUsers}; пик: ${settings.peakUsers}`);
-  currentPhase = 'ramp';
-  await rampUsers(settings.nominalUsers, settings.rampSeconds);
 
-  if (!stopping) {
-    currentPhase = 'steady';
-    await sleepSeconds(settings.steadySeconds);
-  }
-  if (!stopping && settings.soakSeconds > 0) {
-    currentPhase = 'soak';
-    await sleepSeconds(settings.soakSeconds);
-  }
-  if (!stopping && settings.peakUsers > settings.nominalUsers && settings.peakSeconds > 0) {
-    currentPhase = 'peak';
-    const peakRamp = Math.min(60, settings.peakSeconds);
-    await rampUsers(settings.peakUsers, peakRamp);
-    await sleepSeconds(Math.max(0, settings.peakSeconds - peakRamp));
-
-    for (let i = settings.nominalUsers; i < virtualUsers.length; i += 1) {
-      virtualUsers[i].enabled = false;
-    }
-  }
-  if (!stopping && settings.recoverySeconds > 0) {
-    currentPhase = 'recovery';
-    await sleepSeconds(settings.recoverySeconds);
-  }
-} finally {
-  currentPhase = 'shutdown';
-  stopping = true;
-  for (const vu of virtualUsers) vu.enabled = false;
-  await Promise.allSettled(virtualUsers.map(vu => vu.promise).filter(Boolean));
-  agents.http.destroy();
-  agents.https.destroy();
-
-  const report = metrics.report();
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-  fs.writeFileSync(outputPath, JSON.stringify(report, null, 2) + '\n', { mode: 0o600 });
-  printSummary(report, outputPath);
-
-  if (!report.acceptance.passed) {
-    process.exitCode = 2;
+// Отводим ограниченное время завершить обычный вход перед началом
+// измерения устойчивой нагрузки. Не подменяем недостаток сессий успехом.
+async function waitForSessions(expected, maxSeconds) {
+  const deadline = Date.now() + maxSeconds * 1000;
+  while (!stopping && metrics.sessionsActive < expected && Date.now() < deadline) {
+    await sleep(100);
   }
 }
 
@@ -124,15 +101,18 @@ async function runVirtualUser(vu) {
     return;
   }
   metrics.recordSessionReady();
-
-  while (!stopping && vu.enabled) {
-    const op = chooseOperation(profile.operations);
-    try {
-      await executeOperation(vu, op);
-    } catch (error) {
-      metrics.recordTransportFailure(error);
+  try {
+    while (!stopping && vu.enabled) {
+      const op = chooseOperation(profile.operations);
+      try {
+        await executeOperation(vu, op);
+      } catch (error) {
+        metrics.recordTransportFailure(error);
+      }
+      await sleep(randomInt(settings.thinkMinMs, settings.thinkMaxMs));
     }
-    await sleep(randomInt(settings.thinkMinMs, settings.thinkMaxMs));
+  } finally {
+    metrics.recordSessionInactive();
   }
 }
 
@@ -140,10 +120,15 @@ async function login(vu) {
   for (let attempt = 1; attempt <= 5 && !stopping; attempt += 1) {
     const started = performance.now();
     try {
-      await request(vu, 'GET', '/auth/login', { captureBody: false });
+      const loginPage = await request(vu, 'GET', '/auth/login/', { captureBody: true });
+      const loginCsrf = extractCsrf(loginPage.body);
+      if (loginPage.status !== 200 || !loginCsrf) {
+        throw new Error('Не удалось получить защитный токен штатной формы входа.');
+      }
       const body = new URLSearchParams({
         login: vu.credential.username,
         password: vu.credential.password,
+        csrf_token: loginCsrf,
       }).toString();
       const response = await request(vu, 'POST', '/auth/login', {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -158,6 +143,7 @@ async function login(vu) {
           const home = await request(vu, 'GET', '/', { captureBody: true });
           vu.csrfToken = extractCsrf(home.body);
         }
+        if (!vu.csrfToken) throw new Error('После входа нет CSRF-токена для команд записи.');
         metrics.recordLogin(performance.now() - started, true, response.status);
         return true;
       }
@@ -180,6 +166,8 @@ async function executeOperation(vu, op) {
       return measuredRequest(vu, op, 'GET', `/notes/?q=${encodeURIComponent('perf')}&page=1&limit=50`);
     case 'tasks_list':
       return measuredRequest(vu, op, 'GET', '/tasks/');
+    case 'tasks_boards':
+      return measuredRequest(vu, op, 'GET', '/tasks/boards');
     case 'calendar_page':
       return measuredRequest(vu, op, 'GET', '/calendar/');
     case 'calendar_range': {
@@ -190,12 +178,20 @@ async function executeOperation(vu, op) {
     }
     case 'files_list':
       return measuredRequest(vu, op, 'GET', '/files/');
+    case 'files_spaces':
+      return measuredRequest(vu, op, 'GET', '/files/spaces/global/');
     case 'messenger_page':
       return measuredRequest(vu, op, 'GET', '/messenger/');
     case 'notifications_count':
       return measuredRequest(vu, op, 'GET', '/api/notifications/unread-count');
+    case 'notifications_center':
+      return measuredRequest(vu, op, 'GET', '/api/notifications/');
     case 'messenger_long_poll':
       return measuredRequest(vu, op, 'GET', '/messenger/realtime/poll?wait_seconds=1');
+    case 'defects_list':
+      return measuredRequest(vu, op, 'GET', '/api/defects/?status=open&limit=40');
+    case 'defects_report':
+      return measuredRequest(vu, op, 'GET', '/api/defects/report?status=all&area_limit=10');
     case 'calendar_create':
       return calendarCreate(vu, op);
     case 'calendar_update':
@@ -282,7 +278,8 @@ async function measuredRequest(vu, op, method, requestPath, options = {}) {
   try {
     const response = await request(vu, method, requestPath, options);
     const duration = performance.now() - started;
-    const ok = response.status >= 200 && response.status < 400;
+    const ok = response.status >= 200 && response.status < 400
+      && !response.url.pathname.includes('/auth/login');
     metrics.record(op.name, op.kind, currentPhase, duration, response.status, ok);
     return response;
   } catch (error) {
@@ -307,6 +304,9 @@ async function request(vu, method, requestPath, options = {}) {
     if (redirect === maxRedirects) throw new Error('Превышен предел HTTP-переходов.');
 
     url = new URL(location, url);
+    if (url.origin !== target.origin) {
+      throw new Error('Переход на сторонний узел запрещён для авторизованного нагрузочного клиента.');
+    }
     if ([301, 302, 303].includes(response.status) && currentMethod !== 'GET' && currentMethod !== 'HEAD') {
       currentMethod = 'GET';
       body = null;
@@ -323,7 +323,7 @@ function requestOnce(vu, url, method, headers, body, captureBody) {
     const client = isHttps ? https : http;
     const requestHeaders = {
       Accept: headers.Accept || 'text/html,application/json;q=0.9,*/*;q=0.8',
-      'User-Agent': `Workspace-Performance-Runner/1.1 vu/${vu.id}`,
+      'User-Agent': `Workspace-Performance-Runner/1.2 vu/${vu.id}`,
       ...headers,
     };
     const cookie = vu.cookies.header();
@@ -448,6 +448,9 @@ class Metrics {
     this.statuses = {};
     this.sessionsReady = 0;
     this.sessionFailures = 0;
+    this.sessionsActive = 0;
+    this.sessionsActivePeak = 0;
+    this.phaseActivity = new Map();
     this.login = new Histogram();
     this.loginFailures = 0;
     this.byKind = new Map();
@@ -458,6 +461,26 @@ class Metrics {
 
   recordSessionReady() {
     this.sessionsReady += 1;
+    this.sessionsActive += 1;
+    this.sessionsActivePeak = Math.max(this.sessionsActivePeak, this.sessionsActive);
+    this.sampleActive(currentPhase);
+  }
+
+  recordSessionInactive() {
+    this.sessionsActive = Math.max(0, this.sessionsActive - 1);
+    this.sampleActive(currentPhase);
+  }
+
+  sampleActive(phase) {
+    if (!['steady', 'soak', 'peak', 'recovery'].includes(phase)) return;
+    const old = this.phaseActivity.get(phase);
+    if (!old) {
+      this.phaseActivity.set(phase, { min: this.sessionsActive, max: this.sessionsActive, samples: 1 });
+      return;
+    }
+    old.min = Math.min(old.min, this.sessionsActive);
+    old.max = Math.max(old.max, this.sessionsActive);
+    old.samples += 1;
   }
 
   recordSessionFailure() {
@@ -495,9 +518,41 @@ class Metrics {
     const read = this.byKind.get('read')?.histogram.summary() || emptySummary();
     const write = this.byKind.get('write')?.histogram.summary() || emptySummary();
     const overall = mergeBuckets([...this.byKind.values()]).histogram.summary();
+    const activity = Object.fromEntries(this.phaseActivity);
+    const missingOperations = profile.operations
+      .map(op => op.name).filter(name => (this.byOperation.get(name)?.total || 0) === 0);
+    const requiredSeconds = this.runSettings.rampSeconds + this.runSettings.steadySeconds
+      + this.runSettings.soakSeconds + this.runSettings.peakSeconds
+      + this.runSettings.recoverySeconds;
+    const completedDuration = elapsedSeconds >= requiredSeconds * 0.98;
+    const simultaneousSessions = (activity.steady?.min || 0) >= this.runSettings.nominalUsers
+      && (activity.soak?.min || 0) >= this.runSettings.nominalUsers
+      && (activity.peak?.max || 0) >= this.runSettings.peakUsers
+      && (activity.recovery?.min || 0) >= this.runSettings.nominalUsers;
+    const operationCoverage = missingOperations.length === 0
+      && (this.byKind.get('write')?.total || 0) > 0
+      && (this.byKind.get('realtime')?.total || 0) > 0;
+    const phasesToCheck = ['steady', 'soak', 'peak', 'recovery'];
+    const phaseAcceptance = Object.fromEntries(phasesToCheck.map(name => {
+      const bucket = this.byPhase.get(name);
+      const latency = bucket?.histogram.summary() || emptySummary();
+      const errorRate = bucket?.total ? bucket.errors / bucket.total : 1;
+      return [name, {
+        requests: bucket?.total || 0,
+        error_rate: errorRate,
+        p99_ms: latency.p99_ms,
+        passed: !!bucket && bucket.total > 0 && errorRate < 0.005 && latency.p99_ms <= 2500,
+      }];
+    }));
+    const phasesPassed = Object.values(phaseAcceptance).every(item => item.passed);
     const acceptance = {
       passed: this.runMode === 'full'
-        && this.sessionsReady >= this.runSettings.nominalUsers
+        && this.sessionsReady >= this.runSettings.peakUsers
+        && this.sessionFailures === 0
+        && simultaneousSessions
+        && completedDuration
+        && operationCoverage
+        && phasesPassed
         && errorRate < 0.005
         && read.p95_ms <= 700
         && write.p95_ms <= 1200
@@ -505,6 +560,12 @@ class Metrics {
       evaluated_as_release_evidence: this.runMode === 'full',
       requirements: {
         nominal_sessions_ready: { expected: this.runSettings.nominalUsers, actual: this.sessionsReady },
+        peak_sessions_ready: { expected: this.runSettings.peakUsers, actual: this.sessionsReady },
+        simultaneous_session_coverage: { expected: true, actual: simultaneousSessions },
+        complete_phase_duration: { expected: true, actual: completedDuration },
+        all_operations_exercised: { expected: true, actual: operationCoverage, missing: missingOperations },
+        phase_requirements: phaseAcceptance,
+        no_failed_sessions: { expected: 0, actual: this.sessionFailures },
         error_rate_lt_0_5_percent: { expected: 0.005, actual: errorRate },
         read_p95_ms_le_700: { expected: 700, actual: read.p95_ms },
         write_p95_ms_le_1200: { expected: 1200, actual: write.p95_ms },
@@ -524,6 +585,8 @@ class Metrics {
       settings: this.runSettings,
       sessions: {
         ready: this.sessionsReady,
+        active_peak: this.sessionsActivePeak,
+        phase_activity: activity,
         failed: this.sessionFailures,
         login_failures: this.loginFailures,
         login_latency: this.login.summary(),
@@ -748,6 +811,7 @@ function sleep(ms) {
 async function sleepSeconds(seconds) {
   const until = Date.now() + Math.max(0, seconds) * 1000;
   while (!stopping && Date.now() < until) {
+    metrics.sampleActive(currentPhase);
     await sleep(Math.min(1000, until - Date.now()));
   }
 }
@@ -764,3 +828,58 @@ function fail(message) {
   console.error(message);
   process.exit(1);
 }
+
+metrics = new Metrics(settings, baseUrl, profilePath, mode);
+try {
+  console.log(`Профиль: ${mode}; база: ${baseUrl}; пользователей: ${settings.nominalUsers}; пик: ${settings.peakUsers}`);
+  currentPhase = 'ramp';
+  metrics.sampleActive(currentPhase);
+  await rampUsers(settings.nominalUsers, settings.rampSeconds);
+  await waitForSessions(settings.nominalUsers, 60);
+
+  if (!stopping) {
+    currentPhase = 'steady';
+    metrics.sampleActive(currentPhase);
+    await sleepSeconds(settings.steadySeconds);
+  }
+  if (!stopping && settings.soakSeconds > 0) {
+    currentPhase = 'soak';
+    metrics.sampleActive(currentPhase);
+    await sleepSeconds(settings.soakSeconds);
+  }
+  if (!stopping && settings.peakUsers > settings.nominalUsers && settings.peakSeconds > 0) {
+    currentPhase = 'peak';
+    metrics.sampleActive(currentPhase);
+    const peakRamp = Math.min(60, settings.peakSeconds);
+    await rampUsers(settings.peakUsers, peakRamp);
+    await waitForSessions(settings.peakUsers, 60);
+    await sleepSeconds(Math.max(0, settings.peakSeconds - peakRamp));
+
+    for (let i = settings.nominalUsers; i < virtualUsers.length; i += 1) {
+      virtualUsers[i].enabled = false;
+    }
+  }
+  if (!stopping && settings.recoverySeconds > 0) {
+    currentPhase = 'recovery';
+    metrics.sampleActive(currentPhase);
+    await sleepSeconds(settings.recoverySeconds);
+  }
+} finally {
+  currentPhase = 'shutdown';
+  metrics.sampleActive(currentPhase);
+  stopping = true;
+  for (const vu of virtualUsers) vu.enabled = false;
+  await Promise.allSettled(virtualUsers.map(vu => vu.promise).filter(Boolean));
+  agents.http.destroy();
+  agents.https.destroy();
+
+  const report = metrics.report();
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, JSON.stringify(report, null, 2) + '\n', { mode: 0o600 });
+  printSummary(report, outputPath);
+
+  if (!report.acceptance.passed) {
+    process.exitCode = 2;
+  }
+}
+
