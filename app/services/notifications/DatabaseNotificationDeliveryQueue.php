@@ -23,6 +23,7 @@ final class DatabaseNotificationDeliveryQueue implements NotificationDeliveryQue
         'email' => 'email_enabled',
         'browser' => 'browser_enabled',
         'telegram' => 'telegram_enabled',
+        'max' => 'max_enabled',
         'webhook' => 'webhook_enabled',
         'sms' => 'sms_enabled',
     ];
@@ -324,7 +325,7 @@ final class DatabaseNotificationDeliveryQueue implements NotificationDeliveryQue
         [$placeholders, $params] = $this->placeholders($userIds, 'subscription_user');
         $params[':category'] = $category;
         $rows = $this->db->fetchAll(
-            'SELECT user_id, email_enabled, browser_enabled, telegram_enabled, webhook_enabled, sms_enabled
+            'SELECT user_id, email_enabled, browser_enabled, telegram_enabled, max_enabled, webhook_enabled, sms_enabled
              FROM notification_subscriptions
              WHERE user_id IN (' . implode(', ', $placeholders) . ')
                AND category = :category
