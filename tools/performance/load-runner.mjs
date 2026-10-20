@@ -62,6 +62,15 @@ process.on('SIGINT', () => {
 });
 
 
+// Отводим ограниченное время завершить обычный вход перед началом
+// измерения устойчивой нагрузки. Не подменяем недостаток сессий успехом.
+async function waitForSessions(expected, maxSeconds) {
+  const deadline = Date.now() + maxSeconds * 1000;
+  while (!stopping && metrics.sessionsActive < expected && Date.now() < deadline) {
+    await sleep(100);
+  }
+}
+
 async function rampUsers(targetCount, seconds) {
   const missing = Math.max(0, targetCount - virtualUsers.length);
   if (missing === 0) return;
@@ -826,6 +835,7 @@ try {
   currentPhase = 'ramp';
   metrics.sampleActive(currentPhase);
   await rampUsers(settings.nominalUsers, settings.rampSeconds);
+  await waitForSessions(settings.nominalUsers, 60);
 
   if (!stopping) {
     currentPhase = 'steady';
@@ -842,6 +852,7 @@ try {
     metrics.sampleActive(currentPhase);
     const peakRamp = Math.min(60, settings.peakSeconds);
     await rampUsers(settings.peakUsers, peakRamp);
+    await waitForSessions(settings.peakUsers, 60);
     await sleepSeconds(Math.max(0, settings.peakSeconds - peakRamp));
 
     for (let i = settings.nominalUsers; i < virtualUsers.length; i += 1) {
