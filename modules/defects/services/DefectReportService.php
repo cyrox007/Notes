@@ -56,21 +56,26 @@ final class DefectReportService
         [$where, $params] = $this->conditions($filters);
         $relations = $this->relations();
         $conditionSql = implode(' AND ', $where);
-        $total = (int) $this->database->fetchValue(
-            'SELECT COUNT(*) ' . $relations . ' WHERE ' . $conditionSql,
-            $params
-        );
-        $overdue = (int) $this->database->fetchValue(
-            'SELECT COUNT(*) ' . $relations . ' WHERE ' . $conditionSql
-            . " AND d.status='open' AND d.due_at < :now_utc",
-            $params + ['now_utc' => gmdate('Y-m-d H:i:s')]
-        );
+        // Одна агрегирующая выборка вместо трёх отдельных проходов по
+        // одним и тем же связям. Итоги и разбивка по приоритетам согласованы.
         $priorities = $this->database->fetchAll(
-            'SELECT d.priority,d.status,COUNT(*) AS total ' . $relations
+            'SELECT d.priority,d.status,COUNT(*) AS total,
+                    SUM(CASE WHEN d.status = :open_status
+                        AND d.due_at < :now_utc THEN 1 ELSE 0 END) AS overdue
+             ' . $relations
             . ' WHERE ' . $conditionSql
             . ' GROUP BY d.priority,d.status ORDER BY d.priority,d.status',
-            $params
+            $params + ['open_status' => 'open', 'now_utc' => gmdate('Y-m-d H:i:s')]
         );
+
+        $total = 0;
+        $overdue = 0;
+        foreach ($priorities as &$row) {
+            $total += (int) $row['total'];
+            $overdue += (int) $row['overdue'];
+            unset($row['overdue']);
+        }
+        unset($row);
         $areaParams = $params + ['after_area_id' => $afterAreaId];
         $areas = $this->database->fetchAll(
             'SELECT a.id AS area_id,a.name AS area_name,COUNT(*) AS total ' . $relations

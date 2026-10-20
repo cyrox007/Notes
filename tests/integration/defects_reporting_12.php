@@ -16,7 +16,20 @@ function assertDefectReport(bool $condition, string $message): void
     exit(1);
 }
 
-$pdo = new PDO('sqlite::memory:');
+final class DefectReportCountingConnection extends PDO
+{
+    public int $selectStatements = 0;
+
+    public function prepare(string $query, array $options = []): PDOStatement|false
+    {
+        if (preg_match('/^\s*SELECT\b/i', $query) === 1) {
+            $this->selectStatements++;
+        }
+        return parent::prepare($query, $options);
+    }
+}
+
+$pdo = new DefectReportCountingConnection('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $pdo->exec('CREATE TABLE defect_areas (id INTEGER PRIMARY KEY,name TEXT)');
 $pdo->exec('CREATE TABLE defect_object_categories (id INTEGER PRIMARY KEY,area_id INTEGER,name TEXT)');
@@ -47,12 +60,20 @@ assertDefectReport(count($service->search(['status' => 'all', 'object_id' => 1])
 assertDefectReport(count($service->search(['status' => 'all', 'from' => '2020-02-01', 'to' => '2020-02-01'])['items']) === 1,
     'границы периода неверны');
 
+$readsBefore = $pdo->selectStatements;
 $summary = $service->summary(['status' => 'all'], 0, 1);
+assertDefectReport($pdo->selectStatements - $readsBefore === 2,
+    'сводка должна выполнять только две выборки БД через ядро');
 assertDefectReport($summary['total'] === 3 && $summary['overdue'] === 2, 'общая сводка неверна');
 assertDefectReport(count($summary['by_priority']) === 3, 'сводка приоритетов неполна');
 assertDefectReport(count($summary['by_area']) === 1 && $summary['next_area_cursor'] === 1, 'пагинация РЭС неверна');
 $next = $service->summary(['status' => 'all'], $summary['next_area_cursor'], 1);
 assertDefectReport(count($next['by_area']) === 1 && $next['next_area_cursor'] === null, 'вторая страница РЭС неверна');
+
+$empty = $service->summary(['status' => 'open', 'object_id' => 999]);
+assertDefectReport($empty['total'] === 0 && $empty['overdue'] === 0
+    && $empty['by_priority'] === [] && $empty['by_area'] === [],
+    'пустая сводка должна возвращать нулевые итоги');
 
 foreach ([
     ['status' => 'unknown'],
