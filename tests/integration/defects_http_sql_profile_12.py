@@ -64,6 +64,9 @@ def recorded_queries(started_at):
     patterns = collections.Counter()
     families = collections.Counter()
     lifecycle_writes = 0
+    lifecycle_reads = 0
+    settings_reads = 0
+    schema_reads = 0
     for line in mysql(query):
         sql = bytes.fromhex(line).decode("utf-8", errors="replace")
         lower = sql.lower().strip()
@@ -74,12 +77,21 @@ def recorded_queries(started_at):
         template = normalize(sql)
         if re.match(r"^UPDATE `?module_lifecycle`?\b", template, re.IGNORECASE):
             lifecycle_writes += 1
+        if re.match(r"^SELECT module_id,installed_version", template, re.IGNORECASE):
+            lifecycle_reads += 1
+        if template.lower().startswith("select setting_") and "system_settings" in template.lower():
+            settings_reads += 1
+        if "information_schema" in template.lower():
+            schema_reads += 1
         families[family] += 1
         patterns[(family, template)] += 1
     ordered = sorted(patterns.items(), key=lambda item: -item[1])
     return {
         "SQL_операций": sum(families.values()),
         "лишних_UPDATE_жизненного_цикла": lifecycle_writes,
+        "чтений_жизненного_цикла": lifecycle_reads,
+        "чтений_настроек": settings_reads,
+        "чтений_метаданных": schema_reads,
         "по_назначению": dict(families),
         "основные_шаблоны": [
             {"назначение": key[0], "шаблон": key[1], "вызовов": count}
@@ -163,6 +175,10 @@ def main():
             raise SystemExit("Недостаточно рабочих SQL-запросов Дефектов в профиле: " + name)
         if values["лишних_UPDATE_жизненного_цикла"] != 0:
             raise SystemExit("На неизменном состоянии модулей остались лишние SQL UPDATE: " + name)
+        if values["чтений_жизненного_цикла"] > values["HTTP_запросов"]:
+            raise SystemExit("Остались повторные чтения жизненного цикла модулей: " + name)
+        if values["чтений_метаданных"] > 3 * values["HTTP_запросов"]:
+            raise SystemExit("Количество проверок структуры БД неожиданно возросло: " + name)
 
 
 if __name__ == "__main__":
