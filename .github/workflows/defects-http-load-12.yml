@@ -9,6 +9,9 @@ on:
       - 'tests/integration/defects_http_sql_profile_12.py'
       - '.github/workflows/defects-http-load-12.yml'
       - 'modules/defects/**'
+      - 'core/ModuleLifecycleStore.php'
+      - 'core/SchemaReadiness.php'
+      - 'app/services/LicenseService.php'
       - 'database/defects_schema.sql'
       - 'tests/support/ci_license_fixture.php'
   workflow_dispatch:
