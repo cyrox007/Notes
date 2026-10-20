@@ -56,7 +56,8 @@ foreach (['admin_notifications', 'admin_notifications_smtp', 'admin_notification
     notificationAdministrationCheck(str_contains($routes, $route), 'отсутствует маршрут ' . $route);
 }
 notificationAdministrationCheck(
-    substr_count($routes, 'NotificationSettingsController::class') === 3
+    substr_count($routes, 'NotificationSettingsController::class') === 4
+    && str_contains($routes, "'admin_notifications_external'")
     && str_contains($routes, 'RequireAdminSettingsManage::class, CSRFMiddleware::class'),
     'изменяющие маршруты требуют права и защитный токен'
 );
