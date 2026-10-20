@@ -34,7 +34,7 @@ def snapshot():
         "SELECT HEX(DIGEST_TEXT), COUNT_STAR, SUM_TIMER_WAIT, SUM_ROWS_EXAMINED,"
         " SUM_ROWS_SENT, SUM_NO_INDEX_USED, SUM_CREATED_TMP_DISK_TABLES"
         " FROM performance_schema.events_statements_summary_by_digest"
-        " WHERE SCHEMA_NAME='defects_http_load' AND DIGEST_TEXT IS NOT NULL"
+        " WHERE DIGEST_TEXT IS NOT NULL"
     )
     rows = {}
     for line in mysql(sql):
@@ -43,6 +43,10 @@ def snapshot():
             raise RuntimeError("Неожиданный ответ сводки SQL Performance Schema")
         encoded, *numbers = fields
         statement = bytes.fromhex(encoded).decode("utf-8", errors="replace")
+        # У подготовленных запросов SCHEMA_NAME бывает NULL: фильтр по базе
+        # исключал именно рабочие запросы приложения.
+        if "performance_schema" in statement.lower():
+            continue
         rows[statement] = [int(number) for number in numbers]
     return rows
 
@@ -143,8 +147,12 @@ def main():
         }
         for name, values in report["маршруты"].items()
     }, indent=2, ensure_ascii=False))
-    if any(data["SQL_вызовов"] <= 0 for data in report["маршруты"].values()):
-        raise SystemExit("SQL-профиль не зафиксировал запросы хотя бы одного маршрута")
+    for name, data in report["маршруты"].items():
+        if not any("defect" in item["шаблон"].lower()
+                   for item in data["дорогие_запросы"]):
+            raise SystemExit("SQL-профиль не содержит рабочих запросов Дефектов: " + name)
+        if data["SQL_вызовов"] <= 0:
+            raise SystemExit("SQL-профиль не зафиксировал запросы маршрута: " + name)
 
 
 if __name__ == "__main__":
