@@ -15,6 +15,9 @@ require_once __DIR__ . '/CurlNotificationHttpTransport.php';
 require_once __DIR__ . '/SignedWebhookNotificationChannel.php';
 require_once __DIR__ . '/BotNotificationChannel.php';
 require_once __DIR__ . '/SmsGatewayNotificationChannel.php';
+require_once __DIR__ . '/PushSubscriptionService.php';
+require_once __DIR__ . '/CurlWebPushHttpTransport.php';
+require_once __DIR__ . '/WebPushNotificationChannel.php';
 
 use Core\DatabaseManager;
 use DateTimeImmutable;
@@ -100,6 +103,10 @@ final class NotificationDeliveryRuntime
                 new BotNotificationChannel('telegram', $secrets, $https),
                 new BotNotificationChannel('max', $secrets, $https),
                 new SmsGatewayNotificationChannel($secrets, $https),
+                new WebPushNotificationChannel(
+                    new PushSubscriptionService($this->db),
+                    new CurlWebPushHttpTransport()
+                ),
             ]
         );
         return $this->worker;
