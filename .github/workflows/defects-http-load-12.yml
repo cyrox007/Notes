@@ -59,7 +59,7 @@ jobs:
           php -v
           php -m | grep -E 'mysqli|PDO|sodium|mbstring'
 
-      - name: Подготовить одноразовую конфигурацию и схему Дефекты
+      - name: Подготовить одноразовую конфигурацию и схему Дефектов
         shell: bash
         run: |
           set -euo pipefail
@@ -100,8 +100,7 @@ jobs:
           ENV
           chmod 600 .env
           php -l tests/integration/defects_http_seed_12.php
-          python3 -m py_compile tests/integration/defects_http_load_12.py \
-            tests/integration/defects_http_load_12.py
+          python3 -m py_compile tests/integration/defects_http_load_12.py
           php tests/integration/defects_http_seed_12.php > /tmp/defects-http-fixture.json
           mysql -h 127.0.0.1 -uroot defects_http_load < database/migrations/20261019_defects_foundation.sql
           php tests/support/ci_license_fixture.php
@@ -212,7 +211,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: filespaces-http-load-metrics
+          name: defects-http-load-metrics
           path: |
             /tmp/defects-http-load-report.json
           if-no-files-found: warn
