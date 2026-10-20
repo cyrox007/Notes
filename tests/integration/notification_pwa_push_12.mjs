@@ -77,6 +77,7 @@ assert(manifest.icons.length > 0);
 assert(manifest.shortcuts.some(x => x.name === 'Задачи'));
 assert(manifest.shortcuts.some(x => x.name === 'Сообщения'));
 assert(pushUI.includes('Notification.requestPermission()'));
-assert(pushUI.includes('/push/subscribe') && pushUI.includes('/push/unsubscribe'));
+assert(pushUI.includes("request('/subscribe'") && pushUI.includes("request('/unsubscribe'"));
+assert(pushUI.includes("'/api/notifications/push'"), 'браузерная регистрация должна использовать защищённый API Notes');
 assert(!pushUI.includes('localStorage.setItem'), 'приватные Push-ключи не сохраняются в браузерном хранилище');
 console.log('Проверен PWA Push: безопасный переход, закрытый браузер, установка и явная привязка');
