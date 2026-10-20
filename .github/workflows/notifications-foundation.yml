@@ -1,13 +1,17 @@
-name: Уведомления 1.1 — MySQL
+name: Уведомления — SMTP, очередь и диагностика
 
 on:
   push:
-    branches: ['1.1', 'fix/1.1-notification-http-fallback-*', 'codex/1.1-notifications-acceptance']
+    branches: ['1.1', '1.2', 'fix/1.1-notification-http-fallback-*', 'feature/1.2-notification-*']
     paths:
       - 'core/SystemEventOutbox.php'
       - 'tests/integration/system_*contract.php'
       - 'app/services/notifications/**'
       - 'app/controllers/NotificationController.php'
+      - 'modules/admin/controllers/NotificationSettingsController.php'
+      - 'modules/admin/views/notifications.php'
+      - 'modules/admin/assets/notification-settings.js'
+      - 'modules/admin/AdminRuntimeProvider.php'
       - 'app/middlewares/ApiLoginRequired.php'
       - 'app/views/core/base.php'
       - 'assets/css/notification-center.css'
@@ -27,16 +31,21 @@ on:
       - 'database/migrations/*notifications*.sql'
       - 'database/migrations/*calendar*.sql'
       - 'tests/integration/notification_*contract.php'
+      - 'tests/integration/notification_admin_smtp_12.php'
       - 'tests/integration/calendar_reminders_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
       - '.github/workflows/notifications-foundation.yml'
   pull_request:
-    branches: ['1.1']
+    branches: ['1.1', '1.2']
     paths:
       - 'core/SystemEventOutbox.php'
       - 'tests/integration/system_*contract.php'
       - 'app/services/notifications/**'
       - 'app/controllers/NotificationController.php'
+      - 'modules/admin/controllers/NotificationSettingsController.php'
+      - 'modules/admin/views/notifications.php'
+      - 'modules/admin/assets/notification-settings.js'
+      - 'modules/admin/AdminRuntimeProvider.php'
       - 'app/middlewares/ApiLoginRequired.php'
       - 'app/views/core/base.php'
       - 'assets/css/notification-center.css'
@@ -56,6 +65,7 @@ on:
       - 'database/migrations/*notifications*.sql'
       - 'database/migrations/*calendar*.sql'
       - 'tests/integration/notification_*contract.php'
+      - 'tests/integration/notification_admin_smtp_12.php'
       - 'tests/integration/calendar_reminders_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
       - '.github/workflows/notifications-foundation.yml'
@@ -72,7 +82,7 @@ jobs:
 
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.4
         env:
           MYSQL_DATABASE: workspace_test
           MYSQL_USER: workspace
@@ -93,7 +103,7 @@ jobs:
       - name: Подготовить PHP 8.2
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.3'
           extensions: mysqli, pdo_mysql, mbstring, openssl
           coverage: none
 
@@ -143,6 +153,11 @@ jobs:
         run: |
           set -euo pipefail
           php tests/integration/notification_smtp_contract.php
+          php tests/integration/notification_admin_smtp_12.php
+          php -l app/services/notifications/NotificationChannelAdministration.php
+          php -l modules/admin/controllers/NotificationSettingsController.php
+          php -l modules/admin/views/notifications.php
+          node --check modules/admin/assets/notification-settings.js
           php tests/integration/smtp_socket_transport_contract.php
           php tests/integration/notification_worker_cli_contract.php
           php tests/integration/notification_http_fallback_contract.php
@@ -163,7 +178,7 @@ jobs:
 
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.4
         env:
           MYSQL_DATABASE: workspace_test
           MYSQL_USER: workspace
@@ -184,7 +199,7 @@ jobs:
       - name: Подготовить PHP 8.2
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.3'
           extensions: mysqli, pdo_mysql, mbstring, openssl
           coverage: none
 
@@ -219,7 +234,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.3'
           extensions: mysqli, pdo_mysql, mbstring, sodium
           coverage: none
       - name: Verify durable operational events and recipient ACL
