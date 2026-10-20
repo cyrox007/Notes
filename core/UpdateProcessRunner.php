@@ -17,6 +17,7 @@ require_once __DIR__ . '/UpdateCommandRunner.php';
 final class UpdateProcessRunner implements UpdateCommandRunner
 {
     private const int MAX_CAPTURE_BYTES = 1048576;
+    private const int READ_CHUNK_BYTES = 65536;
 
     public static function available(): bool
     {
@@ -71,8 +72,11 @@ final class UpdateProcessRunner implements UpdateCommandRunner
         $exit = -1;
 
         while (true) {
-            self::capture($stdout, (string) stream_get_contents($pipes[1]));
-            self::capture($stderr, (string) stream_get_contents($pipes[2]));
+            // Читаем небольшими порциями, а не весь накопленный буфер канала.
+            // Даже если дочерняя команда печатает гигабайты, память PHP
+            // ограничена размером порции и сохранёнными первыми 1 МиБ.
+            self::readChunk($pipes[1], $stdout);
+            self::readChunk($pipes[2], $stderr);
 
             $status = proc_get_status($process);
             if (!($status['running'] ?? false)) {
@@ -97,8 +101,10 @@ final class UpdateProcessRunner implements UpdateCommandRunner
             usleep(50_000);
         }
 
-        self::capture($stdout, (string) stream_get_contents($pipes[1]));
-        self::capture($stderr, (string) stream_get_contents($pipes[2]));
+        // После завершения ребёнка в каналах ещё могут оставаться данные.
+        // Дочитываем их до пустого чтения даже после достижения лимита.
+        self::drain($pipes[1], $stdout);
+        self::drain($pipes[2], $stderr);
         fclose($pipes[1]);
         fclose($pipes[2]);
 
@@ -108,6 +114,30 @@ final class UpdateProcessRunner implements UpdateCommandRunner
         }
 
         return ['code' => $exit, 'stdout' => $stdout, 'stderr' => $stderr];
+    }
+
+    /**
+     * Прочитать только ограниченную порцию, независимо от скорости вывода.
+     *
+     * @param resource $stream
+     */
+    private static function readChunk($stream, string &$output): string
+    {
+        $chunk = stream_get_contents($stream, self::READ_CHUNK_BYTES);
+        if (!is_string($chunk) || $chunk === '') {
+            return '';
+        }
+
+        self::capture($output, $chunk);
+        return $chunk;
+    }
+
+    /** @param resource $stream */
+    private static function drain($stream, string &$output): void
+    {
+        while (self::readChunk($stream, $output) !== '') {
+            // Освобождаем pipe даже если лимит сохранения вывода достигнут.
+        }
     }
 
     /**
