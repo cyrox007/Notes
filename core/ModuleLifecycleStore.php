@@ -160,7 +160,22 @@ final class ModuleLifecycleStore
 
         foreach ($modules as $moduleId => $manifest) {
             $row = $rows[$moduleId];
+            $version = $manifest->version();
+            $hash = $manifest->integrityHash();
+            $error = $errors[$moduleId] ?? null;
             $stateChanged = (string) $row['effective_state'] !== $effective[$moduleId];
+
+            // HTTP-запросы сверяют доступность модулей, но не должны писать
+            // в таблицу, когда лицензия, манифест и состояние не изменились.
+            if (
+                (string) ($row['installed_version'] ?? '') === $version
+                && (string) ($row['manifest_hash'] ?? '') === $hash
+                && !$stateChanged
+                && ($row['last_error'] ?? null) === $error
+            ) {
+                continue;
+            }
+
             $this->db->execute(
                 'UPDATE module_lifecycle '
                 . 'SET installed_version = :installed_version, manifest_hash = :manifest_hash, '
@@ -168,10 +183,10 @@ final class ModuleLifecycleStore
                 . 'state_changed_at = CASE WHEN :state_changed = 1 THEN CURRENT_TIMESTAMP ELSE state_changed_at END '
                 . 'WHERE module_id = :module_id',
                 [
-                    ':installed_version' => $manifest->version(),
-                    ':manifest_hash' => $manifest->integrityHash(),
+                    ':installed_version' => $version,
+                    ':manifest_hash' => $hash,
                     ':effective_state' => $effective[$moduleId],
-                    ':last_error' => $errors[$moduleId],
+                    ':last_error' => $error,
                     ':state_changed' => $stateChanged ? 1 : 0,
                     ':module_id' => $moduleId,
                 ]
