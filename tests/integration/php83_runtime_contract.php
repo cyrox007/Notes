@@ -102,6 +102,26 @@ runtimeCheck($largeOutput['code'] === 17, 'большой вывод не дол
 runtimeCheck(strlen($largeOutput['stdout']) === 1048576, 'stdout должен быть ограничен одним мегабайтом');
 runtimeCheck(strlen($largeOutput['stderr']) === 1048576, 'stderr должен быть ограничен одним мегабайтом');
 
+// Запись двух каналов существенно больше системных pipe-буферов не должна
+// блокировать proc_close, терять код завершения или расширять результат.
+$streaming = (new \Core\UpdateProcessRunner())->run(
+    [PHP_BINARY, '-r',
+        'for ($i = 0; $i < 12; $i++) { fwrite(STDOUT, str_repeat("S", 524288)); fwrite(STDERR, str_repeat("E", 524288)); } exit(29);'],
+    $root,
+    20
+);
+runtimeCheck($streaming['code'] === 29, 'многократный большой вывод не должен блокировать обновлятор');
+runtimeCheck(strlen($streaming['stdout']) === 1048576, 'поток stdout не должен расширять буфер');
+runtimeCheck(strlen($streaming['stderr']) === 1048576, 'поток stderr не должен расширять буфер');
+
+$emptyOutput = (new \Core\UpdateProcessRunner())->run(
+    [PHP_BINARY, '-r', 'exit(31);'],
+    $root,
+    5
+);
+runtimeCheck($emptyOutput['code'] === 31, 'код завершения команды без вывода не должен теряться');
+runtimeCheck($emptyOutput['stdout'] === '' && $emptyOutput['stderr'] === '', 'пустые каналы должны оставаться пустыми');
+
 
 $previousUpdatePhp = getenv('UPDATE_PHP_BINARY');
 putenv('UPDATE_PHP_BINARY=' . PHP_BINARY);
