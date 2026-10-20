@@ -88,7 +88,7 @@ function calendarMysqlInsertEvent(
 }
 
 calendarMysqlApplySql($mysqli, $root . '/database/core_identity_schema.sql');
-calendarMysqlApplySql($mysqli, $root . '/database/migrations/20261010_notifications_foundation.sql');
+calendarMysqlApplySql($mysqli, $root . '/database/notifications_schema.sql');
 calendarMysqlApplySql($mysqli, $root . '/database/migrations/20261011_calendar_reminders.sql');
 
 $mysqli->query('SET FOREIGN_KEY_CHECKS=0');
