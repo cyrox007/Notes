@@ -10,12 +10,23 @@ self.addEventListener('activate', (event) => {
 });
 
 function destination(value) {
-    if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')
-        || /[\\\\\\x00-\\x1f\\x7f]/.test(value)) return new URL('./', self.registration.scope).href;
-    const target = new URL(value, self.location.origin);
-    if (target.origin !== self.location.origin
-        || !target.pathname.startsWith(new URL(self.registration.scope).pathname)) {
-        return new URL('./', self.registration.scope).href;
+    const scope = new URL(self.registration.scope);
+    const fallback = scope.href;
+    if (typeof value !== 'string' || value.length > 1000
+        || value.startsWith('//') || /[\\\x00-\x1f\x7f]/.test(value)) {
+        return fallback;
+    }
+    let target;
+    try {
+        target = new URL(value, self.location.origin);
+    } catch (_) {
+        return fallback;
+    }
+    // Повторно проверяем адрес при нажатии. В data.url хранится абсолютный
+    // адрес; ссылка не должна уходить за пределы установки Notes.
+    if (target.origin !== self.location.origin || target.username || target.password
+        || !target.pathname.startsWith(scope.pathname)) {
+        return fallback;
     }
     return target.href;
 }
