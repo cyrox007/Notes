@@ -86,7 +86,7 @@ notificationHttpMysqlAssert($userId > 0, 'Не удалось подготови
 
 $mysqli->query(
     "INSERT INTO notification_channel_configs (channel, owner_user_id, owner_scope, label, enabled, config_json, secret_ref)\n"
-    . "VALUES ('webhook', NULL, 0, 'HTTP fallback test', 1, JSON_OBJECT(), NULL)"
+    . "VALUES ('unknown_test', NULL, 0, 'HTTP fallback test', 1, JSON_OBJECT(), NULL)"
 );
 $configId = (int) $mysqli->insert_id;
 
@@ -115,7 +115,7 @@ for ($index = 1; $index <= 5; $index++) {
     $stmt = $mysqli->prepare(
         "INSERT INTO notification_delivery_jobs\n"
         . "(notification_id, channel_config_id, channel, recipient_ref, state, attempts, max_attempts, next_attempt_at, created_at, updated_at)\n"
-        . "VALUES (?, ?, 'webhook', ?, 'pending', 0, 5, '2000-01-01 00:00:00', UTC_TIMESTAMP(), UTC_TIMESTAMP())"
+        . "VALUES (?, ?, 'unknown_test', ?, 'pending', 0, 5, '2000-01-01 00:00:00', UTC_TIMESTAMP(), UTC_TIMESTAMP())"
     );
     $stmt->bind_param('iis', $notificationId, $configId, $recipientRef);
     $stmt->execute();
