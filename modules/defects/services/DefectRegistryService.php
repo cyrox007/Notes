@@ -62,9 +62,14 @@ final class DefectRegistryService
             throw new InvalidArgumentException('Неверный идентификатор дефекта');
         }
         $defect = $this->database->fetchOne(
-            'SELECT id,object_id,description,priority,discovered_at,due_at,registered_by_name,
-                    registered_by_user_id,status,completed_work,closed_at,closed_by_user_id,version
-             FROM defects WHERE id=:id', ['id' => $id]
+            'SELECT d.id,d.object_id,d.description,d.priority,d.discovered_at,d.due_at,d.registered_by_name,
+                    d.registered_by_user_id,d.status,d.completed_work,d.closed_at,d.closed_by_user_id,d.version,
+                    o.name AS object_name,c.name AS category_name,a.name AS area_name
+             FROM defects d
+             JOIN defect_objects o ON o.id=d.object_id
+             JOIN defect_object_categories c ON c.id=o.category_id
+             JOIN defect_areas a ON a.id=c.area_id
+             WHERE d.id=:id', ['id' => $id]
         );
         if ($defect === null) {
             return null;
