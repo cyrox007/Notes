@@ -22,7 +22,8 @@ final class NotificationDeliveryWorker
      */
     public function __construct(
         private NotificationDeliveryQueue $queue,
-        iterable $channels
+        iterable $channels,
+        private ?NotificationDeliveryActionLinks $actionLinks = null
     ) {
         foreach ($channels as $channel) {
             $name = trim($channel->name());
@@ -159,7 +160,8 @@ final class NotificationDeliveryWorker
     private function deliverSafely(NotificationDeliveryChannel $channel, array $job): NotificationDeliveryResult
     {
         try {
-            return $channel->deliver($job);
+            $outbound = $this->actionLinks?->decorate($job) ?? $job;
+            return $channel->deliver($outbound);
         } catch (Throwable $e) {
             return NotificationDeliveryResult::failed(
                 'channel_exception',
