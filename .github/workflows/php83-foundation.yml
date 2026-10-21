@@ -34,6 +34,7 @@ jobs:
           composer validate --no-check-publish
           php tests/integration/php83_foundation_contract.php
           php tests/integration/php83_runtime_contract.php
+          php tests/integration/updater_windows_disk_budget_12.php
 
       - name: Проверить синтаксис PHP
         shell: bash
@@ -77,6 +78,8 @@ jobs:
           php tests/integration/php83_foundation_contract.php
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           php tests/integration/php83_runtime_contract.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          php tests/integration/updater_windows_disk_budget_12.php
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           php tests/integration/environment_loader_contract.php
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
