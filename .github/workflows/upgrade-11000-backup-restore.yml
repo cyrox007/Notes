@@ -1,0 +1,92 @@
+name: 1.2 — исходный релиз и восстановление базы
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'database/migrations/**'
+      - 'core/MigrationBaseline.php'
+      - 'tests/integration/upgrade_11000_historical_integrity.php'
+      - '.github/workflows/upgrade-11000-backup-restore.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'database/migrations/**'
+      - 'core/MigrationBaseline.php'
+      - 'tests/integration/upgrade_11000_historical_integrity.php'
+      - '.github/workflows/upgrade-11000-backup-restore.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  historical-migrations:
+    name: Побайтовая история v1.1.0
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Получить проверяемую ветку
+        uses: actions/checkout@v4
+        with:
+          path: candidate
+      - name: Получить опубликованный тег
+        uses: actions/checkout@v4
+        with:
+          ref: v1.1.0
+          path: published
+          persist-credentials: false
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверить исторические миграции
+        run: |
+          set -euo pipefail
+          php -l candidate/tests/integration/upgrade_11000_historical_integrity.php
+          php candidate/tests/integration/upgrade_11000_historical_integrity.php "$GITHUB_WORKSPACE/published"
+
+  backup-restore:
+    name: Резервная копия и восстановление MySQL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: workspace_upgrade_restore_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=15
+    steps:
+      - name: Подготовить MySQL-клиент
+        run: sudo apt-get update -qq && sudo apt-get install -y default-mysql-client
+      - name: Проверить резервную копию и откат данных
+        shell: bash
+        run: |
+          set -euo pipefail
+          export MYSQL_PWD=root
+          mysql --protocol=tcp -h127.0.0.1 -uroot workspace_upgrade_restore_test <<'SQL'
+          CREATE TABLE upgrade_recovery_sample (id INT PRIMARY KEY, value_text VARCHAR(100) NOT NULL);
+          INSERT INTO upgrade_recovery_sample VALUES (1, 'данные до обновления'), (2, 'неизменяемая запись');
+          SQL
+          mysqldump --protocol=tcp -h127.0.0.1 -uroot --single-transaction workspace_upgrade_restore_test > /tmp/notes-11000-backup.sql
+          test -s /tmp/notes-11000-backup.sql
+          mysql --protocol=tcp -h127.0.0.1 -uroot workspace_upgrade_restore_test <<'SQL'
+          DELETE FROM upgrade_recovery_sample;
+          ALTER TABLE upgrade_recovery_sample ADD COLUMN failed_migration INT NOT NULL DEFAULT 1;
+          SQL
+          mysql --protocol=tcp -h127.0.0.1 -uroot -e 'DROP DATABASE workspace_upgrade_restore_test; CREATE DATABASE workspace_upgrade_restore_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'
+          mysql --protocol=tcp -h127.0.0.1 -uroot workspace_upgrade_restore_test < /tmp/notes-11000-backup.sql
+          count=$(mysql --protocol=tcp -N -h127.0.0.1 -uroot workspace_upgrade_restore_test -e 'SELECT COUNT(*) FROM upgrade_recovery_sample')
+          test "$count" = '2'
+          changed=$(mysql --protocol=tcp -N -h127.0.0.1 -uroot information_schema -e "SELECT COUNT(*) FROM COLUMNS WHERE TABLE_SCHEMA='workspace_upgrade_restore_test' AND TABLE_NAME='upgrade_recovery_sample' AND COLUMN_NAME='failed_migration'")
+          test "$changed" = '0'
+          mysql --protocol=tcp -N -h127.0.0.1 -uroot workspace_upgrade_restore_test -e "SELECT value_text FROM upgrade_recovery_sample WHERE id=1" | grep -Fx 'данные до обновления'
+          echo 'Резервная копия восстановила записи и структуру после искусственного сбоя'
