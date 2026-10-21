@@ -61,7 +61,7 @@ notificationAdministrationCheck(
     && str_contains($routes, 'RequireAdminSettingsManage::class, CSRFMiddleware::class'),
     'изменяющие маршруты требуют права и защитный токен'
 );
-foreach (['NotificationService(', 'DatabaseNotificationPreferences(', 'NotificationDeliveryRuntime(', 'testSmtp', 'last_result_code'] as $contract) {
+foreach (['NotificationService(', 'DatabaseNotificationPreferences(', 'NotificationDeliveryRuntime(', 'runJob(', 'testSmtp', 'last_result_code'] as $contract) {
     notificationAdministrationCheck(str_contains($service, $contract), 'отсутствует этап полной очереди: ' . $contract);
 }
 notificationAdministrationCheck(
