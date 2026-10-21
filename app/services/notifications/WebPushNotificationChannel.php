@@ -49,7 +49,12 @@ final class WebPushNotificationChannel implements NotificationDeliveryChannel
             );
         }
 
-        $path = self::safePath((string) ($job['target_path'] ?? ''));
+        $actionUrl = (string) ($job['action_url'] ?? '');
+        $actionPath = $actionUrl !== '' ? (string) parse_url($actionUrl, PHP_URL_PATH) : '';
+        $actionFragment = $actionUrl !== '' ? (string) parse_url($actionUrl, PHP_URL_FRAGMENT) : '';
+        $path = $actionPath !== '' && $actionFragment !== ''
+            ? self::safePath($actionPath) . '#' . $actionFragment
+            : self::safePath((string) ($job['target_path'] ?? ''));
         $notificationId = (int) ($job['notification_id'] ?? 0);
         try {
             $payload = json_encode(
