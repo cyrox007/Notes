@@ -129,7 +129,7 @@ if (PHP_OS_FAMILY === 'Windows') {
         );
     };
     $filesBefore = $temporaryOutputs();
-    $oversizedOutput = (new \\Core\\UpdateProcessRunner())->run(
+    $oversizedOutput = (new \Core\UpdateProcessRunner())->run(
         [PHP_BINARY, '-r',
             'for ($i = 0; $i < 40; $i++) { fwrite(STDOUT, str_repeat("X", 1048576)); fwrite(STDERR, str_repeat("Y", 1048576)); }'],
         $root,
