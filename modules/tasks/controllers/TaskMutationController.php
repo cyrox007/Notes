@@ -123,6 +123,27 @@ final class TaskMutationController extends Controller
         ]);
     }
 
+    /** Проверка без расходования одноразового разрешения. */
+    public function inspectExternalNotification(Request $request, int $notificationId): void
+    {
+        try {
+            $userId = $this->currentUserId($request);
+            $token = $request->rawPost('action_token', '');
+            if (!is_string($token)) {
+                throw new InvalidArgumentException('Недействительное подтверждение');
+            }
+            $match = (new NotificationActionTokenStore(DatabaseManager::getInstance()))
+                ->inspect($userId, $token, 'complete_task');
+            if ($match !== $notificationId) {
+                $this->json(['success' => false, 'message' => 'Ссылка истекла или недоступна'], 409);
+                return;
+            }
+            $this->json(['success' => true, 'action' => 'complete_task']);
+        } catch (InvalidArgumentException $error) {
+            $this->json(['success' => false, 'message' => 'Недействительная ссылка'], 422);
+        }
+    }
+
     public function confirmFromExternalNotification(Request $request, int $notificationId): void
     {
         try {
