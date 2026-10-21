@@ -78,13 +78,13 @@ notificationAdministrationCheck(
 notificationAdministrationCheck(
     str_contains($service, 'FROM notification_delivery_attempts a')
     && str_contains($service, 'ORDER BY a.id DESC LIMIT 40')
-    && str_contains($service, "'attempts' => " + "$attempts" + "')
+    && str_contains($service, "'attempts' => " . '$attempts')
     && !str_contains($service, 'a.error_summary'),
     'история попыток должна иметь строгий предел и не извлекать потенциально чувствительные тексты ошибок'
 );
 notificationAdministrationCheck(
     str_contains($view, 'Последние попытки доставки')
-    && str_contains($view, " + "$view->e($attempt['result_code'] ?? '—')" + ")
+    && str_contains($view, "e(" . '$attempt[' . "'result_code']" )
     && str_contains($view, 'colspan="6"'),
     'админка должна безопасно показывать последние результаты всех каналов'
 );
