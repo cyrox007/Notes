@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Services\Tasks\TaskVersionMutationService;
+use App\Services\Tasks\TaskNotificationActionService;
+use DomainException;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
@@ -66,6 +68,33 @@ final class TaskMutationController extends Controller
             $this->respondMutation($request, $result);
         } catch (InvalidArgumentException $exception) {
             $this->validationFailure($request, $exception->getMessage());
+        }
+    }
+
+    public function completeFromNotification(Request $request, int $notificationId): void
+    {
+        try {
+            $result = (new TaskNotificationActionService(DatabaseManager::getInstance()))
+                ->complete($this->currentUserId($request), $notificationId);
+            if (($result['success'] ?? false) !== true) {
+                $this->json($result, 409);
+                return;
+            }
+            $this->json($result);
+        } catch (DomainException $error) {
+            $status = in_array($error->getCode(), [404, 409, 422], true)
+                ? $error->getCode() : 422;
+            $this->json([
+                'success' => false,
+                'error' => 'notification_action_denied',
+                'message' => $error->getMessage(),
+            ], $status);
+        } catch (InvalidArgumentException $error) {
+            $this->json([
+                'success' => false,
+                'error' => 'invalid_notification_action',
+                'message' => $error->getMessage(),
+            ], 422);
         }
     }
 
