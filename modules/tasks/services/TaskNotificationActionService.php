@@ -68,7 +68,7 @@ final class TaskNotificationActionService
             $version,
             $commandId,
             'task.status',
-            ['status' => 'completed', 'completed_at' => gmdate('Y-m-d H:i:s')]
+            ['status' => 'completed', 'completed_at' => date('Y-m-d H:i:s')]
         );
     }
 
