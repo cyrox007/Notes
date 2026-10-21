@@ -52,6 +52,35 @@ try {
          ORDER BY total DESC
          LIMIT 15"
     );
+    // Агрегаты всех каналов: не читаем адреса получателей, секреты
+    // и содержимое пользовательских уведомлений.
+    $channelConfigs = $db->fetchAll(
+        'SELECT channel, enabled, COUNT(*) AS total
+         FROM notification_channel_configs
+         GROUP BY channel, enabled'
+    );
+    $channelSubscriptions = $db->fetchOne(
+        'SELECT
+            COALESCE(SUM(CASE WHEN enabled = 1 AND email_enabled = 1 THEN 1 ELSE 0 END), 0) AS email,
+            COALESCE(SUM(CASE WHEN enabled = 1 AND browser_enabled = 1 THEN 1 ELSE 0 END), 0) AS browser,
+            COALESCE(SUM(CASE WHEN enabled = 1 AND telegram_enabled = 1 THEN 1 ELSE 0 END), 0) AS telegram,
+            COALESCE(SUM(CASE WHEN enabled = 1 AND max_enabled = 1 THEN 1 ELSE 0 END), 0) AS max,
+            COALESCE(SUM(CASE WHEN enabled = 1 AND webhook_enabled = 1 THEN 1 ELSE 0 END), 0) AS webhook,
+            COALESCE(SUM(CASE WHEN enabled = 1 AND sms_enabled = 1 THEN 1 ELSE 0 END), 0) AS sms
+         FROM notification_subscriptions'
+    );
+    $channelJobs = $db->fetchAll(
+        'SELECT channel, state, COUNT(*) AS total
+         FROM notification_delivery_jobs
+         GROUP BY channel, state'
+    );
+    $channelAttemptCounts = $db->fetchAll(
+        'SELECT j.channel, a.result_state, COUNT(*) AS total
+         FROM notification_delivery_attempts a
+         INNER JOIN notification_delivery_jobs j ON j.id = a.job_id
+         WHERE a.attempted_at >= UTC_TIMESTAMP() - INTERVAL 24 HOUR
+         GROUP BY j.channel, a.result_state'
+    );
     $lastFallback = $db->fetchValue(
         "SELECT last_http_run_at FROM notification_runtime_state
          WHERE state_key = :state_key LIMIT 1",
@@ -76,11 +105,43 @@ try {
         ];
     }
 
+    $channels = [];
+    foreach (['email', 'browser', 'telegram', 'max', 'webhook', 'sms'] as $name) {
+        $channels[$name] = [
+            'configurations' => ['active' => 0, 'disabled' => 0],
+            'active_subscriptions' => (int) ($channelSubscriptions[$name] ?? 0),
+            'jobs_by_state' => [],
+            'attempts_last_24h_by_state' => [],
+            'actual_delivery_verified' => false,
+        ];
+    }
+    foreach ($channelConfigs as $row) {
+        $name = (string) $row['channel'];
+        if (!isset($channels[$name])) {
+            continue;
+        }
+        $key = (int) $row['enabled'] === 1 ? 'active' : 'disabled';
+        $channels[$name]['configurations'][$key] += (int) $row['total'];
+    }
+    foreach ($channelJobs as $row) {
+        $name = (string) $row['channel'];
+        if (isset($channels[$name])) {
+            $channels[$name]['jobs_by_state'][(string) $row['state']] = (int) $row['total'];
+        }
+    }
+    foreach ($channelAttemptCounts as $row) {
+        $name = (string) $row['channel'];
+        if (isset($channels[$name])) {
+            $channels[$name]['attempts_last_24h_by_state'][(string) $row['result_state']] = (int) $row['total'];
+        }
+    }
+
     $result = [
         'status' => 'ok',
         'mode' => 'read_only',
         'events_total' => $events,
         'notifications_total' => $notifications,
+        'channels' => $channels,
         'smtp_configurations' => $configurationCounts,
         'subscriptions_total' => (int) ($subscriptions['total'] ?? 0),
         'smtp_subscriptions_active' => (int) ($subscriptions['active'] ?? 0),
@@ -96,6 +157,7 @@ try {
     } else {
         echo "Диагностика внешних уведомлений (только чтение)\n";
         echo 'Событий: ' . $events . '; уведомлений: ' . $notifications . PHP_EOL;
+        echo 'Все каналы (агрегированные показатели): ' . json_encode($channels, JSON_UNESCAPED_UNICODE) . PHP_EOL;
         echo 'SMTP-конфигурации: ' . json_encode($configurationCounts, JSON_UNESCAPED_UNICODE) . PHP_EOL;
         echo 'Активные подписки SMTP: ' . $result['smtp_subscriptions_active'] . PHP_EOL;
         echo 'Очередь SMTP: ' . json_encode($stateCounts, JSON_UNESCAPED_UNICODE) . PHP_EOL;
