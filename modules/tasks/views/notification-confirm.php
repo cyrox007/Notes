@@ -13,7 +13,8 @@ ob_start();
     </div>
 </section>
 <section class="tasks" data-notification-action-preview
-         data-confirm-url="<?= $view->e($view->route('task_notification_confirm', ['notificationId' => $notificationId])) ?>">
+         data-confirm-url="<?= $view->e($view->route('task_notification_confirm', ['notificationId' => $notificationId])) ?>"
+         data-inspect-url="<?= $view->e($view->route('task_notification_inspect', ['notificationId' => $notificationId])) ?>">
     <div class="tasks__controls" style="max-width:600px">
         <h2>Отметить задачу выполненной?</h2>
         <p>Действие применяется только к вашей задаче. После подтверждения вернуть одноразовую ссылку в рабочее состояние нельзя.</p>
