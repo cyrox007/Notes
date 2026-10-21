@@ -6,6 +6,7 @@ namespace App\Services\Notifications;
 
 require_once dirname(__DIR__, 3) . '/core/DatabaseManager.php';
 require_once __DIR__ . '/NotificationEvent.php';
+require_once __DIR__ . '/NotificationActionAvailability.php';
 
 use Core\DatabaseManager;
 use InvalidArgumentException;
@@ -52,7 +53,6 @@ final class DatabaseNotificationCenter
                 n.read_at,
                 n.created_at,
                 e.event_name,
-                e.payload_json,
                 e.event_version,
                 e.source_name,
                 e.category,
@@ -79,7 +79,12 @@ final class DatabaseNotificationCenter
             $params
         );
 
-        $items = array_map($this->normalizeItem(...), $rows);
+        $availability = (new NotificationActionAvailability($this->db))->forUser($userId, $rows);
+        $items = array_map(function (array $row) use ($availability): array {
+            $item = $this->normalizeItem($row);
+            $item['actions'] = $availability[(int) $row['id']] ?? [];
+            return $item;
+        }, $rows);
         return [
             'items' => $items,
             'pagination' => [
@@ -250,7 +255,6 @@ final class DatabaseNotificationCenter
             'read_at' => isset($row['read_at']) ? (string) $row['read_at'] : null,
             'created_at' => (string) ($row['created_at'] ?? ''),
             'event_name' => (string) ($row['event_name'] ?? ''),
-            'actions' => $this->availableActions($row),
             'event_version' => (int) ($row['event_version'] ?? 1),
             'source' => (string) ($row['source_name'] ?? ''),
             'category' => (string) ($row['category'] ?? ''),
@@ -258,22 +262,6 @@ final class DatabaseNotificationCenter
             'occurred_at' => (string) ($row['occurred_at'] ?? ''),
             'delivery' => $this->normalizeDelivery($row),
         ];
-    }
-
-    /** @param array<string,mixed> $row @return list<string> */
-    private function availableActions(array $row): array
-    {
-        if (($row['source_name'] ?? '') !== 'tasks'
-            || !str_starts_with((string) ($row['event_name'] ?? ''), 'tasks.')) {
-            return [];
-        }
-        $payload = json_decode((string) ($row['payload_json'] ?? ''), true);
-        if (!is_array($payload) || array_is_list($payload)) {
-            return [];
-        }
-        $uid = $payload['task_uid'] ?? null;
-        return is_string($uid) && preg_match('/^[a-f0-9]{32}$/D', $uid) === 1
-            ? ['complete_task'] : [];
     }
 
     /** @param array<string,mixed> $row @return array{external:bool,state:string,sent:int,pending:int,failed:int} */
