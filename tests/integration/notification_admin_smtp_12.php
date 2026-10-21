@@ -89,4 +89,18 @@ notificationAdministrationCheck(
     'админка должна безопасно показывать последние результаты всех каналов'
 );
 
+notificationAdministrationCheck(
+    str_contains($service, "['email', 'browser', 'telegram', 'max', 'webhook', 'sms']")
+    && str_contains($service, "new PushSubscriptionService(")
+    && str_contains($service, "['active'] ?? 0")
+    && str_contains($service, "owner_user_id = :actor"),
+    'Push-тест должен проверять личную подписку и запрещать чужие устройства'
+);
+notificationAdministrationCheck(
+    str_contains($view, 'name="channel" value="browser"')
+    && str_contains($view, 'Проверить Push на моих устройствах')
+    && str_contains($view, 'data-notification-ajax-form'),
+    'Push-тест должен быть доступен в AJAX-интерфейсе администратора'
+);
+
 echo "Проверены ограничения SMTP, защита маршрутов и полный путь диагностического события\n";

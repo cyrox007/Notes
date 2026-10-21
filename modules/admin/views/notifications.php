@@ -320,7 +320,14 @@ ob_start();
 
     <section class="admin-panel-card">
         <h2>Браузерные Push-уведомления</h2>
-        <p>Push-адаптер использует персональные подписки устройств и защищённый VAPID. Для фактического получения нужны разрешение браузера, действующая подписка и проверка на устройстве; успешное принятие Push-сервисом не гарантирует показ уведомления.</p>
+        <p>Пробное уведомление направляется только на устройства, привязанные к вашей учётной записи. Сначала разрешите уведомления браузера и зарегистрируйте устройство в пользовательских настройках.</p>
+        <form action="<?= $view->e($view->route('admin_notifications_test')) ?>" method="post"
+              data-notification-ajax-form>
+            <?= $view->csrfInput() ?>
+            <input type="hidden" name="channel" value="browser">
+            <button type="submit" class="admin-action admin-action--secondary">Проверить Push на моих устройствах</button>
+        </form>
+        <p>Приём Push-сервисом не гарантирует появление уведомления на устройстве. Проверьте разрешения браузера и показ при закрытой вкладке.</p>
     </section>
     <p data-notification-feedback role="status" aria-live="polite" hidden></p>
 </section>
