@@ -103,4 +103,24 @@ notificationAdministrationCheck(
     'Push-тест должен быть доступен в AJAX-интерфейсе администратора'
 );
 
+$categories = [];
+foreach (['email', 'browser', 'telegram', 'max', 'webhook', 'sms'] as $channel) {
+    $category = NotificationChannelAdministration::testCategory($channel);
+    notificationAdministrationCheck($category === 'diagnostics.' . $channel,
+        'пробная категория должна соответствовать одному каналу');
+    notificationAdministrationCheck(!in_array($category, $categories, true),
+        'каждый канал обязан иметь независимую пробную подписку');
+    $categories[] = $category;
+}
+try {
+    NotificationChannelAdministration::testCategory('unknown');
+    notificationAdministrationCheck(false, 'неизвестный канал не должен получать тестовую категорию');
+} catch (InvalidArgumentException) {
+    // Запрет неизвестного канала подтверждён.
+}
+notificationAdministrationCheck(str_contains($service, "'category' => " . '$category')
+    && str_contains($service, 'category: $category')
+    && !str_contains($service, "private const TEST_CATEGORY = 'diagnostics'"),
+    'тест обязан публиковаться в отдельной категории, не изменяя подписки других каналов');
+
 echo "Проверены ограничения SMTP, защита маршрутов и полный путь диагностического события\n";
