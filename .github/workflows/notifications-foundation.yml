@@ -190,6 +190,7 @@ jobs:
           php tests/integration/notification_preferences_mysql_contract.php
           php tests/integration/notification_web_push_mysql_12.php
           php tests/integration/notification_action_tokens_mysql_12.php
+          php tests/integration/notification_action_delivery_mysql_12.php
           php tests/integration/notification_messenger_events_mysql_12.php
 
       - name: Проверить SMTP, API, UI, CLI worker и HTTP fallback без внешней сети
