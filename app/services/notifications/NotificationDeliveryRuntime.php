@@ -46,6 +46,12 @@ final class NotificationDeliveryRuntime
         return $this->worker()->run($workerId, $limit);
     }
 
+    /** @return array{claimed:int,sent:int,retry:int,failed:int} */
+    public function runJob(string $workerId, int $jobId): array
+    {
+        return $this->worker()->runJob($workerId, $jobId);
+    }
+
     /**
      * Резервный проход для виртуального хостинга без постоянного worker.
      *

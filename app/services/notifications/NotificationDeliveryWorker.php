@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Notifications;
 
 require_once __DIR__ . '/NotificationDeliveryQueue.php';
+require_once __DIR__ . '/NotificationTargetedQueue.php';
 require_once __DIR__ . '/NotificationDeliveryChannel.php';
 require_once __DIR__ . '/NotificationDeliveryResult.php';
 
@@ -40,7 +41,28 @@ final class NotificationDeliveryWorker
      */
     public function run(string $workerId, int $limit = 20): array
     {
-        $jobs = $this->queue->claimBatch($workerId, $limit);
+        return $this->deliverJobs($workerId, $this->queue->claimBatch($workerId, $limit));
+    }
+
+    /**
+     * Точечная доставка использует тот же путь проверки прав и фиксации
+     * результата, что и фоновый обработчик. Чужие задания не захватываются.
+     * @return array{claimed:int,sent:int,retry:int,failed:int}
+     */
+    public function runJob(string $workerId, int $jobId): array
+    {
+        if (!$this->queue instanceof NotificationTargetedQueue) {
+            throw new InvalidArgumentException('Очередь не поддерживает точечную обработку');
+        }
+        return $this->deliverJobs($workerId, $this->queue->claimJob($workerId, $jobId));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $jobs
+     * @return array{claimed:int,sent:int,retry:int,failed:int}
+     */
+    private function deliverJobs(string $workerId, array $jobs): array
+    {
         $stats = [
             'claimed' => count($jobs),
             'sent' => 0,

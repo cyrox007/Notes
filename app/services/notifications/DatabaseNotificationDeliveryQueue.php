@@ -6,7 +6,7 @@ namespace App\Services\Notifications;
 
 require_once dirname(__DIR__, 3) . '/core/DatabaseManager.php';
 require_once __DIR__ . '/NotificationEvent.php';
-require_once __DIR__ . '/NotificationDeliveryQueue.php';
+require_once __DIR__ . '/NotificationTargetedQueue.php';
 require_once __DIR__ . '/NotificationRetryPolicy.php';
 
 use Core\DatabaseManager;
@@ -16,7 +16,7 @@ use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 
-final class DatabaseNotificationDeliveryQueue implements NotificationDeliveryQueue
+final class DatabaseNotificationDeliveryQueue implements NotificationTargetedQueue
 {
     /** @var array<string,string> */
     private const SUBSCRIPTION_FLAGS = [
@@ -119,7 +119,21 @@ final class DatabaseNotificationDeliveryQueue implements NotificationDeliveryQue
         return array_values(array_unique($jobIds));
     }
 
+    public function claimJob(string $workerId, int $jobId): array
+    {
+        if ($jobId < 1) {
+            throw new InvalidArgumentException('Идентификатор задания должен быть положительным');
+        }
+        return $this->claimReady($workerId, 1, 300, $jobId);
+    }
+
     public function claimBatch(string $workerId, int $limit = 20, int $lockTimeoutSeconds = 300): array
+    {
+        return $this->claimReady($workerId, $limit, $lockTimeoutSeconds, null);
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function claimReady(string $workerId, int $limit, int $lockTimeoutSeconds, ?int $jobId): array
     {
         $workerId = $this->validatedWorkerId($workerId);
         if ($limit < 1 || $limit > 100) {
@@ -175,14 +189,13 @@ final class DatabaseNotificationDeliveryQueue implements NotificationDeliveryQue
                  WHERE (
                     (j.state IN (\'pending\', \'retry\') AND j.next_attempt_at <= :now)
                     OR (j.state = \'processing\' AND j.locked_at IS NOT NULL AND j.locked_at <= :stale_before)
-                 )
+                 )' . ($jobId === null ? '' : ' AND j.id = :target_job_id') . '
                  ORDER BY j.next_attempt_at ASC, j.id ASC
                  LIMIT ' . $limit . '
                  FOR UPDATE',
-                [
-                    ':now' => $nowSql,
-                    ':stale_before' => $staleBefore,
-                ]
+                $jobId === null
+                    ? [':now' => $nowSql, ':stale_before' => $staleBefore]
+                    : [':now' => $nowSql, ':stale_before' => $staleBefore, ':target_job_id' => $jobId]
             );
 
             foreach ($rows as &$row) {

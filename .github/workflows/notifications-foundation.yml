@@ -136,6 +136,9 @@ jobs:
           set -euo pipefail
           php tests/integration/notification_foundation_contract.php
           php tests/integration/notification_delivery_contract.php
+          php tests/integration/notification_targeted_delivery_contract.php
+          php -l app/services/notifications/DatabaseNotificationDeliveryQueue.php
+          php -l app/services/notifications/NotificationDeliveryWorker.php
 
       - name: Проверить реальную схему и очередь уведомлений
         env:
