@@ -1,0 +1,63 @@
+name: 1.2 — проверка обновления базы 1.1
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'core/UpdateDatabaseMigrator.php'
+      - 'core/UpdateMigrationPreflight.php'
+      - 'core/PrefixMysqli.php'
+      - 'database/migrations/**'
+      - 'tests/integration/upgrade_11000_to_12000_preflight_mysql.php'
+      - '.github/workflows/upgrade-11000-12000-preflight.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'core/UpdateDatabaseMigrator.php'
+      - 'core/UpdateMigrationPreflight.php'
+      - 'core/PrefixMysqli.php'
+      - 'database/migrations/**'
+      - 'tests/integration/upgrade_11000_to_12000_preflight_mysql.php'
+      - '.github/workflows/upgrade-11000-12000-preflight.yml'
+  workflow_dispatch:
+
+jobs:
+  upgrade-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: workspace_upgrade_test
+          MYSQL_USER: workspace
+          MYSQL_PASSWORD: workspace
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql
+          coverage: none
+      - name: Проверить миграции обновления 1.1 → 1.2
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: 3306
+          TEST_DB_NAME: workspace_upgrade_test
+          TEST_DB_USER: workspace
+          TEST_DB_PASS: workspace
+        run: |
+          set -euo pipefail
+          php -l core/UpdateDatabaseMigrator.php
+          php -l tests/integration/upgrade_11000_to_12000_preflight_mysql.php
+          php tests/integration/upgrade_11000_to_12000_preflight_mysql.php
