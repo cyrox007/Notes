@@ -25,9 +25,15 @@ jobs:
   upgrade-preflight:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        database:
+          - { name: 'MySQL 8.4', image: 'mysql:8.4' }
+          - { name: 'MariaDB 11.4', image: 'mariadb:11.4' }
     services:
       mysql:
-        image: mysql:8.4
+        image: ${{ matrix.database.image }}
         env:
           MYSQL_DATABASE: workspace_upgrade_test
           MYSQL_USER: workspace
@@ -49,7 +55,7 @@ jobs:
           php-version: '8.3'
           extensions: mysqli, pdo_mysql
           coverage: none
-      - name: Проверить миграции обновления 1.1 → 1.2
+      - name: Проверить миграции обновления 1.1 → 1.2 (${{ matrix.database.name }})
         env:
           TEST_DB_HOST: 127.0.0.1
           TEST_DB_PORT: 3306
