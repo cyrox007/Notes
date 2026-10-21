@@ -8,6 +8,7 @@ $root = \Core\CliRuntime::loadEnvironment();
 require_once $root . '/core/Config.php';
 
 use App\Services\Notifications\NotificationDeliveryRuntime;
+use App\Services\Notifications\NotificationActionTokenStore;
 use Core\CliRuntime;
 use Core\DatabaseManager;
 
@@ -40,11 +41,15 @@ try {
     }
 
     \App\Services\Notifications\SystemNotificationRuntime::catchUp($root, $limit);
-    $runtime = new NotificationDeliveryRuntime(DatabaseManager::getInstance());
+    $db = DatabaseManager::getInstance();
+    // Один ограниченный пакет очистки на каждый проход фонового обработчика.
+    $expiredTokensRemoved = (new NotificationActionTokenStore($db))->purgeExpired(100);
+    $runtime = new NotificationDeliveryRuntime($db);
     $stats = $runtime->run($workerId, $limit);
 
     $result = [
         'status' => 'ok',
+        'expired_action_tokens_removed' => $expiredTokensRemoved,
         'worker_id' => $workerId,
         'claimed' => $stats['claimed'],
         'sent' => $stats['sent'],
@@ -60,6 +65,7 @@ try {
         echo 'Отправлено: ' . $stats['sent'] . PHP_EOL;
         echo 'Ожидают повтора: ' . $stats['retry'] . PHP_EOL;
         echo 'Завершены ошибкой: ' . $stats['failed'] . PHP_EOL;
+        echo 'Удалено просроченных подтверждений: ' . $expiredTokensRemoved . PHP_EOL;
     }
 
     DatabaseManager::resetInstance();
