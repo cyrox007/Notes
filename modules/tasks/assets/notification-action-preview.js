@@ -19,14 +19,43 @@
             return;
         }
 
-        feedback.textContent = 'Ссылка готова. Нажмите подтверждение, чтобы завершить задачу.';
-        button.disabled = false;
+        const csrf = document.querySelector('#csrf-token-template input[name="csrf_token"]')?.value;
+        if (!csrf) {
+            feedback.textContent = 'Сессия устарела. Обновите страницу.';
+            return;
+        }
+
+        const check = async () => {
+            const body = new URLSearchParams({ action_token: token, csrf_token: csrf });
+            const response = await fetch(root.dataset.inspectUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                redirect: 'error',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: body.toString()
+            });
+            const result = await response.json();
+            if (!response.ok || result.success !== true) {
+                throw new Error(result.message || 'Ссылка уже не действует.');
+            }
+        };
+
+        void check().then(() => {
+            feedback.textContent = 'Ссылка действительна. Подтвердите выполнение задачи.';
+            button.disabled = false;
+        }).catch((error) => {
+            feedback.textContent = error instanceof Error ? error.message : 'Ссылка недоступна.';
+        });
+
         button.addEventListener('click', async () => {
             button.disabled = true;
             feedback.textContent = 'Проверяем разрешение и сохраняем…';
             try {
-                const csrf = document.querySelector('#csrf-token-template input[name="csrf_token"]')?.value;
-                if (!csrf) throw new Error('Сессия устарела. Обновите страницу.');
                 const body = new URLSearchParams({ action_token: token, csrf_token: csrf });
                 const response = await fetch(root.dataset.confirmUrl, {
                     method: 'POST',
