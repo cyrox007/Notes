@@ -36,7 +36,9 @@ tokenContract(!str_contains($sql, 'token VARCHAR')
     'Миграция должна быть включена и не содержать исходных токенов');
 tokenContract(str_contains($routes, 'confirmFromExternalNotification')
     && str_contains($routes, 'RequireTasksUse::class, CSRFMiddleware::class')
-    && !str_contains($routes, "->add('GET', '/notification/"),
+    && str_contains($routes, "->add('GET', '/notification/{int:notificationId}/preview'")
+    && str_contains($routes, "->add('POST', '/notification/{int:notificationId}/inspect'")
+    && !str_contains($routes, "->add('GET', '/notification/{int:notificationId}/confirm'"),
     'Действие разрешено только защищённым POST');
 tokenContract(str_contains($controller, '->consume(')
     && str_contains($controller, '->complete(')
