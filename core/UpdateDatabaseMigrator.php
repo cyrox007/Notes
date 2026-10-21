@@ -180,12 +180,19 @@ final class UpdateDatabaseMigrator
 
     private function migrationTableExists(mysqli $db): bool
     {
-        $result = $db->query(
-            "SELECT 1 FROM information_schema.tables "
-            . "WHERE table_schema=DATABASE() AND table_name='schema_migrations' LIMIT 1"
+        $table = $db instanceof PrefixMysqli
+            ? $db->namespace->name('schema_migrations')
+            : 'schema_migrations';
+        $statement = $db->prepare(
+            'SELECT 1 FROM information_schema.tables
+             WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1'
         );
+        $statement->bind_param('s', $table);
+        $statement->execute();
+        $result = $statement->get_result();
         $exists = $result->num_rows === 1;
         $result->free();
+        $statement->close();
         return $exists;
     }
 
