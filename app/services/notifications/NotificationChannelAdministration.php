@@ -36,6 +36,15 @@ final class NotificationChannelAdministration
              JOIN notifications n ON n.id = j.notification_id
              ORDER BY j.id DESC LIMIT 20'
         );
+        // Последние попытки всех каналов: только диагностические коды и
+        // состояния, без адресов, текстов уведомлений и секретов транспорта.
+        $attempts = $this->db->fetchAll(
+            'SELECT a.job_id, j.channel, a.attempt_no, a.result_state,
+                    a.result_code, a.attempted_at
+             FROM notification_delivery_attempts a
+             INNER JOIN notification_delivery_jobs j ON j.id = a.job_id
+             ORDER BY a.id DESC LIMIT 40'
+        );
         $count = $this->db->fetchAll(
             'SELECT channel,state,COUNT(*) AS total FROM notification_delivery_jobs
              GROUP BY channel,state ORDER BY channel,state'
@@ -52,6 +61,7 @@ final class NotificationChannelAdministration
                 'secret_available' => $this->secretAvailable((string) ($config['secret_ref'] ?? '')),
             ],
             'jobs' => $jobs,
+            'attempts' => $attempts,
             'counts' => $count,
             'last_http_run' => $runtime['last_http_run_at'] ?? null,
         ];

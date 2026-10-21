@@ -7,6 +7,7 @@ $details = is_array($notification_settings ?? null) ? $notification_settings : [
 $mail = is_array($details['smtp'] ?? null) ? $details['smtp'] : [];
 $config = is_array($mail['settings'] ?? null) ? $mail['settings'] : [];
 $jobs = is_array($details['jobs'] ?? null) ? $details['jobs'] : [];
+$attempts = is_array($details['attempts'] ?? null) ? $details['attempts'] : [];
 $externalChannels = is_array($external_channels ?? null) ? $external_channels : [];
 $webhook = [];
 foreach ($externalChannels as $row) {
@@ -99,7 +100,7 @@ ob_start();
         <div class="admin-panel-card__header">
             <div>
                 <h2>Проверка настоящей доставки</h2>
-                <p>Пробное уведомление создаётся в общем центре и проходит через штатную очередь. Отправляется только на адрес вашей администраторской учётной записи; интервал — не чаще одного раза в минуту.</p>
+                <p>Пробное уведомление создаётся в общем центре и проходит через штатную очередь. Для электронной почты используется адрес вашей администраторской учётной записи; интервал — не чаще одного раза в минуту для каждого канала.</p>
             </div>
         </div>
         <form action="<?= $view->e($view->route('admin_notifications_test')) ?>" method="post"
@@ -138,6 +139,28 @@ ob_start();
                     </tr>
                     <?php endforeach; ?>
                     <?php if ($jobs === []): ?><tr><td colspan="5">Пока нет попыток внешней доставки.</td></tr><?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <h3>Последние попытки доставки</h3>
+        <p>Здесь отображаются только результат и код ошибки. Адреса получателей, содержимое уведомлений и секреты не раскрываются. Значение «отправлено» подтверждает принятие внешним сервисом, но не получение человеком.</p>
+        <div class="admin-users-table-wrap">
+            <table class="admin-users-table">
+                <thead><tr><th>Задание</th><th>Канал</th><th>Попытка</th><th>Результат</th><th>Код причины</th><th>Время (UTC)</th></tr></thead>
+                <tbody>
+                    <?php foreach ($attempts as $attempt): ?>
+                    <tr>
+                        <td><?= (int) ($attempt['job_id'] ?? 0) ?></td>
+                        <td><?= $view->e($attempt['channel'] ?? '—') ?></td>
+                        <td><?= (int) ($attempt['attempt_no'] ?? 0) ?></td>
+                        <td><?= $view->e($attempt['result_state'] ?? '—') ?></td>
+                        <td><code><?= $view->e($attempt['result_code'] ?? '—') ?></code></td>
+                        <td><?= $view->e($attempt['attempted_at'] ?? '—') ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                    <?php if ($attempts === []): ?>
+                        <tr><td colspan="6">Попыток доставки пока нет. Проверьте настройки каналов, подписки и работу планировщика.</td></tr>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
@@ -296,8 +319,8 @@ ob_start();
     </section>
 
     <section class="admin-panel-card">
-        <h2>Следующий транспорт</h2>
-        <p>Web Push ещё требует отдельной привязки устройства. SMS через отдельный защищённый шлюз доступен по личной подписке и настроенному телефону.</p>
+        <h2>Браузерные Push-уведомления</h2>
+        <p>Push-адаптер использует персональные подписки устройств и защищённый VAPID. Для фактического получения нужны разрешение браузера, действующая подписка и проверка на устройстве; успешное принятие Push-сервисом не гарантирует показ уведомления.</p>
     </section>
     <p data-notification-feedback role="status" aria-live="polite" hidden></p>
 </section>
