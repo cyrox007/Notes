@@ -97,7 +97,7 @@ jobs:
           "${MYSQL[@]}" "$DB" < candidate/database/migrations/20261017_mutation_commands.sql
           "${MYSQL[@]}" "$DB" -e "INSERT INTO mutation_commands (actor_key,command_id,scope,action,entity_type,entity_uid,request_hash,operation_token) VALUES ('test','failed-attempt','tasks','complete','task','fixture',REPEAT('a',64),REPEAT('b',32))"
           "${MYSQL[@]}" "$DB" -e "UPDATE users SET lastname='Повреждено' WHERE username='upgrade_test_one'"
-          "${MYSQL[@]}" -e "DROP DATABASE \\`$DB\\`; CREATE DATABASE \\`$DB\\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          "${MYSQL[@]}" -e "DROP DATABASE workspace_upgrade_restore_test; CREATE DATABASE workspace_upgrade_restore_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
           "${MYSQL[@]}" "$DB" < /tmp/notes-upgrade-original.sql
           count=$("${MYSQL[@]}" -N "$DB" -e 'SELECT COUNT(*) FROM users')
           test "$count" = '2'
