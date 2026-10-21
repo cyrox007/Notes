@@ -18,6 +18,14 @@ final class UpdateProcessRunner implements UpdateCommandRunner
 {
     private const int MAX_CAPTURE_BYTES = 1048576;
     private const int READ_CHUNK_BYTES = 65536;
+    // Технический предел-флаг: при его пересечении немедленно прерываем
+    // дочернюю команду, не дожидаясь общего тайм-аута.
+    private const int TEMP_OUTPUT_LIMIT_BYTES = 8388608;
+    private const int TEMP_TOTAL_LIMIT_BYTES = 16777216;
+    private const int TEMP_DISK_RESERVE_BYTES = 134217728;
+    private const int TEMP_SAMPLE_INTERVAL_MICROSECONDS = 10000;
+    private const int TEMP_LIMIT_EXIT_CODE = 125;
+    private const int STALE_OUTPUT_SECONDS = 86400;
 
     public static function available(): bool
     {
@@ -126,14 +134,20 @@ final class UpdateProcessRunner implements UpdateCommandRunner
     /**
      * Windows: вывод дочерней команды направляется в защищённые временные
      * файлы, поскольку неблокирующий ввод-вывод из proc_open там ненадёжен.
-     * Файлы удаляются при любом исходе, в память читается лишь первый 1 МиБ.
+     * Файлы удаляются при любом штатном исходе. При превышении бюджета
+     * дочерняя команда завершается с кодом 125. Случайный неконтролируемый
+     * всплеск между проверками может ненадолго превысить установленную границу;
+     * механизм не является файловой квотой ОС.
      *
      * @param list<string> $command
      * @return array{code:int,stdout:string,stderr:string}
      */
     private function runWithTemporaryFiles(array $command, string $cwd, int $timeoutSeconds): array
     {
-        $stdoutPath = tempnam(sys_get_temp_dir(), 'notes-up-out-');
+        $temporaryDirectory = sys_get_temp_dir();
+        self::removeStaleTemporaryOutput($temporaryDirectory);
+        self::assertTemporaryDiskReserve($temporaryDirectory);
+        $stdoutPath = tempnam($temporaryDirectory, 'notes-up-out-');
         if (!is_string($stdoutPath)) {
             throw new RuntimeException('Не удалось создать временный файл stdout обновлятора');
         }
@@ -161,8 +175,21 @@ final class UpdateProcessRunner implements UpdateCommandRunner
             $deadline = microtime(true) + $timeoutSeconds;
             $exit = -1;
             $timedOut = false;
+            $limitReason = null;
             while (true) {
+                $limitReason = self::temporaryOutputLimitReason(
+                    $stdoutPath,
+                    $stderrPath,
+                    $temporaryDirectory
+                );
                 $status = proc_get_status($process);
+                if ($limitReason !== null) {
+                    if ($status['running'] ?? false) {
+                        self::terminateProcess($process, true);
+                    }
+                    $exit = self::TEMP_LIMIT_EXIT_CODE;
+                    break;
+                }
                 if (!($status['running'] ?? false)) {
                     $exit = (int) ($status['exitcode'] ?? -1);
                     break;
@@ -170,30 +197,35 @@ final class UpdateProcessRunner implements UpdateCommandRunner
 
                 if (microtime(true) >= $deadline) {
                     $timedOut = true;
-                    proc_terminate($process);
-                    usleep(200_000);
-                    $status = proc_get_status($process);
-                    if ($status['running'] ?? false) {
-                        proc_terminate($process, 9);
-                    }
+                    self::terminateProcess($process);
                     $exit = 124;
                     break;
                 }
 
-                usleep(50_000);
+                usleep(self::TEMP_SAMPLE_INTERVAL_MICROSECONDS);
             }
 
             $closeCode = proc_close($process);
             $process = null;
-            if (!$timedOut && $exit < 0 && is_int($closeCode)) {
+            if (!$timedOut && $limitReason === null && $exit < 0 && is_int($closeCode)) {
                 $exit = $closeCode;
             }
 
-            return [
-                'code' => $exit,
-                'stdout' => self::readTemporaryOutput($stdoutPath),
-                'stderr' => self::readTemporaryOutput($stderrPath),
-            ];
+            // Проверяем размер и после завершения: очень быстрый ребёнок
+            // может успеть превысить бюджет между двумя опросами состояния.
+            $limitReason ??= self::temporaryOutputLimitReason(
+                $stdoutPath,
+                $stderrPath,
+                $temporaryDirectory
+            );
+            $stdout = self::readTemporaryOutput($stdoutPath);
+            $stderr = self::readTemporaryOutput($stderrPath);
+            if ($limitReason !== null) {
+                $exit = self::TEMP_LIMIT_EXIT_CODE;
+                $stderr = substr($limitReason . "\n" . $stderr, 0, self::MAX_CAPTURE_BYTES);
+            }
+
+            return ['code' => $exit, 'stdout' => $stdout, 'stderr' => $stderr];
         } finally {
             if (is_resource($process)) {
                 proc_terminate($process);
@@ -201,6 +233,95 @@ final class UpdateProcessRunner implements UpdateCommandRunner
             }
             @unlink($stdoutPath);
             @unlink($stderrPath);
+        }
+    }
+
+    /** @param resource $process */
+    private static function terminateProcess($process, bool $urgent = false): void
+    {
+        // При исчерпании бюджета нельзя ещё 200 мс записывать вывод на диск.
+        if ($urgent) {
+            proc_terminate($process, 9);
+            usleep(10_000);
+            if (!(proc_get_status($process)['running'] ?? false)) {
+                return;
+            }
+        }
+
+        proc_terminate($process);
+        usleep($urgent ? 20_000 : 200_000);
+        if (proc_get_status($process)['running'] ?? false) {
+            proc_terminate($process, 9);
+        }
+    }
+
+    private static function assertTemporaryDiskReserve(string $directory): void
+    {
+        $free = @disk_free_space($directory);
+        if (!is_int($free) && !is_float($free)) {
+            throw new RuntimeException('Не удалось проверить свободное место временного каталога обновлятора');
+        }
+        if ($free < self::TEMP_DISK_RESERVE_BYTES + self::TEMP_TOTAL_LIMIT_BYTES) {
+            throw new RuntimeException(
+                'Недостаточно свободного места для ограниченного вывода обновлятора'
+            );
+        }
+    }
+
+    private static function temporaryOutputLimitReason(
+        string $stdoutPath,
+        string $stderrPath,
+        string $temporaryDirectory
+    ): ?string {
+        clearstatcache(true, $stdoutPath);
+        clearstatcache(true, $stderrPath);
+        $stdoutSize = @filesize($stdoutPath);
+        $stderrSize = @filesize($stderrPath);
+        if (!is_int($stdoutSize) || !is_int($stderrSize)) {
+            return 'Не удалось определить размер временного вывода обновлятора';
+        }
+
+        if (
+            $stdoutSize > self::TEMP_OUTPUT_LIMIT_BYTES
+            || $stderrSize > self::TEMP_OUTPUT_LIMIT_BYTES
+            || $stdoutSize + $stderrSize > self::TEMP_TOTAL_LIMIT_BYTES
+        ) {
+            return 'Превышен безопасный бюджет временного вывода обновлятора';
+        }
+
+        $free = @disk_free_space($temporaryDirectory);
+        if (!is_int($free) && !is_float($free)) {
+            return 'Не удалось проверить остаток места на диске обновлятора';
+        }
+        if ($free < self::TEMP_DISK_RESERVE_BYTES) {
+            return 'Свободное место временного каталога обновлятора ниже безопасного остатка';
+        }
+
+        return null;
+    }
+
+    /**
+     * Удаляем остатки только своих файлов старше суток.
+     * Файлы недавно запущенных параллельных команд не затрагиваются.
+     */
+    private static function removeStaleTemporaryOutput(string $directory): void
+    {
+        foreach (['notes-up-out-', 'notes-up-err-'] as $prefix) {
+            foreach (glob(rtrim($directory, '/\\') . DIRECTORY_SEPARATOR . $prefix . '*') ?: [] as $path) {
+                $name = basename($path);
+                if (
+                    preg_match('/^notes-up-(?:out|err)-[a-z0-9._-]{6,24}$/i', $name) !== 1
+                    || !is_file($path)
+                    || is_link($path)
+                ) {
+                    continue;
+                }
+                clearstatcache(true, $path);
+                $mtime = @filemtime($path);
+                if (is_int($mtime) && $mtime < time() - self::STALE_OUTPUT_SECONDS) {
+                    @unlink($path);
+                }
+            }
         }
     }
 
