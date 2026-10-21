@@ -40,7 +40,7 @@ actionCheck(str_contains($service, 'recipient_user_id = :user')
     && str_contains($service, 'TaskVersionMutationService($this->db)')
     && str_contains($service, 'notification-task-complete-'),
     'Действие проверяет обе принадлежности и использует версионную команду');
-actionCheck(str_contains($center, "'actions' => $this->availableActions($row)")
+actionCheck(str_contains($center, "'actions' => " . '$this->availableActions($row)')
     && !str_contains($center, "'payload' =>"),
     'Центр отдаёт только допустимое действие, но не исходный payload');
 actionCheck(str_contains($ui, "item.actions.includes('complete_task')")
