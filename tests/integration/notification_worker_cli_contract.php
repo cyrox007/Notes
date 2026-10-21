@@ -66,3 +66,34 @@ notificationWorkerAssert(str_contains((string) $stdout, 'cron'), 'Справка
 notificationWorkerAssert(str_contains((string) $stdout, 'secret_ref=env:'), 'Справка должна объяснять безопасное хранение SMTP-пароля');
 
 fwrite(STDOUT, "[OK] CLI-контракт worker уведомлений 1.1.0\n");
+
+
+// Пробная SMTP-доставка допускается только после явного --send.
+// Проверка справки не требует подключения к БД и не отправляет сообщения.
+$probePath = $root . '/bin/notifications_smtp_probe.php';
+$probeSource = file_get_contents($probePath);
+notificationWorkerAssert(is_string($probeSource), 'Команда пробной SMTP-отправки должна существовать');
+foreach ([
+    "isset(\$options['send'])",
+    'SmtpNotificationChannel',
+    'DatabaseNotificationEmailRecipientResolver',
+    'EnvironmentNotificationSecretResolver',
+    'SocketSmtpTransport',
+    'delivery_confirmed',
+] as $fragment) {
+    notificationWorkerAssert(
+        str_contains($probeSource, $fragment),
+        'Пробная SMTP-команда обязана содержать: ' . $fragment
+    );
+}
+
+$probeProcess = proc_open([PHP_BINARY, $probePath, '--help'], $descriptors, $probePipes, $root);
+notificationWorkerAssert(is_resource($probeProcess), 'Не удалось запустить справку SMTP-проверки');
+fclose($probePipes[0]);
+$probeHelp = stream_get_contents($probePipes[1]);
+$probeError = stream_get_contents($probePipes[2]);
+fclose($probePipes[1]);
+fclose($probePipes[2]);
+notificationWorkerAssert(proc_close($probeProcess) === 0, 'Справка SMTP-проверки завершилась ошибкой: ' . $probeError);
+notificationWorkerAssert(str_contains((string) $probeHelp, '--send'),
+    'Справка SMTP-проверки обязана предупреждать о явном разрешении отправки');
