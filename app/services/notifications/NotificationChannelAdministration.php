@@ -9,6 +9,7 @@ require_once __DIR__ . '/NotificationService.php';
 require_once __DIR__ . '/NotificationEvent.php';
 require_once __DIR__ . '/DatabaseNotificationPreferences.php';
 require_once __DIR__ . '/NotificationDeliveryRuntime.php';
+require_once __DIR__ . '/PushSubscriptionService.php';
 
 use Core\DatabaseManager;
 use DomainException;
