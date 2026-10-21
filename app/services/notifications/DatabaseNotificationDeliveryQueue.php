@@ -152,6 +152,7 @@ final class DatabaseNotificationDeliveryQueue implements NotificationTargetedQue
             $rows = $this->db->fetchAll(
                 'SELECT
                     j.id,
+                    j.notification_id,
                     j.channel,
                     j.recipient_ref,
                     j.state,
