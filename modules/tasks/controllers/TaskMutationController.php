@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Services\Tasks\TaskVersionMutationService;
 use App\Services\Tasks\TaskNotificationActionService;
+use App\Services\Notifications\NotificationActionTokenStore;
 use DomainException;
 use Core\Controller;
 use Core\DatabaseManager;
@@ -81,6 +82,44 @@ final class TaskMutationController extends Controller
                 return;
             }
             $this->json($result);
+        } catch (DomainException $error) {
+            $status = in_array($error->getCode(), [404, 409, 422], true)
+                ? $error->getCode() : 422;
+            $this->json([
+                'success' => false,
+                'error' => 'notification_action_denied',
+                'message' => $error->getMessage(),
+            ], $status);
+        } catch (InvalidArgumentException $error) {
+            $this->json([
+                'success' => false,
+                'error' => 'invalid_notification_action',
+                'message' => $error->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Подтверждение внешнего действия требует авторизованной сессии и CSRF.
+     * GET-ссылка никогда не вызывает этот маршрут.
+     */
+    public function confirmFromExternalNotification(Request $request, int $notificationId): void
+    {
+        try {
+            $userId = $this->currentUserId($request);
+            $token = $request->post('action_token', '');
+            if (!is_string($token)) {
+                throw new InvalidArgumentException('Отсутствует токен подтверждения');
+            }
+
+            $store = new NotificationActionTokenStore(DatabaseManager::getInstance());
+            if (!$store->consume($userId, $notificationId, $token, 'complete_task')) {
+                throw new DomainException('Подтверждение истекло или уже использовано', 409);
+            }
+
+            $result = (new TaskNotificationActionService(DatabaseManager::getInstance()))
+                ->complete($userId, $notificationId);
+            $this->json($result, ($result['success'] ?? false) === true ? 200 : 409);
         } catch (DomainException $error) {
             $status = in_array($error->getCode(), [404, 409, 422], true)
                 ? $error->getCode() : 422;
