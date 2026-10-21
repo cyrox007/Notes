@@ -65,28 +65,44 @@ jobs:
           --health-timeout=5s
           --health-retries=15
     steps:
+      - name: Получить версию 1.2
+        uses: actions/checkout@v4
+        with:
+          path: candidate
+      - name: Получить опубликованную 1.1.0
+        uses: actions/checkout@v4
+        with:
+          ref: v1.1.0
+          path: published
+          persist-credentials: false
       - name: Подготовить MySQL-клиент
         run: sudo apt-get update -qq && sudo apt-get install -y default-mysql-client
-      - name: Проверить резервную копию и откат данных
+      - name: Проверить восстановление настоящей схемы 1.1 после миграции 1.2
         shell: bash
         run: |
           set -euo pipefail
           export MYSQL_PWD=root
-          mysql --protocol=tcp -h127.0.0.1 -uroot workspace_upgrade_restore_test <<'SQL'
-          CREATE TABLE upgrade_recovery_sample (id INT PRIMARY KEY, value_text VARCHAR(100) NOT NULL);
-          INSERT INTO upgrade_recovery_sample VALUES (1, 'данные до обновления'), (2, 'неизменяемая запись');
+          DB=workspace_upgrade_restore_test
+          MYSQL=(mysql --protocol=tcp -h127.0.0.1 -uroot)
+          # Исходная таблица взята непосредственно из опубликованного тега 1.1.0.
+          "${MYSQL[@]}" "$DB" < published/database/core_identity_schema.sql
+          "${MYSQL[@]}" "$DB" <<'SQL'
+          INSERT INTO users (uid,username,email,password_hash,firstname,lastname)
+          VALUES ('00000000-0000-4000-8000-000000000111','upgrade_test_one','upgrade-one@example.test','hash-fixture','Иван','До обновления'),
+                 ('00000000-0000-4000-8000-000000000112','upgrade_test_two','upgrade-two@example.test','hash-fixture','Мария','До обновления');
           SQL
-          mysqldump --protocol=tcp -h127.0.0.1 -uroot --single-transaction workspace_upgrade_restore_test > /tmp/notes-11000-backup.sql
-          test -s /tmp/notes-11000-backup.sql
-          mysql --protocol=tcp -h127.0.0.1 -uroot workspace_upgrade_restore_test <<'SQL'
-          DELETE FROM upgrade_recovery_sample;
-          ALTER TABLE upgrade_recovery_sample ADD COLUMN failed_migration INT NOT NULL DEFAULT 1;
-          SQL
-          mysql --protocol=tcp -h127.0.0.1 -uroot -e 'DROP DATABASE workspace_upgrade_restore_test; CREATE DATABASE workspace_upgrade_restore_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'
-          mysql --protocol=tcp -h127.0.0.1 -uroot workspace_upgrade_restore_test < /tmp/notes-11000-backup.sql
-          count=$(mysql --protocol=tcp -N -h127.0.0.1 -uroot workspace_upgrade_restore_test -e 'SELECT COUNT(*) FROM upgrade_recovery_sample')
+          mysqldump --protocol=tcp -h127.0.0.1 -uroot --single-transaction --quick "$DB" > /tmp/notes-upgrade-original.sql
+          test -s /tmp/notes-upgrade-original.sql
+          # Миграция 1.2 — реальный SQL общей платформенной таблицы команд.
+          "${MYSQL[@]}" "$DB" < candidate/database/migrations/20261017_mutation_commands.sql
+          "${MYSQL[@]}" "$DB" -e "INSERT INTO mutation_commands (actor_key,command_id,scope,action,entity_type,entity_uid,request_hash,operation_token) VALUES ('test','failed-attempt','tasks','complete','task','fixture',REPEAT('a',64),REPEAT('b',32))"
+          "${MYSQL[@]}" "$DB" -e "UPDATE users SET lastname='Повреждено' WHERE username='upgrade_test_one'"
+          "${MYSQL[@]}" -e "DROP DATABASE workspace_upgrade_restore_test; CREATE DATABASE workspace_upgrade_restore_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          "${MYSQL[@]}" "$DB" < /tmp/notes-upgrade-original.sql
+          count=$("${MYSQL[@]}" -N "$DB" -e 'SELECT COUNT(*) FROM users')
           test "$count" = '2'
-          changed=$(mysql --protocol=tcp -N -h127.0.0.1 -uroot information_schema -e "SELECT COUNT(*) FROM COLUMNS WHERE TABLE_SCHEMA='workspace_upgrade_restore_test' AND TABLE_NAME='upgrade_recovery_sample' AND COLUMN_NAME='failed_migration'")
-          test "$changed" = '0'
-          mysql --protocol=tcp -N -h127.0.0.1 -uroot workspace_upgrade_restore_test -e "SELECT value_text FROM upgrade_recovery_sample WHERE id=1" | grep -Fx 'данные до обновления'
-          echo 'Резервная копия восстановила записи и структуру после искусственного сбоя'
+          lastname=$("${MYSQL[@]}" -N "$DB" -e "SELECT lastname FROM users WHERE username='upgrade_test_one'")
+          test "$lastname" = 'До обновления'
+          migrated=$("${MYSQL[@]}" -N information_schema -e "SELECT COUNT(*) FROM TABLES WHERE TABLE_SCHEMA='$DB' AND TABLE_NAME='mutation_commands'")
+          test "$migrated" = '0'
+          echo 'Проверено восстановление пользователей опубликованной 1.1.0 после изменения реальной миграцией 1.2'
