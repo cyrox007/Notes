@@ -18,7 +18,7 @@ use InvalidArgumentException;
 final class NotificationChannelAdministration
 {
     private const EMAIL_LABEL = 'Основной SMTP';
-    private const TEST_CATEGORY = 'diagnostics';
+    private const TEST_CATEGORY_PREFIX = 'diagnostics.';
 
     public function __construct(private ?DatabaseManager $db = null)
     {
@@ -128,7 +128,8 @@ final class NotificationChannelAdministration
     /**
      * Все тестовые каналы, включая устройства Web Push, проходят штатную очередь.
      * Запрос проверяет только устройство и не доказывает показ сообщения.
-     * Сменяются только подписки на отдельную диагностическую категорию.
+     * У каждого канала своя диагностическая категория: одна проверка
+     * не должна отключать подписку другой.
      *
      * @return array{event_id:int,job_id:int,state:string,attempts:int,last_result_code:?string}
      */
@@ -184,10 +185,11 @@ final class NotificationChannelAdministration
             throw new DomainException('Пробный запрос доступен один раз в минуту для каждого канала');
         }
 
+        $category = self::testCategory($channel);
         $channels = array_fill_keys(['email', 'browser', 'telegram', 'max', 'webhook', 'sms'], false);
         $channels[$channel] = true;
         (new DatabaseNotificationPreferences($this->db))->updateForUser($actorId, [
-            'category' => self::TEST_CATEGORY,
+            'category' => $category,
             'external_enabled' => true,
             'channels' => $channels,
         ]);
@@ -198,7 +200,7 @@ final class NotificationChannelAdministration
                 version: 1,
                 idempotencyKey: 'test-' . $channel . ':' . bin2hex(random_bytes(16)),
                 source: 'core',
-                category: self::TEST_CATEGORY,
+                category: $category,
                 importance: 'normal',
                 title: 'Проверка уведомлений Notes',
                 body: 'Пробное уведомление из админпанели доставляется штатной очередью.',
@@ -224,6 +226,18 @@ final class NotificationChannelAdministration
             'attempts' => (int) $job['attempts'],
             'last_result_code' => $job['last_result_code'] ?? null,
         ];
+    }
+
+    /**
+     * Отдельная категория для каждого тестового канала не позволяет
+     * пробам перезаписывать настройки друг друга.
+     */
+    public static function testCategory(string $channel): string
+    {
+        if (!in_array($channel, ['email', 'browser', 'telegram', 'max', 'webhook', 'sms'], true)) {
+            throw new InvalidArgumentException('Неизвестный канал для диагностической категории');
+        }
+        return self::TEST_CATEGORY_PREFIX . $channel;
     }
 
     /** @return array<string,mixed>|null */
