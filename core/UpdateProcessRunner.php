@@ -147,12 +147,12 @@ final class UpdateProcessRunner implements UpdateCommandRunner
         $temporaryDirectory = sys_get_temp_dir();
         self::removeStaleTemporaryOutput($temporaryDirectory);
         self::assertTemporaryDiskReserve($temporaryDirectory);
-        $stdoutPath = tempnam($temporaryDirectory, 'notes-up-out-');
+        $stdoutPath = self::createTemporaryOutputFile($temporaryDirectory, 'notes-up-out-');
         if (!is_string($stdoutPath)) {
             throw new RuntimeException('Не удалось создать временный файл stdout обновлятора');
         }
 
-        $stderrPath = tempnam(sys_get_temp_dir(), 'notes-up-err-');
+        $stderrPath = self::createTemporaryOutputFile($temporaryDirectory, 'notes-up-err-');
         if (!is_string($stderrPath)) {
             @unlink($stdoutPath);
             throw new RuntimeException('Не удалось создать временный файл stderr обновлятора');
@@ -234,6 +234,26 @@ final class UpdateProcessRunner implements UpdateCommandRunner
             @unlink($stdoutPath);
             @unlink($stderrPath);
         }
+    }
+
+    /**
+     * Windows может обрезать prefix в tempnam до трёх символов.
+     * Создаём файл с полным предсказуемым префиксом и случайным суффиксом.
+     * Эксклюзивный режим x не позволяет открыть существующий файл.
+     */
+    private static function createTemporaryOutputFile(string $directory, string $prefix): string
+    {
+        for ($attempt = 0; $attempt < 5; ++$attempt) {
+            $path = rtrim($directory, '/\\') . DIRECTORY_SEPARATOR
+                . $prefix . bin2hex(random_bytes(10));
+            $handle = @fopen($path, 'x');
+            if (is_resource($handle)) {
+                fclose($handle);
+                return $path;
+            }
+        }
+
+        throw new RuntimeException('Не удалось создать защищённый временный файл обновлятора');
     }
 
     /** @param resource $process */
