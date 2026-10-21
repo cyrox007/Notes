@@ -125,14 +125,15 @@ final class NotificationChannelAdministration
     }
 
     /**
-     * Все тестовые каналы проходят ту же очередь, что обычная доставка.
+     * Все тестовые каналы, включая устройства Web Push, проходят штатную очередь.
+     * Запрос проверяет только устройство и не доказывает показ сообщения.
      * Сменяются только подписки на отдельную диагностическую категорию.
      *
      * @return array{event_id:int,job_id:int,state:string,attempts:int,last_result_code:?string}
      */
     public function testChannel(int $actorId, string $channel): array
     {
-        if ($actorId <= 0 || !in_array($channel, ['email', 'telegram', 'max', 'webhook', 'sms'], true)) {
+        if ($actorId <= 0 || !in_array($channel, ['email', 'browser', 'telegram', 'max', 'webhook', 'sms'], true)) {
             throw new InvalidArgumentException('Недопустимый канал или получатель');
         }
 
@@ -146,10 +147,19 @@ final class NotificationChannelAdministration
                 throw new DomainException('У администратора нет доступного E-mail адреса');
             }
         } else {
+            // Browser Push допускается только для реально привязанных
+            // устройств текущего администратора. Чужие подписки не используются.
+            if ($channel === 'browser') {
+                $activeDevices = (new PushSubscriptionService($this->db))->status($actorId);
+                if (($activeDevices['active'] ?? 0) < 1) {
+                    throw new DomainException('Сначала разрешите Push и привяжите браузер в настройках уведомлений');
+                }
+            }
             $config = $this->db->fetchOne(
                 'SELECT id FROM notification_channel_configs
                  WHERE channel=:channel AND enabled=1
-                   AND (owner_user_id = :actor OR (:is_webhook=1 AND owner_user_id IS NULL))
+                   AND ((:is_webhook=0 AND owner_user_id = :actor)
+                     OR (:is_webhook=1 AND owner_user_id IS NULL))
                  ORDER BY owner_user_id IS NULL ASC,id ASC LIMIT 1',
                 [
                     ':channel' => $channel,
