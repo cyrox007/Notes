@@ -62,9 +62,14 @@ final class DatabaseNotificationDeliveryQueue implements NotificationDeliveryQue
             foreach ($channels as $channel) {
                 // На разных устройствах одного пользователя независимые
                 // подписки, каждое устройство получает отдельное задание.
-                $configIds = $channel === 'browser'
-                    ? ($configs[$userId][$channel] ?? [])
-                    : [$configs[$userId][$channel] ?? $configs[0][$channel] ?? null];
+                // Личные каналы не могут наследовать глобальный адресат:
+                // иначе оповещение одного пользователя попадёт в чужой чат.
+                $configIds = match ($channel) {
+                    'browser' => $configs[$userId][$channel] ?? [],
+                    'telegram', 'max', 'sms' => [$configs[$userId][$channel] ?? null],
+                    'webhook' => [$configs[0][$channel] ?? null],
+                    default => [$configs[$userId][$channel] ?? $configs[0][$channel] ?? null],
+                };
                 foreach ($configIds as $configId) {
                     if (!is_int($configId)) {
                         continue;
@@ -391,7 +396,8 @@ final class DatabaseNotificationDeliveryQueue implements NotificationDeliveryQue
             $configId = (int) ($row['id'] ?? 0);
             $channel = (string) ($row['channel'] ?? '');
             $owner = $row['owner_user_id'] === null ? 0 : (int) $row['owner_user_id'];
-            if ($configId <= 0 || !isset(self::SUBSCRIPTION_FLAGS[$channel])) {
+            if ($configId <= 0 || !isset(self::SUBSCRIPTION_FLAGS[$channel])
+                || !self::validChannelOwner($channel, $owner)) {
                 continue;
             }
             if ($channel === 'browser') {
@@ -404,6 +410,21 @@ final class DatabaseNotificationDeliveryQueue implements NotificationDeliveryQue
         }
 
         return $configs;
+    }
+
+    /**
+     * Политика принадлежности адресата для всех внешних каналов.
+     * Глобальная конфигурация допустима только для SMTP и Webhook;
+     * устройства, боты и номера должны принадлежать конкретному человеку.
+     */
+    public static function validChannelOwner(string $channel, int $ownerUserId): bool
+    {
+        return match ($channel) {
+            'email' => $ownerUserId >= 0,
+            'webhook' => $ownerUserId === 0,
+            'browser', 'telegram', 'max', 'sms' => $ownerUserId > 0,
+            default => false,
+        };
     }
 
     /** @return array<string,mixed> */
