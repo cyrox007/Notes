@@ -182,6 +182,8 @@ jobs:
           php tests/integration/notification_admin_smtp_12.php
           php tests/integration/notification_external_channels_12.php
           php tests/integration/notification_channel_owner_isolation_contract.php
+          php tests/integration/notification_channel_diagnostics_contract.php
+          php -l bin/notifications_diagnose.php
           php tests/integration/notification_sms_gateway_12.php
           php tests/integration/notification_web_push_crypto_12.php
           php -l modules/messenger/services/MessengerMessageNotificationPublisher.php
