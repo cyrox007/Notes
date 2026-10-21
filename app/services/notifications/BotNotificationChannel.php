@@ -54,6 +54,9 @@ final class BotNotificationChannel implements NotificationDeliveryChannel
         // Не копируем пользовательские сообщения во внешние сети. В том числе
         // нельзя передавать содержимое будущего E2EE Messenger.
         $text = 'Notes: новое уведомление. Откройте сайт, чтобы посмотреть подробности.';
+        if (is_string($job['action_url'] ?? null) && $job['action_url'] !== '') {
+            $text .= "\nПодтвердить выполнение задачи (15 минут): " . $job['action_url'];
+        }
         if ($this->channel === 'telegram') {
             if (preg_match('/^[0-9]{4,20}:[A-Za-z0-9_-]{20,}$/', $token) !== 1) {
                 return NotificationDeliveryResult::failed('bot_secret_invalid', 'Неверный формат Telegram-токена', false);
