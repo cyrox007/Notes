@@ -55,9 +55,12 @@ budgetCheck($timeout['code'] === 124, 'зависший процесс долж�
 budgetCheck(budgetFiles() === $before,
     'временные файлы не должны оставаться после штатного завершения, лимита или тайм-аута');
 
-$path = tempnam(sys_get_temp_dir(), 'notes-up-out-');
-budgetCheck(is_string($path), 'не удалось создать временный файл для проверки уборки');
-file_put_contents($path, 'устаревший вывод');
+$path = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR
+    . 'notes-up-out-' . bin2hex(random_bytes(10));
+$handle = fopen($path, 'x');
+budgetCheck(is_resource($handle), 'не удалось создать временный файл для проверки уборки');
+fwrite($handle, 'устаревший вывод');
+fclose($handle);
 touch($path, time() - 90000);
 
 try {
