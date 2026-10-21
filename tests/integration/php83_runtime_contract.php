@@ -117,6 +117,35 @@ runtimeCheck(strlen($streaming['stderr']) === 1048576, 'поток stderr не �
 runtimeCheck(memory_get_peak_usage(true) - $beforeStreamingPeak <= 16777216,
     'большой вывод не должен вызывать рост памяти процесса PHP на десятки мегабайт');
 
+// Windows использует временные файлы вместо потенциально блокирующих каналов.
+// Превышение дискового бюджета должно прекращать команду, сохранять
+// диагностический код и удалять временные файлы после штатного отказа.
+if (PHP_OS_FAMILY === 'Windows') {
+    $outputPattern = rtrim(sys_get_temp_dir(), '/\\\\') . DIRECTORY_SEPARATOR . 'notes-up-';
+    $temporaryOutputs = static function () use ($outputPattern): array {
+        return array_merge(
+            glob($outputPattern . 'out-*') ?: [],
+            glob($outputPattern . 'err-*') ?: []
+        );
+    };
+    $filesBefore = $temporaryOutputs();
+    $oversizedOutput = (new \\Core\\UpdateProcessRunner())->run(
+        [PHP_BINARY, '-r',
+            'for ($i = 0; $i < 40; $i++) { fwrite(STDOUT, str_repeat("X", 1048576)); fwrite(STDERR, str_repeat("Y", 1048576)); }'],
+        $root,
+        30
+    );
+    runtimeCheck($oversizedOutput['code'] === 125,
+        'превышение бюджета временного вывода Windows должно останавливать команду с кодом 125');
+    runtimeCheck(str_contains($oversizedOutput['stderr'], 'бюджет'),
+        'должно отображаться безопасное объяснение ограничения временного вывода');
+    runtimeCheck(strlen($oversizedOutput['stdout']) <= 1048576
+        && strlen($oversizedOutput['stderr']) <= 1048576,
+        'отказ по дисковому бюджету не должен расширять возвращаемые буферы');
+    runtimeCheck($temporaryOutputs() === $filesBefore,
+        'временные файлы обновлятора должны удаляться после превышения бюджета');
+}
+
 $emptyOutput = (new \Core\UpdateProcessRunner())->run(
     [PHP_BINARY, '-r', 'exit(31);'],
     $root,
