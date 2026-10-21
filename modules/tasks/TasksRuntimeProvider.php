@@ -49,6 +49,7 @@ final class TasksRuntimeProvider implements ModuleRuntimeProvider
     {
         $router->group('/tasks')
             ->add('GET', '/', [TaskController::class, 'index'], [LoginRequared::class, RequireTasksUse::class], 'tasks')
+            ->add('POST', '/notification/{int:notificationId}/inspect', [TaskMutationController::class, 'inspectExternalNotification'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_notification_inspect')
             ->add('GET', '/notification/{int:notificationId}/preview', [TaskMutationController::class, 'previewExternalNotification'], [LoginRequared::class, RequireTasksUse::class], 'task_notification_preview')
             ->add('POST', '/notification/{int:notificationId}/confirm', [TaskMutationController::class, 'confirmFromExternalNotification'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_notification_confirm')
             ->add('POST', '/notification/{int:notificationId}/complete', [TaskMutationController::class, 'completeFromNotification'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_notification_complete')
