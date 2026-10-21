@@ -103,6 +103,26 @@ final class TaskMutationController extends Controller
      * Подтверждение внешнего действия требует авторизованной сессии и CSRF.
      * GET-ссылка никогда не вызывает этот маршрут.
      */
+    public function previewExternalNotification(Request $request, int $notificationId): void
+    {
+        $userId = $this->currentUserId($request);
+        $exists = DatabaseManager::getInstance()->fetchValue(
+            'SELECT id FROM notifications WHERE id = :id AND recipient_user_id = :user LIMIT 1',
+            [':id' => $notificationId, ':user' => $userId]
+        );
+        if ($exists === null) {
+            http_response_code(404);
+            echo 'Уведомление недоступно';
+            return;
+        }
+
+        header('Cache-Control: no-store');
+        header('Referrer-Policy: no-referrer');
+        $this->render_template('@tasks/notification-confirm', [
+            'notificationId' => $notificationId,
+        ]);
+    }
+
     public function confirmFromExternalNotification(Request $request, int $notificationId): void
     {
         try {
