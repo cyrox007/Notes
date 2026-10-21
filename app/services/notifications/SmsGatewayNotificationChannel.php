@@ -56,9 +56,12 @@ final class SmsGatewayNotificationChannel implements NotificationDeliveryChannel
 
         // SMS содержит только обезличенный сигнал. Тексты переписки,
         // задач и других объектов не должны покидать Notes.
+        $actionUrl = (string) ($job['action_url'] ?? '');
         $payload = [
             'recipient' => $config['phone'],
-            'text' => 'Notes: новое уведомление. Откройте приложение для подробностей.',
+            'text' => $actionUrl === ''
+                ? 'Notes: новое уведомление. Откройте приложение для подробностей.'
+                : 'Notes: подтвердите выполнение задачи (15 минут): ' . $actionUrl,
             'delivery_id' => (string) ($job['id'] ?? '0'),
         ];
         try {

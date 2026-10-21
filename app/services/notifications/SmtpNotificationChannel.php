@@ -184,7 +184,11 @@ final class SmtpNotificationChannel implements NotificationDeliveryChannel
         $title = trim((string) ($job['title'] ?? 'Уведомление'));
         $targetUrl = $this->targetUrl((string) ($job['target_path'] ?? ''));
 
+        $actionUrl = (string) ($job['action_url'] ?? '');
         $text = $body;
+        if ($actionUrl !== '') {
+            $text .= ($text === '' ? '' : "\n\n") . 'Подтвердить выполнение задачи (15 минут): ' . $actionUrl;
+        }
         if ($targetUrl !== null) {
             $text .= ($text === '' ? '' : "\n\n") . 'Открыть в Workspace Organizer: ' . $targetUrl;
         }
@@ -197,6 +201,10 @@ final class SmtpNotificationChannel implements NotificationDeliveryChannel
         if ($targetUrl !== null) {
             $safeUrl = htmlspecialchars($targetUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
             $html .= '<p><a href="' . $safeUrl . '">Открыть в Workspace Organizer</a></p>';
+        }
+        if ($actionUrl !== '') {
+            $safeAction = htmlspecialchars($actionUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $html .= '<p><a href="' . $safeAction . '">Подтвердить выполнение задачи (15 минут)</a></p>';
         }
         $html .= '</body></html>';
 

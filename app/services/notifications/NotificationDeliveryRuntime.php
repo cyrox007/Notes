@@ -18,6 +18,7 @@ require_once __DIR__ . '/SmsGatewayNotificationChannel.php';
 require_once __DIR__ . '/PushSubscriptionService.php';
 require_once __DIR__ . '/CurlWebPushHttpTransport.php';
 require_once __DIR__ . '/WebPushNotificationChannel.php';
+require_once __DIR__ . '/NotificationDeliveryActionLinks.php';
 
 use Core\DatabaseManager;
 use DateTimeImmutable;
@@ -113,7 +114,11 @@ final class NotificationDeliveryRuntime
                     new PushSubscriptionService($this->db),
                     new CurlWebPushHttpTransport()
                 ),
-            ]
+            ],
+            new NotificationDeliveryActionLinks(
+                new NotificationActionTokenStore($this->db),
+                $siteUrl === false ? '' : $siteUrl
+            )
         );
         return $this->worker;
     }

@@ -139,6 +139,8 @@ jobs:
           php tests/integration/notification_task_action_contract.php
           php tests/integration/notification_action_token_contract.php
           php tests/integration/notification_action_preview_contract.php
+          php tests/integration/notification_delivery_action_links_contract.php
+          php -l app/services/notifications/NotificationDeliveryActionLinks.php
           php -l modules/tasks/views/notification-confirm.php
           node --check modules/tasks/assets/notification-action-preview.js
           php -l app/services/notifications/NotificationActionTokenStore.php
