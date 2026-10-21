@@ -422,6 +422,36 @@
             actions.appendChild(open);
         }
 
+        if (notificationId > 0 && Array.isArray(item.actions)
+            && item.actions.includes('complete_task')) {
+            const complete = button('workspace-notification-item__primary', 'Завершить задачу');
+            complete.textContent = 'Выполнено';
+            complete.addEventListener('click', async () => {
+                complete.disabled = true;
+                complete.textContent = 'Сохраняем…';
+                try {
+                    const template = document.querySelector('#csrf-token-template input[name="csrf_token"]');
+                    const token = template?.value;
+                    if (!token) throw new Error('Защитный токен недоступен. Обновите страницу.');
+                    const destination = (typeof window.wspace?.path === 'function'
+                        ? window.wspace.path('/tasks/notification/' + notificationId + '/complete')
+                        : '/tasks/notification/' + notificationId + '/complete');
+                    const payload = await requestJson(destination, {
+                        method: 'POST',
+                        headers: { 'X-CSRF-Token': token, 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+                    if (payload.success !== true) throw new Error(payload.message || 'Не удалось завершить задачу');
+                    showFeedback(refs.feedback, 'Задача отмечена выполненной.', 'success');
+                    await loadList(refs, state);
+                } catch (error) {
+                    showFeedback(refs.feedback, errorMessage(error, 'Не удалось завершить задачу.'), 'error');
+                    complete.disabled = false;
+                    complete.textContent = 'Выполнено';
+                }
+            });
+            actions.appendChild(complete);
+        }
+
         if (notificationId > 0) {
             const readToggle = button('workspace-notification-item__secondary', unread ? 'Отметить прочитанным' : 'Вернуть в непрочитанные');
             readToggle.textContent = unread ? 'Прочитано' : 'Вернуть';

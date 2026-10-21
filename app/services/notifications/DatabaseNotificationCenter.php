@@ -6,6 +6,7 @@ namespace App\Services\Notifications;
 
 require_once dirname(__DIR__, 3) . '/core/DatabaseManager.php';
 require_once __DIR__ . '/NotificationEvent.php';
+require_once __DIR__ . '/NotificationActionAvailability.php';
 
 use Core\DatabaseManager;
 use InvalidArgumentException;
@@ -78,7 +79,12 @@ final class DatabaseNotificationCenter
             $params
         );
 
-        $items = array_map($this->normalizeItem(...), $rows);
+        $availability = (new NotificationActionAvailability($this->db))->forUser($userId, $rows);
+        $items = array_map(function (array $row) use ($availability): array {
+            $item = $this->normalizeItem($row);
+            $item['actions'] = $availability[(int) $row['id']] ?? [];
+            return $item;
+        }, $rows);
         return [
             'items' => $items,
             'pagination' => [

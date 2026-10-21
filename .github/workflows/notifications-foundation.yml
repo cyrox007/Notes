@@ -136,6 +136,11 @@ jobs:
           set -euo pipefail
           php tests/integration/notification_foundation_contract.php
           php tests/integration/notification_delivery_contract.php
+          php tests/integration/notification_task_action_contract.php
+          php -l modules/tasks/services/TaskNotificationActionService.php
+          php -l app/services/notifications/NotificationActionAvailability.php
+          php -l modules/tasks/controllers/TaskMutationController.php
+          node --check assets/js/notification-center.js
           php tests/integration/notification_targeted_delivery_contract.php
           php -l app/services/notifications/DatabaseNotificationDeliveryQueue.php
           php -l app/services/notifications/NotificationDeliveryWorker.php
