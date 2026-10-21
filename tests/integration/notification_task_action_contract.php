@@ -40,9 +40,12 @@ actionCheck(str_contains($service, 'recipient_user_id = :user')
     && str_contains($service, 'TaskVersionMutationService($this->db)')
     && str_contains($service, 'notification-task-complete-'),
     'Действие проверяет обе принадлежности и использует версионную команду');
-actionCheck(str_contains($center, "'actions' => " . '$this->availableActions($row)')
-    && !str_contains($center, "'payload' =>"),
-    'Центр отдаёт только допустимое действие, но не исходный payload');
+$availability = (string) file_get_contents($root . '/app/services/notifications/NotificationActionAvailability.php');
+actionCheck(str_contains($center, 'NotificationActionAvailability($this->db)')
+    && !str_contains($center, 'payload_json')
+    && str_contains($availability, 'recipient_user_id = :user')
+    && str_contains($availability, 'complete_task'),
+    'Внутреннее событие не должно читаться непосредственно из API центра');
 actionCheck(str_contains($ui, "item.actions.includes('complete_task')")
     && str_contains($ui, "'X-CSRF-Token': token")
     && str_contains($ui, "method: 'POST'"),
