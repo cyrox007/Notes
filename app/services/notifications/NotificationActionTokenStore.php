@@ -82,6 +82,24 @@ final class NotificationActionTokenStore
         return (int) $updated === 1;
     }
 
+    /**
+     * Удаляет ограниченный пакет только истёкших токенов.
+     * Лимит явно проверен перед включением в SQL; пользовательский ввод
+     * не участвует в формировании выражения запроса.
+     */
+    public function purgeExpired(int $limit = 100): int
+    {
+        if ($limit < 1 || $limit > 1000) {
+            throw new InvalidArgumentException('Размер очистки токенов должен быть от 1 до 1000');
+        }
+
+        return (int) $this->db->execute(
+            'DELETE FROM notification_action_tokens
+             WHERE expires_at <= UTC_TIMESTAMP()
+             LIMIT ' . $limit
+        );
+    }
+
     private static function validateIdentity(int $userId, int $notificationId, string $action): void
     {
         if ($userId < 1 || $notificationId < 1 || $action !== 'complete_task') {
