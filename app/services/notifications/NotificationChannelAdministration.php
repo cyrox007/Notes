@@ -214,9 +214,11 @@ final class NotificationChannelAdministration
             throw new DomainException('Событие записано, но задание не создано. Проверьте подписку и получателя.');
         }
 
-        // Не блокируем HTTP ожиданием всей очереди: один ограниченный проход.
-        (new NotificationDeliveryRuntime($this->db))->run(
-            'notifications-test-' . $actorId . '-' . bin2hex(random_bytes(4)), 1
+        // Обрабатываем только созданное тестовое задание.
+        // Если его уже захватил другой обработчик, не трогаем остальную очередь.
+        (new NotificationDeliveryRuntime($this->db))->runJob(
+            'notifications-test-' . $actorId . '-' . bin2hex(random_bytes(4)),
+            (int) $job['id']
         );
         $job = $this->jobForEvent((int) $published['event_id'], $actorId, $channel);
         return [
