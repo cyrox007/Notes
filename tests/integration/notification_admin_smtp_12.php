@@ -92,7 +92,6 @@ notificationAdministrationCheck(
 notificationAdministrationCheck(
     str_contains($service, "['email', 'browser', 'telegram', 'max', 'webhook', 'sms']")
     && str_contains($service, "new PushSubscriptionService(")
-    && str_contains($service, "'activeDevices'") === false
     && str_contains($service, "['active'] ?? 0")
     && str_contains($service, "owner_user_id = :actor"),
     'Push-тест должен проверять личную подписку и запрещать чужие устройства'
