@@ -103,6 +103,47 @@ final class TaskMutationController extends Controller
      * Подтверждение внешнего действия требует авторизованной сессии и CSRF.
      * GET-ссылка никогда не вызывает этот маршрут.
      */
+    public function previewExternalNotification(Request $request, int $notificationId): void
+    {
+        $userId = $this->currentUserId($request);
+        $exists = DatabaseManager::getInstance()->fetchValue(
+            'SELECT id FROM notifications WHERE id = :id AND recipient_user_id = :user LIMIT 1',
+            [':id' => $notificationId, ':user' => $userId]
+        );
+        if ($exists === null) {
+            http_response_code(404);
+            echo 'Уведомление недоступно';
+            return;
+        }
+
+        header('Cache-Control: no-store');
+        header('Referrer-Policy: no-referrer');
+        $this->render_template('@tasks/notification-confirm', [
+            'notificationId' => $notificationId,
+        ]);
+    }
+
+    /** Проверка без расходования одноразового разрешения. */
+    public function inspectExternalNotification(Request $request, int $notificationId): void
+    {
+        try {
+            $userId = $this->currentUserId($request);
+            $token = $request->rawPost('action_token', '');
+            if (!is_string($token)) {
+                throw new InvalidArgumentException('Недействительное подтверждение');
+            }
+            $match = (new NotificationActionTokenStore(DatabaseManager::getInstance()))
+                ->inspect($userId, $token, 'complete_task');
+            if ($match !== $notificationId) {
+                $this->json(['success' => false, 'message' => 'Ссылка истекла или недоступна'], 409);
+                return;
+            }
+            $this->json(['success' => true, 'action' => 'complete_task']);
+        } catch (InvalidArgumentException $error) {
+            $this->json(['success' => false, 'message' => 'Недействительная ссылка'], 422);
+        }
+    }
+
     public function confirmFromExternalNotification(Request $request, int $notificationId): void
     {
         try {
