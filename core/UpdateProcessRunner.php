@@ -185,7 +185,7 @@ final class UpdateProcessRunner implements UpdateCommandRunner
                 $status = proc_get_status($process);
                 if ($limitReason !== null) {
                     if ($status['running'] ?? false) {
-                        self::terminateProcess($process);
+                        self::terminateProcess($process, true);
                     }
                     $exit = self::TEMP_LIMIT_EXIT_CODE;
                     break;
@@ -237,12 +237,20 @@ final class UpdateProcessRunner implements UpdateCommandRunner
     }
 
     /** @param resource $process */
-    private static function terminateProcess($process): void
+    private static function terminateProcess($process, bool $urgent = false): void
     {
+        // При исчерпании бюджета нельзя ещё 200 мс записывать вывод на диск.
+        if ($urgent) {
+            proc_terminate($process, 9);
+            usleep(10_000);
+            if (!(proc_get_status($process)['running'] ?? false)) {
+                return;
+            }
+        }
+
         proc_terminate($process);
-        usleep(200_000);
-        $status = proc_get_status($process);
-        if ($status['running'] ?? false) {
+        usleep($urgent ? 20_000 : 200_000);
+        if (proc_get_status($process)['running'] ?? false) {
             proc_terminate($process, 9);
         }
     }
