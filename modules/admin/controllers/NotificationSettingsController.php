@@ -6,11 +6,15 @@ namespace App\Controllers\Admin;
 
 require_once dirname(__DIR__, 3) . '/app/services/notifications/NotificationChannelAdministration.php';
 require_once dirname(__DIR__, 3) . '/app/services/notifications/NotificationExternalChannelAdministration.php';
+require_once dirname(__DIR__, 3) . '/app/services/notifications/TaskReminderScheduleHealth.php';
 
 use App\Helpers\CryptMethods;
 use App\Models\UserModel;
 use App\Services\Notifications\NotificationChannelAdministration;
 use App\Services\Notifications\NotificationExternalChannelAdministration;
+use App\Services\Notifications\TaskReminderScheduleHealth;
+use Core\DatabaseManager;
+use Core\ModuleRuntimeLoader;
 use Core\Controller;
 use Core\Request;
 use Core\UserActionLog;
@@ -33,7 +37,33 @@ final class NotificationSettingsController extends Controller
             'user' => $user,
             'notification_settings' => (new NotificationChannelAdministration())->overview(),
             'external_channels' => (new NotificationExternalChannelAdministration())->overview(),
+            'reminder_scheduler' => $this->reminderSchedulerStatus(),
         ]);
+    }
+
+    /** @return array<string,mixed> */
+    private function reminderSchedulerStatus(): array
+    {
+        if (!ModuleRuntimeLoader::isBooted()
+            || !ModuleRuntimeLoader::getInstance()->capabilities()->has('workspace.tasks')) {
+            return [
+                'state' => 'disabled',
+                'message' => 'Модуль Tasks отключён или недоступен по лицензии.',
+            ];
+        }
+
+        try {
+            $report = TaskReminderScheduleHealth::readReport(DatabaseManager::getInstance());
+            return TaskReminderScheduleHealth::evaluate($report);
+        } catch (Throwable $error) {
+            // Сбой чтения журнала не должен скрывать настройки остальных каналов.
+            // В том числе возможна ещё не применённая миграция Tasks.
+            error_log('Состояние планировщика Tasks недоступно: ' . $error::class);
+            return [
+                'state' => 'unavailable',
+                'message' => 'Журнал напоминаний недоступен. Проверьте миграции базы данных и подключение.',
+            ];
+        }
     }
 
     public function saveSmtp(Request $request): void

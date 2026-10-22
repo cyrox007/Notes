@@ -16,6 +16,18 @@ foreach ($externalChannels as $row) {
     }
 }
 $counts = is_array($details['counts'] ?? null) ? $details['counts'] : [];
+$scheduler = is_array($reminder_scheduler ?? null) ? $reminder_scheduler : [];
+$schedulerStates = [
+    'healthy' => 'Работает',
+    'running' => 'Выполняется',
+    'late' => 'Нет свежих запусков',
+    'interrupted' => 'Возможное прерывание',
+    'failed' => 'Ошибка обработки',
+    'never_started' => 'Не запускался',
+    'unavailable' => 'Недоступен',
+    'disabled' => 'Модуль отключён',
+    'unknown' => 'Неизвестно',
+];
 $siteName = isset($sitename) ? (string) $sitename : 'Notes';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
@@ -109,6 +121,53 @@ ob_start();
             <button class="admin-action admin-action--secondary" type="submit">Отправить пробное письмо</button>
         </form>
         <p><strong>Важно:</strong> статус «отправлено» означает, что SMTP-сервер принял письмо, а не что оно прочитано получателем. Проверьте входящие и спам. При состоянии «ожидание» нужен действующий обработчик очереди.</p>
+    </section>
+
+    <section class="admin-panel-card" aria-labelledby="tasks-scheduler-title">
+        <div class="admin-panel-card__header">
+            <div>
+                <span class="admin-panel-card__kicker">Фоновая обработка</span>
+                <h2 id="tasks-scheduler-title">Планировщик напоминаний Tasks</h2>
+                <p>Здесь показаны фактические запуски, а не предполагаемое состояние cron или планировщика Windows.</p>
+            </div>
+        </div>
+        <p role="status">
+            <strong>Состояние: <?= $view->e($schedulerStates[(string) ($scheduler['state'] ?? 'unknown')] ?? 'Неизвестно') ?>.</strong>
+            <?= $view->e($scheduler['message'] ?? 'Состояние пока не определено.') ?>
+        </p>
+        <?php if (!empty($scheduler['last_run_utc'])): ?>
+            <p>Последний запуск (UTC): <strong><?= $view->e($scheduler['last_run_utc']) ?></strong>.
+                Завершён (UTC): <?= $view->e($scheduler['last_finish_utc'] ?: 'не зафиксировано') ?>.
+                <?php if (isset($scheduler['minutes_since_start'])): ?>
+                    С момента запуска: <?= (int) $scheduler['minutes_since_start'] ?> мин.
+                <?php endif; ?>
+            </p>
+            <div class="admin-notification-counts">
+                <span>Утренних сводок: <strong><?= (int) ($scheduler['morning_published'] ?? 0) ?></strong></span>
+                <span>Личных напоминаний: <strong><?= (int) ($scheduler['personal_published'] ?? 0) ?></strong></span>
+                <span>Командных напоминаний: <strong><?= (int) ($scheduler['board_published'] ?? 0) ?></strong></span>
+                <span>Внешних заданий: <strong><?= (int) ($scheduler['delivery_claimed'] ?? 0) ?></strong></span>
+                <span>Принято каналами: <strong><?= (int) ($scheduler['delivery_sent'] ?? 0) ?></strong></span>
+                <span>Ожидают повтора: <strong><?= (int) ($scheduler['delivery_retry'] ?? 0) ?></strong></span>
+                <span>Ошибок доставки: <strong><?= (int) ($scheduler['delivery_failed'] ?? 0) ?></strong></span>
+            </div>
+            <?php if (!empty($scheduler['failed_stage'])): ?>
+                <p>Этап ошибки: <code><?= $view->e($scheduler['failed_stage']) ?></code></p>
+            <?php endif; ?>
+            <p>За 24 часа: проходов — <strong><?= (int) ($scheduler['runs_24h'] ?? 0) ?></strong>;
+                принято каналами — <?= (int) ($scheduler['sent_24h'] ?? 0) ?>;
+                повторов — <?= (int) ($scheduler['retry_24h'] ?? 0) ?>;
+                ошибок — <?= (int) ($scheduler['failed_24h'] ?? 0) ?>.</p>
+        <?php endif; ?>
+        <p>Расписание: каждые 15 минут. Если новых проходов нет более 45 минут,
+            требуется проверить служебное задание и журнал сервера. Успешная отправка не гарантирует,
+            что адресат прочитал или получил сообщение.</p>
+        <p>Для установки или проверки расписания используйте серверные сценарии
+            <code>tools/scheduler/tasks-reminders-linux.sh</code> (Linux)
+            или <code>tools/scheduler/tasks-reminders-windows.ps1</code> (Windows).
+            Приложение не создаёт системные задания без решения администратора сервера.</p>
+        <a class="admin-action admin-action--secondary"
+           href="<?= $view->e($view->route('admin_notifications')) ?>">Обновить состояние</a>
     </section>
 
     <section class="admin-panel-card">

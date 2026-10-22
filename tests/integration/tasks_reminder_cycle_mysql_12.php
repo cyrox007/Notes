@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/core/DatabaseManager.php';
 require_once dirname(__DIR__, 2) . '/modules/tasks/services/TaskReminderCycle.php';
+require_once dirname(__DIR__, 2) . '/app/services/notifications/TaskReminderScheduleHealth.php';
 
 use Core\DatabaseManager;
+use App\Services\Notifications\TaskReminderScheduleHealth;
 use Modules\Tasks\TaskReminderCycle;
 
 function cycleCheck(bool $valid, string $description): void
@@ -67,6 +69,11 @@ try {
         && (int) $diagnostics['last']['delivery_sent'] === 6
         && $diagnostics['last_24h']['runs'] === 1,
         'диагностика неверна');
+    $admin = TaskReminderScheduleHealth::readReport($other);
+    cycleCheck(($admin['last']['status'] ?? null) === 'ok'
+        && (int) ($admin['last_24h']['runs'] ?? 0) === 1
+        && (int) ($admin['last_24h']['sent'] ?? 0) === 6,
+        'административная диагностика не видит записи фонового цикла');
 
     $deliveryRan = false;
     $failed = $second->run(
