@@ -1,0 +1,61 @@
+name: 1.2 — изменяющие команды Tasks API
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/**'
+      - 'tests/integration/tasks_api_write_mysql_12.php'
+      - '.github/workflows/tasks-api-write-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/**'
+      - 'tests/integration/tasks_api_write_mysql_12.php'
+      - '.github/workflows/tasks-api-write-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  write-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: workspace_tasks_api_test
+          MYSQL_USER: workspace
+          MYSQL_PASSWORD: workspace
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql,pdo_sqlite,mbstring
+          coverage: none
+      - name: Проверить команды и защиту токенов
+        env:
+          TEST_DB_NAME: workspace_tasks_api_test
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: '3306'
+          TEST_DB_USER: workspace
+          TEST_DB_PASS: workspace
+        run: |
+          php -l modules/tasks/services/TaskApiCreateService.php
+          php -l modules/tasks/controllers/TaskWriteApiController.php
+          php -l tests/integration/tasks_api_write_mysql_12.php
+          php tests/integration/tasks_api_write_mysql_12.php
+          php tests/integration/tasks_api_tokens_12.php
