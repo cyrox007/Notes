@@ -1,0 +1,70 @@
+name: Командные напоминания Tasks
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/services/TaskBoardOverdueReminderPublisher.php'
+      - 'bin/tasks_board_overdue_reminders.php'
+      - '.github/workflows/tasks-board-reminders-12.yml'
+      - 'tests/integration/tasks_board_overdue_reminders_mysql_12.php'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/services/TaskBoardOverdueReminderPublisher.php'
+      - 'bin/tasks_board_overdue_reminders.php'
+jobs:
+  syntax:
+    name: Синтаксис командных напоминаний
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверить PHP
+        run: |
+          php -l modules/tasks/services/TaskBoardOverdueReminderPublisher.php
+          php -l bin/tasks_board_overdue_reminders.php
+
+  mysql:
+    name: Командные напоминания (${{ matrix.db.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        db:
+          - {name: MySQL-8.4, image: 'mysql:8.4', health: 'mysqladmin ping -h 127.0.0.1 -uroot -proot'}
+          - {name: MariaDB-11.4, image: 'mariadb:11.4', health: 'healthcheck.sh --connect --innodb_initialized'}
+    services:
+      mysql:
+        image: ${{ matrix.db.image }}
+        env:
+          MYSQL_DATABASE: workspace_board_reminders_test
+          MYSQL_USER: workspace
+          MYSQL_PASSWORD: workspace
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="${{ matrix.db.health }}"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql
+          coverage: none
+      - name: Проверить командные напоминания на базе
+        env:
+          TEST_DB_NAME: workspace_board_reminders_test
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_USER: workspace
+          TEST_DB_PASS: workspace
+        run: |
+          php -l tests/integration/tasks_board_overdue_reminders_mysql_12.php
+          php tests/integration/tasks_board_overdue_reminders_mysql_12.php
