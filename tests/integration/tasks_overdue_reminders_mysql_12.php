@@ -67,13 +67,13 @@ try {
     $db->execute("UPDATE tasks SET status='pending' WHERE id=1");
     verify($publisher->run(new DateTimeImmutable('2026-10-24 07:20:00+00:00'),1)['published'] === 1,
         'Повтор раз в три дня должен прийти на четвёртый день просрочки');
-    verify($publisher->run(new DateTimeImmutable('2026-10-25 07:20:00+00:00'),1)['published'] === 0,
+    verify($publisher->run(new DateTimeImmutable('2026-10-25 08:20:00+00:00'),1)['published'] === 0,
         'Повтор раз в три дня не должен приходить ежедневно');
     $db->execute("UPDATE task_morning_digest_settings SET repeat_interval_days=0 WHERE user_id=11");
-    verify($publisher->run(new DateTimeImmutable('2026-10-26 07:20:00+00:00'))['published'] === 0,
+    verify($publisher->run(new DateTimeImmutable('2026-10-26 08:20:00+00:00'))['published'] === 0,
         'Явное отключение повторов проигнорировано');
     $db->execute("UPDATE task_morning_digest_settings SET enabled=0,repeat_interval_days=1 WHERE user_id=11");
-    verify($publisher->run(new DateTimeImmutable('2026-10-27 07:20:00+00:00'))['published'] === 2,
+    verify($publisher->run(new DateTimeImmutable('2026-10-27 08:20:00+00:00'))['published'] === 2,
         'Независимые повторы должны работать без утренней сводки');
     echo "Напоминания Tasks: календарный день, согласие, завершение и повторобезопасность проверены\n";
 } finally {
