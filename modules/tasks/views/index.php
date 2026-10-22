@@ -46,6 +46,21 @@ ob_start();
     <div><h1>Мои задачи</h1></div>
 </section>
 
+<section class="tasks-assignee" data-assignee-queue
+         data-queue-url="<?= $view->e($view->route('tasks_assignee_queue')) ?>"
+         data-personal-url="<?= $view->e($tasksRoute) ?>"
+         data-boards-url="<?= $view->e($view->route('task_boards')) ?>">
+    <div class="tasks-assignee__heading">
+        <div>
+            <h2>Моя рабочая очередь</h2>
+            <p>Личные и назначенные командные задачи в одном месте.</p>
+        </div>
+        <button type="button" class="btn-secondary" data-queue-refresh>Обновить</button>
+    </div>
+    <p data-queue-status role="status" aria-live="polite">Загружаем рабочую очередь…</p>
+    <div data-queue-groups class="tasks-assignee__groups"></div>
+</section>
+
 <section class="tasks" data-archive="<?= $filter === 'archive' ? '1' : '0' ?>"
          data-day-queue="<?= $view->e($dayLabel) ?>"
          data-day-order-enabled="<?= $manualOrder ? '1' : '0' ?>"
@@ -190,6 +205,7 @@ echo $view->layout('core/base', [
         $view->moduleAsset('tasks', 'hardening.css'),
         $view->moduleAsset('tasks', 'kanban.css'),
         $view->moduleAsset('tasks', 'kanban-handle.css'),
+        $view->moduleAsset('tasks', 'assignee-queue.css'),
     ],
     'module_scripts' => [
         $view->moduleAsset('tasks', 'tasks-page.js'),
@@ -197,5 +213,6 @@ echo $view->layout('core/base', [
         $view->moduleAsset('tasks', 'tasks-day-order.js'),
         $view->moduleAsset('tasks', 'tasks-kanban.js'),
         $view->moduleAsset('tasks', 'task-boards-nav.js'),
+        $view->moduleAsset('tasks', 'assignee-queue.js'),
     ],
 ], $content);
