@@ -72,7 +72,8 @@ ob_start();
             <option value="Asia/Vladivostok">
             <option value="UTC">
         </datalist>
-        <button type="submit" class="btn-secondary">Сохранить зону</button>
+        <label><input type="checkbox" name="morning_digest_enabled" value="1"> Получать утреннюю сводку задач через уведомления</label>
+        <button type="submit" class="btn-secondary">Сохранить настройки</button>
     </form>
     <p data-queue-status role="status" aria-live="polite">Загружаем рабочую очередь…</p>
     <p data-queue-summary class="tasks-assignee__summary"></p>
