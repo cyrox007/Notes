@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Modules\Tasks;
 
+require_once __DIR__ . '/TaskReminderRepeatPolicy.php';
+
 use App\Services\Notifications\NotificationEvent;
 use App\Services\Notifications\NotificationService;
 use Core\DatabaseManager;
@@ -37,11 +39,13 @@ final class TaskOverdueReminderPublisher
         $published = 0;
         while (true) {
             $recipients = $this->db->fetchAll(
-                "SELECT p.user_id,p.timezone
+                "SELECT p.user_id,p.timezone,
+                        COALESCE(s.repeat_interval_days,s.enabled) AS repeat_interval_days
                  FROM task_user_preferences p
-                 JOIN task_morning_digest_settings s ON s.user_id=p.user_id AND s.enabled=1
+                 JOIN task_morning_digest_settings s ON s.user_id=p.user_id
                  JOIN users u ON u.id=p.user_id
-                 WHERE p.user_id>:cursor AND u.is_active=1 AND u.account_status='active'
+                 WHERE p.user_id>:cursor AND COALESCE(s.repeat_interval_days,s.enabled)>0
+                   AND u.is_active=1 AND u.account_status='active'
                    AND u.deletion_requested_at IS NULL AND u.anonymized_at IS NULL
                  ORDER BY p.user_id LIMIT " . $pageSize,
                 [':cursor' => $cursor]
@@ -60,9 +64,13 @@ final class TaskOverdueReminderPublisher
                 if ((int) $local->format('H') !== 9) {
                     continue;
                 }
+                $interval = (int) $recipient['repeat_interval_days'];
+                if (!in_array($interval, [1, 3, 7], true)) {
+                    continue;
+                }
                 ++$users;
                 $date = $local->format('Y-m-d');
-                $this->publishForUser($cursor, $date, $instant, $pageSize, $published);
+                $this->publishForUser($cursor, $date, $instant, $pageSize, $interval, $published);
             }
         }
         return ['users' => $users, 'published' => $published];
@@ -73,6 +81,7 @@ final class TaskOverdueReminderPublisher
         string $date,
         DateTimeImmutable $instant,
         int $pageSize,
+        int $intervalDays,
         int &$published
     ): void {
         $taskId = 0;
@@ -92,6 +101,9 @@ final class TaskOverdueReminderPublisher
             foreach ($tasks as $task) {
                 $taskId = (int) $task['id'];
                 $uid = (string) $task['uid'];
+                if (!TaskReminderRepeatPolicy::due((string) $task['due_date'], $date, $intervalDays)) {
+                    continue;
+                }
                 // Содержимое задачи не отправляется наружу, только ссылка и общий текст.
                 $this->notifications->publish(new NotificationEvent(
                     name: 'tasks.overdue_repeat',
