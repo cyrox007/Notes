@@ -1,0 +1,51 @@
+name: 1.2 — интерфейс ключей API Tasks
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/views/api-tokens.php'
+      - 'modules/tasks/views/index.php'
+      - 'modules/tasks/assets/api-tokens.js'
+      - 'modules/tasks/assets/api-tokens.css'
+      - 'modules/tasks/controllers/TaskApiTokenController.php'
+      - 'modules/tasks/TasksRuntimeProvider.php'
+      - 'tests/integration/tasks_api_token_page_12.mjs'
+      - '.github/workflows/tasks-api-tokens-ui-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/views/api-tokens.php'
+      - 'modules/tasks/views/index.php'
+      - 'modules/tasks/assets/api-tokens.js'
+      - 'modules/tasks/assets/api-tokens.css'
+      - 'modules/tasks/controllers/TaskApiTokenController.php'
+      - 'modules/tasks/TasksRuntimeProvider.php'
+      - 'tests/integration/tasks_api_token_page_12.mjs'
+      - '.github/workflows/tasks-api-tokens-ui-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  api-keys-ui:
+    name: Экран ключей доступа Tasks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверить PHP, JavaScript и операции экрана
+        run: |
+          php -l modules/tasks/views/api-tokens.php
+          php -l modules/tasks/views/index.php
+          php -l modules/tasks/controllers/TaskApiTokenController.php
+          php -l modules/tasks/TasksRuntimeProvider.php
+          node --check modules/tasks/assets/api-tokens.js
+          node --test tests/integration/tasks_api_token_page_12.mjs
