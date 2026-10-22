@@ -60,6 +60,9 @@ try {
     $db->execute("UPDATE tasks SET status='completed' WHERE id=1");
     verify($publisher->run(new DateTimeImmutable('2026-10-23 07:20:00+00:00'))['published'] === 1,
         'После завершения старой задачи новая просроченная задача должна напоминать');
+    verify(count($store->events) === 2, 'Завершённая задача получила повторное уведомление');
+    verify(!isset($store->events['tasks:overdue:11:11111111111111111111111111111111:2026-10-23']),
+        'Для завершённой задачи создано уведомление на следующий день');
     echo "Напоминания Tasks: календарный день, согласие, завершение и повторобезопасность проверены\n";
 } finally {
     foreach (['tasks','task_morning_digest_settings','task_user_preferences','users'] as $name) {
