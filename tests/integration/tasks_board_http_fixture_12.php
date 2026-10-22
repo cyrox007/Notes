@@ -28,7 +28,7 @@ if ($mode === 'restrict') {
 }
 if ($mode === 'inspect') {
     echo json_encode([
-        'role' => $db->query('SELECT role FROM task_board_members WHERE user_id=12')->fetchColumn(),
+        'role' => $db->query('SELECT role FROM task_board_members WHERE user_id=13')->fetchColumn(),
         'commands' => $db->query('SELECT command_id,status FROM mutation_commands ORDER BY id')->fetchAll(),
         'logs' => $db->query('SELECT action,status_code FROM task_api_access_log ORDER BY id')->fetchAll(),
     ], JSON_THROW_ON_ERROR);
