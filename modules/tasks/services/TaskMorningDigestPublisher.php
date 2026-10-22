@@ -34,6 +34,7 @@ final class TaskMorningDigestPublisher
         $rows = $this->db->fetchAll(
             "SELECT p.user_id,p.timezone
              FROM task_user_preferences p
+             INNER JOIN task_morning_digest_settings d ON d.user_id=p.user_id AND d.enabled=1
              INNER JOIN users u ON u.id=p.user_id
              WHERE p.user_id > :after_user AND u.is_active=1 AND u.account_status='active'
                AND u.deletion_requested_at IS NULL AND u.anonymized_at IS NULL
