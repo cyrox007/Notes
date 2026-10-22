@@ -13,6 +13,7 @@ use DomainException;
 use InvalidArgumentException;
 use Modules\Tasks\TaskApiTokenService;
 use Modules\Tasks\TaskBoardApiCreateService;
+use Modules\Tasks\TaskBoardMemberCommandService;
 use Modules\Tasks\TaskApiTrafficService;
 use RuntimeException;
 
@@ -91,6 +92,36 @@ final class TaskBoardApiController
             $this->respond(['error' => 'invalid_parameter', 'message' => $error->getMessage()], 422);
         } catch (DomainException $error) {
             $this->respond(['error' => 'not_found'], 404);
+        }
+    }
+
+    public function changeMember(Request $request, string $boardUid, int $userId): void
+    {
+        $owner = $this->authorize($request, TaskApiTokenService::SCOPE_WRITE, 'update');
+        if ($owner === null) {
+            return;
+        }
+        try {
+            $input = $request->rawJson();
+            if (!is_array($input) || array_is_list($input)
+                || array_diff(array_keys($input), ['command_id', 'expected_role', 'role']) !== []
+                || !array_key_exists('expected_role', $input)
+                || !array_key_exists('role', $input)) {
+                throw new InvalidArgumentException('Некорректная команда изменения участника');
+            }
+            $command = $input['command_id'] ?? null;
+            if (!is_string($command)
+                || preg_match('/^[A-Za-z0-9][A-Za-z0-9._:-]{7,95}$/D', $command) !== 1) {
+                throw new InvalidArgumentException('Некорректный command_id');
+            }
+            $result = (new TaskBoardMemberCommandService(DatabaseManager::getInstance()))
+                ->change($owner, $boardUid, $userId, $command, $input['expected_role'], $input['role']);
+            $this->respond($result, ($result['success'] ?? false) ? 200 : 409);
+        } catch (InvalidArgumentException $error) {
+            $this->respond(['error' => 'invalid_command', 'message' => $error->getMessage()], 422);
+        } catch (DomainException $error) {
+            $code = (int) $error->getCode() === 403 ? 403 : 404;
+            $this->respond(['error' => $code === 403 ? 'forbidden' : 'not_found'], $code);
         }
     }
 
