@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Modules\Tasks;
 
 use Core\DatabaseManager;
-use DateTimeImmutable;
-use DateTimeZone;
 use RuntimeException;
 use Throwable;
 
@@ -95,6 +93,11 @@ final class TaskReminderCycle
      */
     private function runLocked(array $jobs): array
     {
+        // Храним только краткую историю; небольшая порция очистки не блокирует всю таблицу.
+        $this->db->execute(
+            'DELETE FROM task_reminder_cycle_runs
+             WHERE started_at < UTC_TIMESTAMP() - INTERVAL 30 DAY LIMIT 1000'
+        );
         $this->db->execute(
             "INSERT INTO task_reminder_cycle_runs(started_at,status)
              VALUES(UTC_TIMESTAMP(),'running')"
