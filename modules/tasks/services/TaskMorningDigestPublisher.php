@@ -24,9 +24,9 @@ final class TaskMorningDigestPublisher
     }
 
     /** @return array{checked:int,published:int,skipped:int} */
-    public function run(?DateTimeImmutable $instant = null, int $limit = 100): array
+    public function run(?DateTimeImmutable $instant = null, int $limit = 100, int $afterUserId = 0): array
     {
-        if ($limit < 1 || $limit > 500) {
+        if ($limit < 1 || $limit > 500 || $afterUserId < 0) {
             throw new InvalidArgumentException('Количество получателей должно быть от 1 до 500');
         }
 
@@ -35,9 +35,10 @@ final class TaskMorningDigestPublisher
             "SELECT p.user_id,p.timezone
              FROM task_user_preferences p
              INNER JOIN users u ON u.id=p.user_id
-             WHERE u.is_active=1 AND u.account_status='active'
+             WHERE p.user_id > :after_user AND u.is_active=1 AND u.account_status='active'
                AND u.deletion_requested_at IS NULL AND u.anonymized_at IS NULL
-             ORDER BY p.user_id"
+             ORDER BY p.user_id",
+            [':after_user' => $afterUserId]
         );
 
         $checked = 0;
@@ -83,7 +84,7 @@ final class TaskMorningDigestPublisher
                 ),
                 recipientUserIds: [$userId],
                 payload: ['date' => $date, 'timezone' => $zone->getName(), 'summary' => $summary],
-                targetPath: '/tasks/assignment-queue',
+                targetPath: '/tasks',
                 occurredAt: $instant
             ));
             ++$published;
