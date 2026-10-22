@@ -53,6 +53,7 @@
     "20261022_tasks_api_tokens.sql",
     "20261022_tasks_api_rate_audit.sql",
     "20261022_tasks_assignee_acceptance.sql",
-    "20261022_tasks_user_timezone.sql"
+    "20261022_tasks_user_timezone.sql",
+    "20261022_tasks_morning_digest_settings.sql"
   ]
 }

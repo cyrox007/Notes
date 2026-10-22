@@ -1,0 +1,85 @@
+name: Утренние сводки Tasks
+
+on:
+  pull_request:
+    paths:
+      - 'bin/tasks_morning_digest.php'
+      - 'tests/integration/tasks_morning_digest_mysql_12.php'
+      - 'modules/tasks/services/TaskMorningDigestPublisher.php'
+      - 'modules/tasks/controllers/TaskAssigneeQueueController.php'
+      - 'modules/tasks/assets/assignee-queue.js'
+      - 'modules/tasks/views/index.php'
+      - 'database/migrations/20261022_tasks_morning_digest_settings.sql'
+      - 'database/migrations/manifest.json'
+      - '.github/workflows/tasks-morning-digest.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'bin/tasks_morning_digest.php'
+      - 'modules/tasks/services/TaskMorningDigestPublisher.php'
+      - '.github/workflows/tasks-morning-digest.yml'
+
+jobs:
+  syntax:
+    name: Синтаксис утренних сводок
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверка PHP
+        run: |
+          php -l bin/tasks_morning_digest.php
+          php -l modules/tasks/services/TaskMorningDigestPublisher.php
+          php -l modules/tasks/controllers/TaskAssigneeQueueController.php
+          php -l modules/tasks/views/index.php
+      - name: Проверка JavaScript
+        run: node --check modules/tasks/assets/assignee-queue.js
+      - name: Проверка регистрации миграции
+        run: |
+          php -r '$m=json_decode(file_get_contents("database/migrations/manifest.json"), true, 512, JSON_THROW_ON_ERROR); if (!in_array("20261022_tasks_morning_digest_settings.sql", $m["migrations"] ?? $m, true)) {fwrite(STDERR, "Миграция не зарегистрирована\n"); exit(1);}'
+
+  mysql:
+    name: Испытание сводок (${{ matrix.database.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        database:
+          - {name: MySQL-8.4, image: 'mysql:8.4', health: 'mysqladmin ping -h 127.0.0.1 -uroot -proot'}
+          - {name: MariaDB-11.4, image: 'mariadb:11.4', health: 'healthcheck.sh --connect --innodb_initialized'}
+    services:
+      mysql:
+        image: ${{ matrix.database.image }}
+        env:
+          MYSQL_DATABASE: workspace_morning_digest_test
+          MYSQL_USER: workspace
+          MYSQL_PASSWORD: workspace
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="${{ matrix.database.health }}"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql,mbstring
+          coverage: none
+      - name: Испытать утреннюю сводку на изолированной базе
+        env:
+          TEST_DB_NAME: workspace_morning_digest_test
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: '3306'
+          TEST_DB_USER: workspace
+          TEST_DB_PASS: workspace
+        run: |
+          php -l tests/integration/tasks_morning_digest_mysql_12.php
+          php tests/integration/tasks_morning_digest_mysql_12.php

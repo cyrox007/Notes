@@ -34,6 +34,10 @@ final class TaskAssigneeQueueController
         $queue = (new TaskAssigneeQueueService($db))->forUser(
             $userId, (new TaskUserTimezoneService($db))->nowFor($userId)
         );
+        $queue['morning_digest_enabled'] = (int) $db->fetchValue(
+            'SELECT COUNT(*) FROM task_morning_digest_settings WHERE user_id=:user AND enabled=1',
+            [':user' => $userId]
+        ) > 0;
         $this->respond($queue, 200);
     }
 
@@ -58,11 +62,17 @@ final class TaskAssigneeQueueController
         }
         try {
             $saved = (new TaskUserTimezoneService($db))->save($userId, $name);
+            $enabled = $request->rawPost('morning_digest_enabled', '') === '1';
+            $db->execute(
+                'INSERT INTO task_morning_digest_settings (user_id,enabled) VALUES (:user,:enabled)
+                 ON DUPLICATE KEY UPDATE enabled=VALUES(enabled)',
+                [':user' => $userId, ':enabled' => $enabled ? 1 : 0]
+            );
         } catch (InvalidArgumentException $error) {
             $this->respond(['error' => 'invalid_timezone', 'message' => $error->getMessage()], 422);
             return;
         }
-        $this->respond(['saved' => true, 'timezone' => $saved], 200);
+        $this->respond(['saved' => true, 'timezone' => $saved, 'morning_digest_enabled' => $enabled], 200);
     }
 
     /** @param array<string,mixed> $data */

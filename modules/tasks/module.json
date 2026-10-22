@@ -40,7 +40,8 @@
       "task_api_tokens",
       "task_api_rate_buckets",
       "task_api_access_log",
-      "task_user_preferences"
+      "task_user_preferences",
+      "task_morning_digest_settings"
     ],
     "schemas": [
       "database/tasks_schema.sql"
@@ -54,7 +55,8 @@
       "database/migrations/20261022_tasks_api_tokens.sql",
       "database/migrations/20261022_tasks_api_rate_audit.sql",
       "database/migrations/20261022_tasks_assignee_acceptance.sql",
-      "database/migrations/20261022_tasks_user_timezone.sql"
+      "database/migrations/20261022_tasks_user_timezone.sql",
+      "database/migrations/20261022_tasks_morning_digest_settings.sql"
     ]
   },
   "background": {

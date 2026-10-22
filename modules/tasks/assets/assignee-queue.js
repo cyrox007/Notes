@@ -23,6 +23,7 @@
     function draw(data) {
         groups.replaceChildren();
         timezoneInput.value = data.timezone || '';
+        timezoneForm.querySelector('[name="morning_digest_enabled"]').checked = !!data.morning_digest_enabled;
         const counts = data.summary || {};
         summary.textContent = 'На ' + (data.date || 'сегодня') + ': просрочено — ' + (counts.overdue ?? 0) +
             ', сегодня — ' + (counts.today ?? 0) + ', завтра — ' + (counts.tomorrow ?? 0) +
