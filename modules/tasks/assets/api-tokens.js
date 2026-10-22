@@ -67,7 +67,17 @@
             return;
         }
 
+        const active = [];
+        const history = [];
         for (const item of items) {
+            const revoked = item.revoked_at !== null && item.revoked_at !== undefined;
+            const expiry = Date.parse(String(item.expires_at || '').replace(' ', 'T') + 'Z');
+            (revoked || (Number.isFinite(expiry) && expiry <= Date.now()) ? history : active).push(item);
+        }
+        for (const [heading, collection] of [['Действующие', active], ['История', history]]) {
+            if (collection.length === 0) continue;
+            list.append(makeElement('h3', 'tasks-keys__group-heading', heading));
+            for (const item of collection) {
             const card = makeElement('article', 'tasks-keys__item');
             const heading = makeElement('div', 'tasks-keys__item-heading');
             heading.append(makeElement('strong', '', String(item.name || 'Без названия')));
@@ -86,6 +96,7 @@
                 card.append(button);
             }
             list.append(card);
+            }
         }
     }
 
