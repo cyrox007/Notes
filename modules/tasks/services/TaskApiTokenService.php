@@ -115,9 +115,9 @@ final class TaskApiTokenService
             return false;
         }
         $this->db->execute(
-            'UPDATE task_api_tokens SET revoked_at=COALESCE(revoked_at,UTC_TIMESTAMP())
+            'UPDATE task_api_tokens SET revoked_at=COALESCE(revoked_at,:revoked_at)
              WHERE id=:id AND user_id=:owner',
-            [':id' => $id, ':owner' => $userId]
+            [':id' => $id, ':owner' => $userId, ':revoked_at' => gmdate('Y-m-d H:i:s')]
         );
         return true;
     }
