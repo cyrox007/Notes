@@ -1,0 +1,53 @@
+name: Повторные напоминания Tasks
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/services/TaskOverdueReminderPublisher.php'
+      - 'bin/tasks_overdue_reminders.php'
+      - 'tests/integration/tasks_overdue_reminders_mysql_12.php'
+      - '.github/workflows/tasks-overdue-reminders-12.yml'
+
+jobs:
+  reminder:
+    name: Повторные напоминания (${{ matrix.db.name }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        db:
+          - {name: MySQL-8.4, image: 'mysql:8.4', health: 'mysqladmin ping -h 127.0.0.1 -uroot -proot'}
+          - {name: MariaDB-11.4, image: 'mariadb:11.4', health: 'healthcheck.sh --connect --innodb_initialized'}
+    services:
+      mysql:
+        image: ${{ matrix.db.image }}
+        env:
+          MYSQL_DATABASE: workspace_overdue_test
+          MYSQL_USER: workspace
+          MYSQL_PASSWORD: workspace
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="${{ matrix.db.health }}"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql
+          coverage: none
+      - name: Проверить синтаксис и повторные напоминания
+        env:
+          TEST_DB_NAME: workspace_overdue_test
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_USER: workspace
+          TEST_DB_PASS: workspace
+        run: |
+          php -l modules/tasks/services/TaskOverdueReminderPublisher.php
+          php -l bin/tasks_overdue_reminders.php
+          php tests/integration/tasks_overdue_reminders_mysql_12.php
