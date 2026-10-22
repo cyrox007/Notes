@@ -14,6 +14,7 @@ use InvalidArgumentException;
 use Modules\Tasks\TaskApiTokenService;
 use Modules\Tasks\TaskBoardApiCreateService;
 use Modules\Tasks\TaskBoardMemberCommandService;
+use Modules\Tasks\TaskBoardAcceptanceService;
 use Modules\Tasks\TaskApiTrafficService;
 use RuntimeException;
 
@@ -150,6 +151,34 @@ final class TaskBoardApiController
         } catch (DomainException $error) {
             $status = (int) $error->getCode() === 403 ? 403 : 404;
             $this->respond(['error' => $status === 403 ? 'forbidden' : 'not_found'], $status);
+        }
+    }
+
+    public function accept(Request $request, string $taskUid): void
+    {
+        $owner = $this->authorize($request, TaskApiTokenService::SCOPE_WRITE, 'update');
+        if ($owner === null) {
+            return;
+        }
+        try {
+            $input = $request->rawJson();
+            if (!is_array($input) || array_is_list($input)
+                || array_diff(array_keys($input), ['command_id', 'expected_version']) !== []
+                || !is_string($input['command_id'] ?? null)
+                || !is_int($input['expected_version'] ?? null)) {
+                throw new InvalidArgumentException('Требуются command_id и expected_version');
+            }
+            $result = (new TaskBoardAcceptanceService(DatabaseManager::getInstance()))
+                ->accept($owner, $taskUid, $input['expected_version'], $input['command_id']);
+            $this->respond($result, ($result['success'] ?? false) ? 200 : 409);
+        } catch (InvalidArgumentException $error) {
+            $this->respond(['error' => 'invalid_command', 'message' => $error->getMessage()], 422);
+        } catch (DomainException $error) {
+            $status = in_array((int) $error->getCode(), [403, 404, 409], true)
+                ? (int) $error->getCode() : 403;
+            $this->respond([
+                'error' => $status === 403 ? 'forbidden' : ($status === 409 ? 'state_conflict' : 'not_found'),
+            ], $status);
         }
     }
 
