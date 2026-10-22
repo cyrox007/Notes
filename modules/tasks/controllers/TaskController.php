@@ -13,6 +13,7 @@ use Modules\Tasks\TaskDayOrderService;
 use DateTimeImmutable;
 use InvalidArgumentException;
 use Modules\Tasks\TaskPersonalQueue;
+use Modules\Tasks\TaskUserTimezoneService;
 use RuntimeException;
 
 final class TaskController extends Controller
@@ -95,7 +96,7 @@ final class TaskController extends Controller
         }
         $params = [':user_id' => (int) $user->id];
         $where = ['t.user_id = :user_id', 't.is_deleted = 0', $filter === 'archive' ? 't.archived_at IS NOT NULL' : 't.archived_at IS NULL'];
-        $nowDate = new DateTimeImmutable('now');
+        $nowDate = (new TaskUserTimezoneService($db))->nowFor((int) $user->id);
         $now = $nowDate->format('Y-m-d H:i:s');
         $dayBounds = TaskPersonalQueue::boundaries($nowDate);
 
