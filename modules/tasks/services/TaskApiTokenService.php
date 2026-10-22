@@ -14,18 +14,22 @@ use InvalidArgumentException;
 final class TaskApiTokenService
 {
     public const SCOPE_READ = 'tasks.read';
+    public const SCOPE_WRITE = 'tasks.write';
 
     public function __construct(private readonly DatabaseManager $db)
     {
     }
 
     /** @return array{id:int,token:string,scope:string,expires_at:string} */
-    public function issue(int $userId, string $name, int $days = 30): array
+    public function issue(int $userId, string $name, int $days = 30, string $scope = self::SCOPE_READ): array
     {
         if ($userId <= 0 || $days < 1 || $days > 90) {
             throw new InvalidArgumentException('Недопустимый владелец или срок ключа');
         }
 
+        if (!in_array($scope, [self::SCOPE_READ, self::SCOPE_WRITE], true)) {
+            throw new InvalidArgumentException('Недопустимая область полномочий ключа');
+        }
         $name = trim($name);
         if ($name === '' || mb_strlen($name) > 100) {
             throw new InvalidArgumentException('Имя ключа должно содержать от 1 до 100 символов');
@@ -40,7 +44,7 @@ final class TaskApiTokenService
                 ':user_id' => $userId,
                 ':name' => $name,
                 ':token_hash' => hash('sha256', $token),
-                ':scope' => self::SCOPE_READ,
+                ':scope' => $scope,
                 ':expires_at' => $expiresAt,
             ]
         );
@@ -59,7 +63,7 @@ final class TaskApiTokenService
         return [
             'id' => (int) $row['id'],
             'token' => $token,
-            'scope' => self::SCOPE_READ,
+            'scope' => $scope,
             'expires_at' => $expiresAt,
         ];
     }
@@ -69,7 +73,7 @@ final class TaskApiTokenService
      */
     public function authenticate(string $authorization, string $neededScope = self::SCOPE_READ): ?array
     {
-        if ($neededScope !== self::SCOPE_READ
+        if (!in_array($neededScope, [self::SCOPE_READ, self::SCOPE_WRITE], true)
             || preg_match('/^Bearer (ntk1_[0-9a-f]{64})$/D', $authorization, $matches) !== 1) {
             return null;
         }
@@ -81,7 +85,8 @@ final class TaskApiTokenService
         );
 
         if (!$row || $row['revoked_at'] !== null
-            || (string) $row['scope'] !== $neededScope
+            || ((string) $row['scope'] !== $neededScope
+                && !($neededScope === self::SCOPE_READ && (string) $row['scope'] === self::SCOPE_WRITE))
             || strtotime((string) $row['expires_at'] . ' UTC') <= time()) {
             return null;
         }
