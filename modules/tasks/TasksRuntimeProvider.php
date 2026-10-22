@@ -55,6 +55,7 @@ final class TasksRuntimeProvider implements ModuleRuntimeProvider
             ->add('GET', '/', [TaskBoardApiController::class, 'boards'], [], 'api_v1_task_boards_index')
             ->add('GET', '/{str:boardUid}/tasks', [TaskBoardApiController::class, 'tasks'], [], 'api_v1_task_boards_tasks')
             ->add('POST', '/{str:boardUid}/tasks', [TaskBoardApiController::class, 'create'], [], 'api_v1_task_boards_create')
+            ->add('PUT', '/{str:boardUid}/members/{int:userId}', [TaskBoardApiController::class, 'changeMember'], [], 'api_v1_task_board_member_change')
             ->endGroup();
 
         $router->group('/api/v1/task-board-items')
