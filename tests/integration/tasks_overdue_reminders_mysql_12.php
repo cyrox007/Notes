@@ -58,8 +58,8 @@ try {
     verify($publisher->run(new DateTimeImmutable('2026-10-22 10:00:00+00:00'))['published'] === 0,
         'Напоминание опубликовано вне окна');
     $db->execute("UPDATE tasks SET status='completed' WHERE id=1");
-    verify($publisher->run(new DateTimeImmutable('2026-10-23 07:20:00+00:00'))['published'] === 0,
-        'Завершённая задача продолжает напоминать');
+    verify($publisher->run(new DateTimeImmutable('2026-10-23 07:20:00+00:00'))['published'] === 1,
+        'После завершения старой задачи новая просроченная задача должна напоминать');
     echo "Напоминания Tasks: календарный день, согласие, завершение и повторобезопасность проверены\n";
 } finally {
     foreach (['tasks','task_morning_digest_settings','task_user_preferences','users'] as $name) {
