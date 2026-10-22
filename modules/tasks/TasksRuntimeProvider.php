@@ -5,6 +5,7 @@ namespace Modules\Tasks;
 
 use App\Controllers\TaskBoardController;
 use App\Controllers\TaskController;
+use App\Controllers\TaskReadApiController;
 use App\Controllers\TaskDayOrderController;
 use App\Controllers\TaskMutationController;
 use App\Controllers\TaskRelationController;
@@ -47,6 +48,10 @@ final class TasksRuntimeProvider implements ModuleRuntimeProvider
 
     public function registerRoutes(Router $router): void
     {
+        $router->group('/api/v1/tasks')
+            ->add('GET', '/', [TaskReadApiController::class, 'index'], [LoginRequared::class, RequireTasksUse::class], 'api_v1_tasks_index')
+            ->endGroup();
+
         $router->group('/tasks')
             ->add('GET', '/', [TaskController::class, 'index'], [LoginRequared::class, RequireTasksUse::class], 'tasks')
             ->add('POST', '/notification/{int:notificationId}/inspect', [TaskMutationController::class, 'inspectExternalNotification'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_notification_inspect')
