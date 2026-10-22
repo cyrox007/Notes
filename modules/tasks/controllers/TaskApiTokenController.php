@@ -34,14 +34,15 @@ final class TaskApiTokenController extends Controller
         }
         $name = $request->rawPost('name', '');
         $days = $request->rawPost('days', '30');
-        if (!is_string($name) || !is_string($days) || preg_match('/^[1-9][0-9]{0,1}$/D', $days) !== 1) {
+        $scope = $request->rawPost('scope', TaskApiTokenService::SCOPE_READ);
+        if (!is_string($name) || !is_string($scope) || !is_string($days) || preg_match('/^[1-9][0-9]{0,1}$/D', $days) !== 1) {
             $this->respond(['error' => 'invalid_parameter', 'message' => 'Проверьте имя и срок ключа'], 422);
             return;
         }
 
         try {
             $created = (new TaskApiTokenService(DatabaseManager::getInstance()))
-                ->issue($userId, $name, (int) $days);
+                ->issue($userId, $name, (int) $days, $scope);
             $this->respond(['created' => $created, 'message' => 'Сохраните ключ: он больше не отображается'], 201);
         } catch (InvalidArgumentException $exception) {
             $this->respond(['error' => 'invalid_parameter', 'message' => $exception->getMessage()], 422);
