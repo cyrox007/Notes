@@ -12,6 +12,9 @@
     const refresh = page.querySelector('[data-token-refresh]');
     const copy = page.querySelector('[data-token-copy]');
     const hide = page.querySelector('[data-token-hide]');
+    const auditStatus = page.querySelector('[data-audit-status]');
+    const auditList = page.querySelector('[data-audit-list]');
+    const auditRefresh = page.querySelector('[data-audit-refresh]');
     const csrf = form.querySelector('[name="csrf_token"]');
     const scopeNames = {
         'tasks.read': 'Только просмотр',
@@ -139,6 +142,52 @@
         }
     }
 
+
+    const actionLabels = {
+        read: 'Просмотр задач',
+        create: 'Создание задачи',
+        update: 'Изменение задачи'
+    };
+
+    function showAudit(entries) {
+        auditList.replaceChildren();
+        if (!Array.isArray(entries) || entries.length === 0) {
+            auditList.append(makeElement('p', 'tasks-keys__hint', 'Обращений пока нет.'));
+            return;
+        }
+        for (const entry of entries) {
+            const item = makeElement('article', 'tasks-keys__item');
+            const heading = makeElement('div', 'tasks-keys__item-heading');
+            heading.append(makeElement('strong', '', String(entry.token_name || 'Подключение')));
+            const statusCode = Number(entry.status_code);
+            heading.append(makeElement('span',
+                statusCode >= 400 ? 'tasks-keys__muted' : 'tasks-keys__active',
+                Number.isInteger(statusCode) ? String(statusCode) : '—'));
+            item.append(heading);
+            item.append(makeElement('p', 'tasks-keys__hint',
+                (actionLabels[entry.action] || 'Неизвестная операция') +
+                ' · ' + formatDate(entry.created_at)));
+            auditList.append(item);
+        }
+    }
+
+    async function loadAudit() {
+        if (auditRefresh.disabled) return;
+        auditRefresh.disabled = true;
+        auditStatus.textContent = 'Обновляем историю…';
+        auditStatus.classList.toggle('tasks-keys__error', false);
+        try {
+            const result = await request(page.dataset.historyUrl);
+            showAudit(result.items);
+            auditStatus.textContent = 'История обновлена';
+        } catch (error) {
+            auditStatus.textContent = error.message;
+            auditStatus.classList.toggle('tasks-keys__error', true);
+        } finally {
+            auditRefresh.disabled = false;
+        }
+    }
+
     form.addEventListener('submit', async event => {
         event.preventDefault();
         if (busy) return;
@@ -182,6 +231,8 @@
     });
     hide.addEventListener('click', clearSecret);
     refresh.addEventListener('click', loadKeys);
+    auditRefresh.addEventListener('click', loadAudit);
     window.addEventListener('pagehide', clearSecret);
     loadKeys();
+    loadAudit();
 })();
