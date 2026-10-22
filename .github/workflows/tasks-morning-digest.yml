@@ -1,0 +1,41 @@
+name: Утренние сводки Tasks
+
+on:
+  pull_request:
+    paths:
+      - 'bin/tasks_morning_digest.php'
+      - 'modules/tasks/services/TaskMorningDigestPublisher.php'
+      - 'modules/tasks/controllers/TaskAssigneeQueueController.php'
+      - 'modules/tasks/assets/assignee-queue.js'
+      - 'modules/tasks/views/index.php'
+      - 'database/migrations/20261022_tasks_morning_digest_settings.sql'
+      - 'database/migrations/manifest.json'
+      - '.github/workflows/tasks-morning-digest.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'bin/tasks_morning_digest.php'
+      - 'modules/tasks/services/TaskMorningDigestPublisher.php'
+      - '.github/workflows/tasks-morning-digest.yml'
+
+jobs:
+  syntax:
+    name: Синтаксис утренних сводок
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверка PHP
+        run: |
+          php -l bin/tasks_morning_digest.php
+          php -l modules/tasks/services/TaskMorningDigestPublisher.php
+          php -l modules/tasks/controllers/TaskAssigneeQueueController.php
+          php -l modules/tasks/views/index.php
+      - name: Проверка JavaScript
+        run: node --check modules/tasks/assets/assignee-queue.js
+      - name: Проверка регистрации миграции
+        run: |
+          php -r '$m=json_decode(file_get_contents("database/migrations/manifest.json"), true, 512, JSON_THROW_ON_ERROR); if (!in_array("20261022_tasks_morning_digest_settings.sql", $m["migrations"] ?? $m, true)) {fwrite(STDERR, "Миграция не зарегистрирована\n"); exit(1);}'
