@@ -12,6 +12,7 @@ use Core\Request;
 use DomainException;
 use InvalidArgumentException;
 use Modules\Tasks\TaskApiTokenService;
+use Modules\Tasks\TaskBoardApiCreateService;
 use Modules\Tasks\TaskApiTrafficService;
 use RuntimeException;
 
@@ -90,6 +91,34 @@ final class TaskBoardApiController
             $this->respond(['error' => 'invalid_parameter', 'message' => $error->getMessage()], 422);
         } catch (DomainException $error) {
             $this->respond(['error' => 'not_found'], 404);
+        }
+    }
+
+    public function create(Request $request, string $boardUid): void
+    {
+        $owner = $this->authorize($request, TaskApiTokenService::SCOPE_WRITE, 'create');
+        if ($owner === null) {
+            return;
+        }
+        try {
+            $input = $request->rawJson();
+            if (!is_array($input) || array_is_list($input)) {
+                throw new InvalidArgumentException('Ожидается объект JSON');
+            }
+            $command = $input['command_id'] ?? null;
+            if (!is_string($command)
+                || preg_match('/^[A-Za-z0-9][A-Za-z0-9._:-]{7,95}$/D', $command) !== 1) {
+                throw new InvalidArgumentException('Некорректный command_id');
+            }
+            unset($input['command_id']);
+            $result = (new TaskBoardApiCreateService(DatabaseManager::getInstance()))
+                ->create($owner, $boardUid, $command, $input);
+            $this->respond($result, !empty($result['replayed']) ? 200 : 201);
+        } catch (InvalidArgumentException $error) {
+            $this->respond(['error' => 'invalid_command', 'message' => $error->getMessage()], 422);
+        } catch (DomainException $error) {
+            $status = (int) $error->getCode() === 403 ? 403 : 404;
+            $this->respond(['error' => $status === 403 ? 'forbidden' : 'not_found'], $status);
         }
     }
 
