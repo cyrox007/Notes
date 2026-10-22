@@ -51,6 +51,7 @@
     "20261020_notifications_push_subscriptions.sql",
     "20261021_notification_action_tokens.sql",
     "20261022_tasks_api_tokens.sql",
-    "20261022_tasks_api_rate_audit.sql"
+    "20261022_tasks_api_rate_audit.sql",
+    "20261022_tasks_assignee_acceptance.sql"
   ]
 }
