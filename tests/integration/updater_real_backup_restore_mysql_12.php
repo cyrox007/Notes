@@ -61,8 +61,8 @@ if (in_array($stage, ['damage', 'restore-code', 'restore-db'], true)) {
         file_put_contents($sandbox . '/live/core/Version.php', 'Новая версия');
         file_put_contents($sandbox . '/live/new-file.php', 'Неудачная миграция кода');
         $db = recoveryDb();
-        $db->query("UPDATE updater_recovery_fixture SET title='Повреждено' WHERE id=1");
-        $db->query('CREATE TABLE updater_recovery_extra (id INT PRIMARY KEY) ENGINE=InnoDB');
+        $db->query("UPDATE users SET title='Повреждено' WHERE id=1");
+        $db->query('CREATE TABLE mutation_commands (id INT PRIMARY KEY) ENGINE=InnoDB');
         $db->close();
         exit(73);
     }
@@ -98,9 +98,9 @@ file_put_contents($sandbox . '/live/index.php', '<?php echo "1.1.0";');
 file_put_contents($sandbox . '/live/uploads/preserved.txt', 'Файл пользователя');
 $db = recoveryDb();
 try {
-    $db->query('CREATE TABLE updater_recovery_fixture
+    $db->query('CREATE TABLE users
         (id INT PRIMARY KEY, title VARCHAR(64) NOT NULL) ENGINE=InnoDB');
-    $db->query("INSERT INTO updater_recovery_fixture VALUES (1, 'Сохранено')");
+    $db->query("INSERT INTO users VALUES (1, 'Сохранено')");
     $backup = (new UpdateBackupManager($sandbox . '/backups', $sandbox . '/live'))
         ->create($transaction, $db);
     $db->close();
@@ -125,17 +125,17 @@ try {
     recoveryAssert(file_get_contents($sandbox . '/live/uploads/preserved.txt') === 'Файл пользователя',
         'пользовательский файл удалён');
     $db = recoveryDb();
-    $value = $db->query('SELECT title FROM updater_recovery_fixture WHERE id=1')->fetch_assoc();
+    $value = $db->query('SELECT title FROM users WHERE id=1')->fetch_assoc();
     recoveryAssert(($value['title'] ?? '') === 'Сохранено', 'не восстановлена строка БД');
-    $tables = $db->query("SHOW TABLES LIKE 'updater_recovery_extra'");
+    $tables = $db->query("SHOW TABLES LIKE 'mutation_commands'");
     recoveryAssert($tables->num_rows === 0, 'лишняя таблица миграции не удалена');
     $tables->free();
     echo "Настоящие файловый и SQL-снимки восстановлены после двух обрывов PHP\n";
 } finally {
     try {
         $db = recoveryDb();
-        $db->query('DROP TABLE IF EXISTS updater_recovery_extra');
-        $db->query('DROP TABLE IF EXISTS updater_recovery_fixture');
+        $db->query('DROP TABLE IF EXISTS mutation_commands');
+        $db->query('DROP TABLE IF EXISTS users');
         $db->close();
     } finally {
         recoveryDeleteTree($sandbox);
