@@ -77,7 +77,7 @@ acceptanceSchema($pdo, $root . '/database/notifications_schema.sql');
 acceptanceSchema($pdo, $root . '/database/migrations/20261022_tasks_reminder_cycle_runs.sql');
 foreach ([
     'CREATE TABLE task_user_preferences (user_id INT PRIMARY KEY,timezone VARCHAR(64) NOT NULL)',
-    'CREATE TABLE task_morning_digest_settings (user_id INT PRIMARY KEY,enabled TINYINT NOT NULL DEFAULT 0)',
+    'CREATE TABLE task_morning_digest_settings (user_id INT PRIMARY KEY,enabled TINYINT NOT NULL DEFAULT 0,repeat_interval_days TINYINT UNSIGNED NULL DEFAULT NULL)',
     "CREATE TABLE tasks (id INT PRIMARY KEY,uid CHAR(32) NOT NULL,user_id INT NOT NULL,
       title VARCHAR(255) NOT NULL,status VARCHAR(24) NOT NULL DEFAULT 'pending',
       due_date DATETIME NULL,is_deleted TINYINT NOT NULL DEFAULT 0,archived_at DATETIME NULL)",
