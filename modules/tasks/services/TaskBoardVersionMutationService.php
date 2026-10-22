@@ -298,6 +298,15 @@ final class TaskBoardVersionMutationService
                 $set[$field] = $changes[$field];
             }
         }
+        if (array_key_exists('assignee_ids', $changes)) {
+            // Переназначение требует нового явного подтверждения исполнителя.
+            $set['accepted_by_user_id'] = null;
+            $set['accepted_at'] = null;
+        }
+        if (isset($changes['status']) && in_array($changes['status'], ['pending', 'studying'], true)) {
+            $set['accepted_by_user_id'] = null;
+            $set['accepted_at'] = null;
+        }
         if (isset($changes['status'])) {
             $set['completed_at'] = $changes['status'] === 'completed'
                 ? ($task['completed_at'] ?? date('Y-m-d H:i:s')) : null;
@@ -379,6 +388,8 @@ final class TaskBoardVersionMutationService
             'priority' => (string) $task['priority'],
             'due_date' => $task['due_date'],
             'completed_at' => $task['completed_at'],
+            'accepted_by_user_id' => $task['accepted_by_user_id'] === null ? null : (int) $task['accepted_by_user_id'],
+            'accepted_at' => $task['accepted_at'],
             'archived_at' => $task['archived_at'],
             'is_deleted' => (int) $task['is_deleted'],
             'version' => (int) $task['version'],

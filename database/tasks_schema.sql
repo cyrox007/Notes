@@ -156,6 +156,8 @@ CREATE TABLE IF NOT EXISTS `task_board_items` (
     `priority` ENUM('low','medium','high','urgent') NOT NULL DEFAULT 'medium',
     `due_date` DATETIME DEFAULT NULL,
     `completed_at` DATETIME DEFAULT NULL,
+    `accepted_by_user_id` INT DEFAULT NULL,
+    `accepted_at` DATETIME DEFAULT NULL,
     `archived_at` DATETIME DEFAULT NULL,
     `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
     `deleted_at` DATETIME DEFAULT NULL,
@@ -165,6 +167,9 @@ CREATE TABLE IF NOT EXISTS `task_board_items` (
     UNIQUE KEY `uq_task_board_items_uid` (`uid`),
     KEY `idx_task_board_items_board` (`board_id`,`is_deleted`,`status`,`updated_at`),
     KEY `idx_task_board_items_creator` (`creator_user_id`,`is_deleted`),
+    KEY `idx_task_board_items_acceptance` (`accepted_by_user_id`,`accepted_at`),
+    CONSTRAINT `fk_task_board_items_accepted_user` FOREIGN KEY (`accepted_by_user_id`)
+        REFERENCES `users` (`id`) ON DELETE SET NULL,
     CONSTRAINT `fk_task_board_items_board`
         FOREIGN KEY (`board_id`) REFERENCES `task_boards` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_task_board_items_creator`
