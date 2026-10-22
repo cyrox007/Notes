@@ -4,9 +4,16 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/core/DatabaseManager.php';
 require_once dirname(__DIR__, 2) . '/modules/tasks/services/TaskApiTrafficService.php';
+require_once dirname(__DIR__, 2) . '/core/ModuleRetentionCleanup.php';
+require_once dirname(__DIR__, 2) . '/core/RetentionFileCleanup.php';
+require_once dirname(__DIR__, 2) . '/core/RetentionCleanupContext.php';
+require_once dirname(__DIR__, 2) . '/modules/tasks/services/TasksRetentionService.php';
 
 use Core\DatabaseManager;
 use Modules\Tasks\TaskApiTrafficService;
+use Modules\Tasks\TasksRetentionService;
+use Core\RetentionCleanupContext;
+use Core\RetentionFileCleanup;
 
 function trafficCheck(bool $ok, string $message): void
 {
@@ -71,6 +78,50 @@ try {
     trafficCheck(count($traffic->recentForOwner(12)) === 1, 'нарушена изоляция журнала');
     trafficCheck($db->fetchValue('SELECT COUNT(*) FROM task_api_access_log') == 3,
         'записи журнала потеряны');
+
+    // Испытание реального задания общей фоновой очистки и ограничения размера пачки.
+    $oldWindow = gmdate('Y-m-d H:i:s', time() - 4 * 86400);
+    $recentWindow = gmdate('Y-m-d H:i:s', time() - 60);
+    foreach ([31, 32] as $token) {
+        $db->execute(
+            'INSERT INTO task_api_rate_buckets(token_id,window_start,requests) VALUES(:id,:window,1)',
+            [':id' => $token, ':window' => $oldWindow]
+        );
+        $db->execute(
+            'INSERT INTO task_api_rate_buckets(token_id,window_start,requests) VALUES(:id,:window,1)',
+            [':id' => $token, ':window' => $recentWindow]
+        );
+    }
+    $db->execute(
+        'UPDATE task_api_access_log SET created_at=:old WHERE token_id=31',
+        [':old' => gmdate('Y-m-d H:i:s', time() - 40 * 86400)]
+    );
+    $cleanup = new TasksRetentionService();
+    $context = new RetentionCleanupContext(
+        $db, new RetentionFileCleanup(dirname(__DIR__, 2), sys_get_temp_dir())
+    );
+    $cutoff = gmdate('Y-m-d H:i:s', time() - 30 * 86400);
+    $preview = $cleanup->preview($cutoff, 1, $context);
+    trafficCheck(($preview['task_api_rate_buckets'] ?? 0) === 1,
+        'предпросмотр счётчиков не ограничен размером пачки');
+    trafficCheck(($preview['task_api_access_log'] ?? 0) === 1,
+        'предпросмотр записей журнала неверен');
+    $cleanupResult = ['purged' => []];
+    $cleanup->apply($cutoff, 1, $context, $cleanupResult);
+    trafficCheck(($cleanupResult['purged']['task_api_rate_buckets'] ?? 0) === 1,
+        'фоновая очистка не удалила одно устаревшее окно');
+    trafficCheck(($cleanupResult['purged']['task_api_access_log'] ?? 0) === 1,
+        'фоновая очистка не удалила одну устаревшую запись');
+    trafficCheck((int) $db->fetchValue(
+        'SELECT COUNT(*) FROM task_api_rate_buckets WHERE window_start=:recent',
+        [':recent' => $recentWindow]
+    ) === 2, 'актуальные счётчики были удалены');
+    $cleanup->apply($cutoff, 20, $context, $cleanupResult);
+    trafficCheck((int) $db->fetchValue(
+        'SELECT COUNT(*) FROM task_api_rate_buckets WHERE window_start=:old',
+        [':old' => $oldWindow]
+    ) === 0, 'старые окна не удалены при повторной очистке');
+
     echo "Квоты и журнал Tasks API: раздельные ключи, пределы, окна, 429 и владельцы проверены\n";
 } finally {
     $db->execute('DROP TABLE IF EXISTS task_api_access_log');

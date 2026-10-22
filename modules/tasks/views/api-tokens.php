@@ -12,6 +12,7 @@ $revokeRoot = is_string($revokeRoot) ? rtrim($revokeRoot, '/') : '';
 ob_start();
 ?>
 <main class="tasks-keys" data-tasks-api-keys
+      data-history-url="<?= $view->e($view->route('tasks_api_token_history')) ?>"
       data-list-url="<?= $view->e($tokensList) ?>"
       data-create-url="<?= $view->e($tokensCreate) ?>"
       data-revoke-root="<?= $view->e($revokeRoot) ?>">
@@ -69,6 +70,17 @@ ob_start();
             <div data-token-list class="tasks-keys__list" aria-live="off"></div>
         </section>
     </div>
+    <section class="tasks-keys__panel tasks-keys__audit" aria-labelledby="tasks-keys-audit-title">
+        <div class="tasks-keys__list-heading">
+            <div>
+                <h2 id="tasks-keys-audit-title">История обращений</h2>
+                <p class="tasks-keys__hint">Последние 50 операций ваших подключений. Секреты и содержимое задач не сохраняются.</p>
+            </div>
+            <button type="button" class="btn-secondary" data-audit-refresh>Обновить</button>
+        </div>
+        <p data-audit-status role="status" aria-live="polite">Загружаем историю…</p>
+        <div data-audit-list class="tasks-keys__list"></div>
+    </section>
 </main>
 <?php
 $content = (string) ob_get_clean();
