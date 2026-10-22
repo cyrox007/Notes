@@ -29,8 +29,8 @@ jobs:
       fail-fast: false
       matrix:
         database:
-          - { name: 'MySQL 8.4', image: 'mysql:8.4' }
-          - { name: 'MariaDB 11.4', image: 'mariadb:11.4' }
+          - { name: 'MySQL 8.4', image: 'mysql:8.4', health: 'mysqladmin ping -h 127.0.0.1 -uroot -proot' }
+          - { name: 'MariaDB 11.4', image: 'mariadb:11.4', health: 'healthcheck.sh --connect --innodb_initialized' }
     services:
       mysql:
         image: ${{ matrix.database.image }}
@@ -42,7 +42,7 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-cmd="${{ matrix.database.health }}"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=20
