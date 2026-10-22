@@ -51,7 +51,8 @@
       "database/migrations/20261017_tasks_entity_versions.sql",
       "database/migrations/20261019_tasks_personal_day_order.sql",
       "database/migrations/20261022_tasks_api_tokens.sql",
-      "database/migrations/20261022_tasks_api_rate_audit.sql"
+      "database/migrations/20261022_tasks_api_rate_audit.sql",
+      "database/migrations/20261022_tasks_assignee_acceptance.sql"
     ]
   },
   "background": {
