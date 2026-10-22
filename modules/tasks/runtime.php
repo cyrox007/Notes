@@ -19,6 +19,7 @@ $files = [
     '/services/TaskApiTrafficService.php',
     '/services/TaskApiCreateService.php',
     '/services/TaskBoardApiCreateService.php',
+    '/services/TaskBoardMemberCommandService.php',
     '/services/TaskNotificationActionService.php',
     '/../../app/services/notifications/NotificationActionTokenStore.php',
     '/services/TaskRelationMutationService.php',
