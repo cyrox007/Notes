@@ -38,13 +38,17 @@ const secretValue = new Element('input');
 const refresh = new Element('button');
 const copy = new Element('button');
 const hide = new Element('button');
+const auditStatus = new Element('p');
+const auditList = new Element('div');
+const auditRefresh = new Element('button');
 secretPanel.hidden = true;
 
 const page = new Element('main');
 page.dataset = {
     listUrl: '/tasks/api-tokens/',
     createUrl: '/tasks/api-tokens/',
-    revokeRoot: '/tasks/api-tokens'
+    revokeRoot: '/tasks/api-tokens',
+    historyUrl: '/tasks/api-tokens/history'
 };
 const refs = {
     '[data-token-create]': form,
@@ -54,7 +58,10 @@ const refs = {
     '[data-token-secret-value]': secretValue,
     '[data-token-refresh]': refresh,
     '[data-token-copy]': copy,
-    '[data-token-hide]': hide
+    '[data-token-hide]': hide,
+    '[data-audit-status]': auditStatus,
+    '[data-audit-list]': auditList,
+    '[data-audit-refresh]': auditRefresh
 };
 page.querySelector = selector => refs[selector] || null;
 
@@ -91,7 +98,9 @@ const context = {
     async fetch(url, options = {}) {
         requests.push({ url, method: options.method || 'GET', options });
         let data = {};
-        if (options.method === 'POST' && url.endsWith('/revoke')) {
+        if (url.endsWith('/history')) {
+            data = { items: [{ token_name: 'Мой телефон', action: 'read', status_code: 200, created_at: '2026-10-22 12:00:00' }] };
+        } else if (options.method === 'POST' && url.endsWith('/revoke')) {
             data = { revoked: true };
         } else if (options.method === 'POST') {
             data = { created: { token: 'ntk1_' + 'a'.repeat(64) } };
@@ -115,6 +124,8 @@ async function flush() {
 }
 await flush();
 assert.equal(requests[0].method, 'GET');
+assert.ok(requests.some(item => item.url.endsWith('/history')));
+assert.equal(auditList.children[0].children[0].children[0].textContent, 'Мой телефон');
 assert.equal(list.children[0].textContent, 'Действующие');
 assert.equal(list.children[2].textContent, 'История');
 assert.equal(list.children[1].children[0].children[0].textContent, active.name);
@@ -125,6 +136,8 @@ assert.equal(secretPanel.hidden, false);
 assert.ok(secretValue.value.startsWith('ntk1_'));
 assert.equal(requests.find(item => item.method === 'POST').url, '/tasks/api-tokens/');
 
+await auditRefresh.listeners.click();
+assert.equal(auditStatus.textContent, 'История обновлена');
 await copy.listeners.click();
 assert.equal(secretCopied, secretValue.value);
 hide.listeners.click();
