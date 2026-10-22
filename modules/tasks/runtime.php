@@ -29,6 +29,7 @@ $files = [
     '/controllers/TaskReadApiController.php',
     '/controllers/TaskApiTokenController.php',
     '/controllers/TaskWriteApiController.php',
+    '/controllers/TaskBoardApiController.php',
     '/controllers/TaskRelationController.php',
     '/controllers/TaskBoardController.php',
     '/TasksCapability.php',
