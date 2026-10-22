@@ -34,10 +34,14 @@ final class TaskAssigneeQueueController
         $queue = (new TaskAssigneeQueueService($db))->forUser(
             $userId, (new TaskUserTimezoneService($db))->nowFor($userId)
         );
-        $queue['morning_digest_enabled'] = (int) $db->fetchValue(
-            'SELECT COUNT(*) FROM task_morning_digest_settings WHERE user_id=:user AND enabled=1',
+        $settings = $db->fetchOne(
+            'SELECT enabled,repeat_interval_days FROM task_morning_digest_settings WHERE user_id=:user',
             [':user' => $userId]
-        ) > 0;
+        );
+        $enabled = (int) ($settings['enabled'] ?? 0) === 1;
+        $queue['morning_digest_enabled'] = $enabled;
+        $queue['repeat_interval_days'] = $settings !== null && $settings['repeat_interval_days'] !== null
+            ? (int) $settings['repeat_interval_days'] : ($enabled ? 1 : 0);
         $this->respond($queue, 200);
     }
 
@@ -60,19 +64,28 @@ final class TaskAssigneeQueueController
             $this->respond(['error' => 'invalid_timezone'], 422);
             return;
         }
+        $rawInterval = $request->rawPost('repeat_interval_days', '');
+        if (!is_string($rawInterval) || !in_array($rawInterval, ['0', '1', '3', '7'], true)) {
+            $this->respond(['error' => 'invalid_repeat_interval',
+                'message' => 'Выберите допустимую частоту повторных напоминаний'], 422);
+            return;
+        }
+        $interval = (int) $rawInterval;
         try {
             $saved = (new TaskUserTimezoneService($db))->save($userId, $name);
             $enabled = $request->rawPost('morning_digest_enabled', '') === '1';
             $db->execute(
-                'INSERT INTO task_morning_digest_settings (user_id,enabled) VALUES (:user,:enabled)
-                 ON DUPLICATE KEY UPDATE enabled=VALUES(enabled)',
-                [':user' => $userId, ':enabled' => $enabled ? 1 : 0]
+                'INSERT INTO task_morning_digest_settings (user_id,enabled,repeat_interval_days)
+                 VALUES (:user,:enabled,:interval)
+                 ON DUPLICATE KEY UPDATE enabled=VALUES(enabled),repeat_interval_days=VALUES(repeat_interval_days)',
+                [':user' => $userId, ':enabled' => $enabled ? 1 : 0, ':interval' => $interval]
             );
         } catch (InvalidArgumentException $error) {
             $this->respond(['error' => 'invalid_timezone', 'message' => $error->getMessage()], 422);
             return;
         }
-        $this->respond(['saved' => true, 'timezone' => $saved, 'morning_digest_enabled' => $enabled], 200);
+        $this->respond(['saved' => true, 'timezone' => $saved,
+            'morning_digest_enabled' => $enabled, 'repeat_interval_days' => $interval], 200);
     }
 
     /** @param array<string,mixed> $data */
