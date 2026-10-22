@@ -7,6 +7,7 @@ namespace App\Controllers;
 use Core\Controller;
 use App\Services\PermissionService;
 use Modules\Tasks\TaskApiTokenService;
+use Modules\Tasks\TaskApiTrafficService;
 use Core\DatabaseManager;
 use Core\Request;
 use InvalidArgumentException;
@@ -25,6 +26,8 @@ final class TaskReadApiController extends Controller
         $authorization = $request->server('HTTP_AUTHORIZATION', '');
         $authorization = is_string($authorization) ? trim($authorization) : '';
         $userId = 0;
+        $tokenId = 0;
+        $traffic = new TaskApiTrafficService($db);
 
         if ($authorization !== '') {
             $principal = (new TaskApiTokenService($db))->authenticate($authorization);
@@ -33,6 +36,14 @@ final class TaskReadApiController extends Controller
                 return;
             }
             $userId = $principal['user_id'];
+            $tokenId = $principal['token_id'];
+            $quota = $traffic->consume($tokenId, 'read');
+            if (!$quota['allowed']) {
+                header('Retry-After: ' . $quota['retry_after']);
+                $traffic->record($tokenId, $userId, 'read', 429);
+                $this->reply(['error' => 'rate_limited', 'message' => 'Превышен лимит обращений'], 429);
+                return;
+            }
         } elseif ($request->session('auth')) {
             $userId = (int) $request->session('user_id', 0);
         }
@@ -42,6 +53,7 @@ final class TaskReadApiController extends Controller
             return;
         }
         if (!(new PermissionService($db))->hasPermission($userId, 'tasks.use')) {
+            if ($tokenId > 0) $traffic->record($tokenId, $userId, 'read', 403);
             $this->reply(['error' => 'forbidden'], 403);
             return;
         }
@@ -52,6 +64,7 @@ final class TaskReadApiController extends Controller
         if (!is_scalar($rawLimit) || !is_string($rawLimit)
             || !preg_match('/^[1-9][0-9]{0,2}$/D', $rawLimit)
             || ($rawCursor !== null && !is_string($rawCursor))) {
+            if ($tokenId > 0) $traffic->record($tokenId, $userId, 'read', 422);
             $this->reply(['error' => 'invalid_parameter', 'message' => 'Некорректные параметры списка'], 422);
             return;
         }
@@ -62,8 +75,10 @@ final class TaskReadApiController extends Controller
                 (int) $rawLimit,
                 $rawCursor
             );
+            if ($tokenId > 0) $traffic->record($tokenId, $userId, 'read', 200);
             $this->reply(['api_version' => 'v1', ...$page], 200);
         } catch (InvalidArgumentException $error) {
+            if ($tokenId > 0) $traffic->record($tokenId, $userId, 'read', 422);
             $this->reply(['error' => 'invalid_parameter', 'message' => $error->getMessage()], 422);
         }
     }

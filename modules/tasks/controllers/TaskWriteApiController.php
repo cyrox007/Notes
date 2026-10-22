@@ -12,6 +12,7 @@ use DomainException;
 use InvalidArgumentException;
 use Modules\Tasks\TaskApiCreateService;
 use Modules\Tasks\TaskApiTokenService;
+use Modules\Tasks\TaskApiTrafficService;
 use RuntimeException;
 
 /**
@@ -20,9 +21,12 @@ use RuntimeException;
  */
 final class TaskWriteApiController
 {
+    /** @var array{token_id:int,user_id:int,action:string}|null */
+    private ?array $auditContext = null;
+
     public function create(Request $request): void
     {
-        $owner = $this->authenticate($request);
+        $owner = $this->authenticate($request, 'create');
         if ($owner === null) {
             return;
         }
@@ -46,7 +50,7 @@ final class TaskWriteApiController
 
     public function update(Request $request, string $uid): void
     {
-        $owner = $this->authenticate($request);
+        $owner = $this->authenticate($request, 'update');
         if ($owner === null) {
             return;
         }
@@ -81,7 +85,7 @@ final class TaskWriteApiController
         }
     }
 
-    private function authenticate(Request $request): ?int
+    private function authenticate(Request $request, string $action): ?int
     {
         $authorization = $request->server('HTTP_AUTHORIZATION', '');
         $db = DatabaseManager::getInstance();
@@ -93,8 +97,15 @@ final class TaskWriteApiController
             return null;
         }
         $owner = (int) $principal['user_id'];
+        $this->auditContext = ['token_id' => (int) $principal['token_id'], 'user_id' => $owner, 'action' => $action];
         if (!(new PermissionService($db))->hasPermission($owner, 'tasks.use')) {
             $this->send(['error' => 'forbidden'], 403);
+            return null;
+        }
+        $quota = (new TaskApiTrafficService($db))->consume((int) $principal['token_id'], $action);
+        if (!$quota['allowed']) {
+            header('Retry-After: ' . $quota['retry_after']);
+            $this->send(['error' => 'rate_limited', 'message' => 'Превышен лимит обращений'], 429);
             return null;
         }
         return $owner;
@@ -137,6 +148,12 @@ final class TaskWriteApiController
     /** @param array<string,mixed> $body */
     private function send(array $body, int $status): void
     {
+        if ($this->auditContext !== null) {
+            $context = $this->auditContext;
+            (new TaskApiTrafficService(DatabaseManager::getInstance()))->record(
+                $context['token_id'], $context['user_id'], $context['action'], $status
+            );
+        }
         http_response_code($status);
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: no-store, private');

@@ -45,7 +45,7 @@ apiTokenCheck(!str_contains(json_encode($row, JSON_THROW_ON_ERROR), $created['to
     'секрет присутствует в таблице');
 
 $auth = 'Bearer ' . $created['token'];
-apiTokenCheck($service->authenticate($auth) === ['user_id' => 11, 'scope' => 'tasks.read'],
+apiTokenCheck($service->authenticate($auth) === ['user_id' => 11, 'scope' => 'tasks.read', 'token_id' => $created['id']],
     'не удалось проверить действительный ключ');
 apiTokenCheck($service->authenticate($auth, 'tasks.write') === null,
     'ключ чтения получил право изменять задачи');
