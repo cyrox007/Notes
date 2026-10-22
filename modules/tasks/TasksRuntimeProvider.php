@@ -53,6 +53,7 @@ final class TasksRuntimeProvider implements ModuleRuntimeProvider
     public function registerRoutes(Router $router): void
     {
         $router->add('GET', '/tasks/assignment-queue', [TaskAssigneeQueueController::class, 'index'], [LoginRequared::class, RequireTasksUse::class], 'tasks_assignee_queue');
+        $router->add('POST', '/tasks/assignment-queue/timezone', [TaskAssigneeQueueController::class, 'timezone'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'tasks_assignee_timezone');
         $router->group('/api/v1/task-boards')
             ->add('GET', '/', [TaskBoardApiController::class, 'boards'], [], 'api_v1_task_boards_index')
             ->add('GET', '/{str:boardUid}/tasks', [TaskBoardApiController::class, 'tasks'], [], 'api_v1_task_boards_tasks')
