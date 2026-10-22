@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Notifications;
 
+use Core\DatabaseManager;
 use DateTimeImmutable;
 use DateTimeZone;
 use Throwable;
@@ -17,6 +18,40 @@ final class TaskReminderScheduleHealth
 {
     private const EXPECTED_INTERVAL_MINUTES = 15;
     private const STALE_AFTER_MINUTES = 45;
+
+    /**
+     * Чтение сведений платформенным сервисом без подключения чужого модуля
+     * и без получения содержимого самих задач или уведомлений.
+     *
+     * @return array<string,mixed>
+     */
+    public static function readReport(DatabaseManager $db): array
+    {
+        $last = $db->fetchOne(
+            'SELECT id,started_at,finished_at,status,morning_published,personal_published,
+                    board_published,delivery_claimed,delivery_sent,delivery_retry,
+                    delivery_failed,error_stage
+             FROM task_reminder_cycle_runs ORDER BY id DESC LIMIT 1'
+        );
+        $daily = $db->fetchOne(
+            "SELECT COUNT(*) AS runs,
+                    COALESCE(SUM(delivery_sent),0) AS sent,
+                    COALESCE(SUM(delivery_retry),0) AS retry,
+                    COALESCE(SUM(delivery_failed),0) AS failed
+             FROM task_reminder_cycle_runs
+             WHERE started_at >= UTC_TIMESTAMP() - INTERVAL 24 HOUR"
+        );
+
+        return [
+            'last' => $last,
+            'last_24h' => [
+                'runs' => (int) ($daily['runs'] ?? 0),
+                'sent' => (int) ($daily['sent'] ?? 0),
+                'retry' => (int) ($daily['retry'] ?? 0),
+                'failed' => (int) ($daily['failed'] ?? 0),
+            ],
+        ];
+    }
 
     /** @param array<string,mixed> $report @return array<string,mixed> */
     public static function evaluate(array $report, ?DateTimeImmutable $now = null): array
