@@ -46,7 +46,7 @@ foreach ([
 try {
     $db->execute("INSERT INTO users(id) VALUES (11),(12)");
     $db->execute("INSERT INTO task_user_preferences VALUES (11,'Europe/Amsterdam'),(12,'Europe/Amsterdam')");
-    $db->execute("INSERT INTO task_morning_digest_settings VALUES (11,1),(12,0)");
+    $db->execute("INSERT INTO task_morning_digest_settings (user_id,enabled) VALUES (11,1),(12,0)");
     $db->execute("INSERT INTO task_boards(id,uid,owner_user_id,name) VALUES (1,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',12,'Доска')");
     $db->execute("INSERT INTO task_board_members VALUES (1,11,'member')");
     $db->execute("INSERT INTO task_board_items(id,uid,board_id,due_date) VALUES (1,'11111111111111111111111111111111',1,'2026-10-20 10:00:00')");
