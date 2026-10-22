@@ -36,7 +36,7 @@ $db = DatabaseManager::forConnection(new PDO(
 foreach ([
     "CREATE TABLE users(id INT PRIMARY KEY,is_active TINYINT DEFAULT 1,account_status VARCHAR(20) DEFAULT 'active',deletion_requested_at DATETIME NULL,anonymized_at DATETIME NULL)",
     "CREATE TABLE task_user_preferences(user_id INT PRIMARY KEY,timezone VARCHAR(64))",
-    "CREATE TABLE task_morning_digest_settings(user_id INT PRIMARY KEY,enabled TINYINT DEFAULT 0)",
+    "CREATE TABLE task_morning_digest_settings(user_id INT PRIMARY KEY,enabled TINYINT DEFAULT 0,repeat_interval_days TINYINT UNSIGNED NULL DEFAULT NULL)",
     "CREATE TABLE tasks(id INT PRIMARY KEY,uid CHAR(32),user_id INT,title VARCHAR(255),due_date DATETIME,status VARCHAR(24) DEFAULT 'pending',is_deleted TINYINT DEFAULT 0,archived_at DATETIME NULL)"
 ] as $sql) $db->execute($sql);
 try {
