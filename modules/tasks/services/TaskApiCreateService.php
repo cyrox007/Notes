@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Tasks;
 
 use Core\DatabaseManager;
+use App\Services\RolePolicyService;
 use Core\MutationCommandStore;
 use InvalidArgumentException;
 use RuntimeException;
@@ -63,6 +64,16 @@ final class TaskApiCreateService
                 $answer = $this->commands->storedResponse($receipt['record']);
                 $this->db->endTransaction();
                 return $answer;
+            }
+            $limit = (int) (new RolePolicyService())->effectiveValue($owner, 'tasks', 'max_personal_tasks');
+            if ($limit > 0) {
+                $count = (int) $this->db->fetchValue(
+                    'SELECT COUNT(*) FROM tasks WHERE user_id=:owner AND is_deleted=0',
+                    [':owner' => $owner]
+                );
+                if ($count >= $limit) {
+                    throw new \DomainException('Достигнут лимит личных задач', 403);
+                }
             }
             $uid = bin2hex(random_bytes(16));
             $now = gmdate('Y-m-d H:i:s');
