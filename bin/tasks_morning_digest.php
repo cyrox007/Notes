@@ -17,9 +17,9 @@ use Core\CliRuntime;
 use Core\DatabaseManager;
 use Modules\Tasks\TaskMorningDigestPublisher;
 
-$options = getopt('', ['limit:', 'json', 'help']);
+$options = getopt('', ['limit:', 'after-user:', 'json', 'help']);
 if (isset($options['help'])) {
-    echo "Использование: php bin/tasks_morning_digest.php [--limit=100] [--json]\n";
+    echo "Использование: php bin/tasks_morning_digest.php [--limit=100] [--after-user=ID] [--json]\n";
     echo "Запускать планировщиком каждые 10–15 минут. Уведомления публикуются в 08:00–08:59 местного времени.\n";
     exit(0);
 }
@@ -28,7 +28,7 @@ $json = isset($options['json']);
 try {
     $db = DatabaseManager::getInstance();
     $publisher = new TaskMorningDigestPublisher($db, new NotificationService());
-    $result = $publisher->run(null, isset($options['limit']) ? (int) $options['limit'] : 100);
+    $result = $publisher->run(null, isset($options['limit']) ? (int) $options['limit'] : 100, isset($options['after-user']) ? (int) $options['after-user'] : 0);
     if ($json) {
         CliRuntime::writeJson(['status' => 'ok', ...$result], true);
     } else {
