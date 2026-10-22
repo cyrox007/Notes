@@ -1,0 +1,71 @@
+name: 1.2 — настоящие HTTP-запросы Tasks API
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'tests/integration/tasks_board_http_12.py'
+      - 'tests/integration/tasks_board_http_fixture_12.php'
+      - 'tests/integration/tasks_board_http_router_12.php'
+      - '.github/workflows/tasks-board-http-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'tests/integration/tasks_board_http_12.py'
+      - 'tests/integration/tasks_board_http_fixture_12.php'
+      - 'tests/integration/tasks_board_http_router_12.php'
+      - '.github/workflows/tasks-board-http-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  http:
+    name: Проверка HTTP (${{ matrix.database.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        database:
+          - {name: MySQL-8.4, image: 'mysql:8.4', health: 'mysqladmin ping -h 127.0.0.1 -uroot -proot'}
+          - {name: MariaDB-11.4, image: 'mariadb:11.4', health: 'healthcheck.sh --connect --innodb_initialized'}
+    services:
+      mysql:
+        image: ${{ matrix.database.image }}
+        env:
+          MYSQL_DATABASE: workspace_tasks_http_test
+          MYSQL_USER: workspace
+          MYSQL_PASSWORD: workspace
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="${{ matrix.database.health }}"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql,mbstring,mysqli
+          coverage: none
+      - name: Проверить синтаксис и реальные HTTP-запросы
+        env:
+          DBNAME: workspace_tasks_http_test
+          DBHOST: 127.0.0.1
+          DBPORT: '3306'
+          DBUSER: workspace
+          DBPASS: workspace
+          DBPREFIX: ''
+          BASE_PATH: /
+        run: |
+          php -l tests/integration/tasks_board_http_fixture_12.php
+          php -l tests/integration/tasks_board_http_router_12.php
+          python3 -m py_compile tests/integration/tasks_board_http_12.py
+          python3 tests/integration/tasks_board_http_12.py
