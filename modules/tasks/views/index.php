@@ -48,6 +48,7 @@ ob_start();
 
 <section class="tasks-assignee" data-assignee-queue
          data-queue-url="<?= $view->e($view->route('tasks_assignee_queue')) ?>"
+         data-timezone-url="<?= $view->e($view->route('tasks_assignee_timezone')) ?>"
          data-personal-url="<?= $view->e($tasksRoute) ?>"
          data-boards-url="<?= $view->e($view->route('task_boards')) ?>">
     <div class="tasks-assignee__heading">
@@ -57,7 +58,24 @@ ob_start();
         </div>
         <button type="button" class="btn-secondary" data-queue-refresh>Обновить</button>
     </div>
+    <form data-queue-timezone-form class="tasks-assignee__timezone-form">
+        <?= $view->csrfInput() ?>
+        <label for="tasks-user-timezone">Мой часовой пояс</label>
+        <input id="tasks-user-timezone" name="timezone" type="text" list="tasks-timezones"
+               maxlength="64" autocomplete="off" placeholder="Europe/Moscow" required>
+        <datalist id="tasks-timezones">
+            <option value="Europe/Moscow">
+            <option value="Europe/Amsterdam">
+            <option value="Europe/Kaliningrad">
+            <option value="Asia/Yekaterinburg">
+            <option value="Asia/Novosibirsk">
+            <option value="Asia/Vladivostok">
+            <option value="UTC">
+        </datalist>
+        <button type="submit" class="btn-secondary">Сохранить зону</button>
+    </form>
     <p data-queue-status role="status" aria-live="polite">Загружаем рабочую очередь…</p>
+    <p data-queue-summary class="tasks-assignee__summary"></p>
     <div data-queue-groups class="tasks-assignee__groups"></div>
 </section>
 
