@@ -88,7 +88,7 @@ try {
       VALUES (11,'00000000-0000-4000-8000-000000000011','e2e-one','one@example.test','hash','Тест','Один'),
              (12,'00000000-0000-4000-8000-000000000012','e2e-two','two@example.test','hash','Тест','Два')");
     $pdo->exec("INSERT INTO task_user_preferences VALUES (11,'Europe/Amsterdam'),(12,'Europe/Amsterdam')");
-    $pdo->exec('INSERT INTO task_morning_digest_settings VALUES (11,1),(12,0)');
+    $pdo->exec('INSERT INTO task_morning_digest_settings (user_id,enabled) VALUES (11,1),(12,0)');
     $pdo->exec("INSERT INTO tasks (id,uid,user_id,title,due_date)
       VALUES (1,'11111111111111111111111111111111',11,'Просроченная личная','2026-10-20 12:00:00'),
              (2,'22222222222222222222222222222222',12,'Без согласия','2026-10-20 12:00:00')");
