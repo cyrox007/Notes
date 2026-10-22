@@ -24,6 +24,7 @@
         groups.replaceChildren();
         timezoneInput.value = data.timezone || '';
         timezoneForm.querySelector('[name="morning_digest_enabled"]').checked = !!data.morning_digest_enabled;
+        timezoneForm.querySelector('[name="repeat_interval_days"]').value = String(data.repeat_interval_days ?? 0);
         const counts = data.summary || {};
         summary.textContent = 'На ' + (data.date || 'сегодня') + ': просрочено — ' + (counts.overdue ?? 0) +
             ', сегодня — ' + (counts.today ?? 0) + ', завтра — ' + (counts.tomorrow ?? 0) +
@@ -82,7 +83,7 @@
         event.preventDefault();
         const button = timezoneForm.querySelector('[type="submit"]');
         button.disabled = true;
-        status.textContent = 'Сохраняем часовой пояс…';
+        status.textContent = 'Сохраняем настройки напоминаний…';
         try {
             const response = await fetch(root.dataset.timezoneUrl, {
                 method: 'POST', credentials: 'same-origin', cache: 'no-store',
@@ -90,7 +91,7 @@
                 body: new FormData(timezoneForm)
             });
             const body = await response.json();
-            if (!response.ok) throw new Error(body.message || 'Не удалось сохранить часовой пояс');
+            if (!response.ok) throw new Error(body.message || 'Не удалось сохранить настройки');
             await load();
         } catch (error) {
             status.textContent = error.message || 'Ошибка сохранения';
