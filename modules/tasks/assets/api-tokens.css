@@ -24,3 +24,5 @@
 .tasks-keys__muted{color:var(--text-muted,#64748b);white-space:nowrap}
 .tasks-keys__error{color:var(--danger-color,#b42318)}
 @media(max-width:760px){.tasks-keys__grid{grid-template-columns:1fr}.tasks-keys{padding:1rem .7rem 2rem}.tasks-keys__panel{padding:1rem}.tasks-keys__copy-row{flex-wrap:wrap}.tasks-keys__copy-row button{flex:1}}
+
+.tasks-keys__group-heading{font-size:1rem;margin:.65rem 0 .1rem}
