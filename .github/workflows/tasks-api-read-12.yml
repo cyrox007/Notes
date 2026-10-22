@@ -1,0 +1,45 @@
+name: 1.2 — чтение Tasks API
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/TasksRuntimeProvider.php'
+      - 'modules/tasks/runtime.php'
+      - 'modules/tasks/services/TaskReadApiService.php'
+      - 'modules/tasks/controllers/TaskReadApiController.php'
+      - 'tests/integration/tasks_read_api_12.php'
+      - '.github/workflows/tasks-api-read-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/TasksRuntimeProvider.php'
+      - 'modules/tasks/runtime.php'
+      - 'modules/tasks/services/TaskReadApiService.php'
+      - 'modules/tasks/controllers/TaskReadApiController.php'
+      - 'tests/integration/tasks_read_api_12.php'
+      - '.github/workflows/tasks-api-read-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tasks-read:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, mbstring
+          coverage: none
+      - name: Проверить синтаксис и курсорное чтение
+        run: |
+          php -l modules/tasks/services/TaskReadApiService.php
+          php -l modules/tasks/controllers/TaskReadApiController.php
+          php -l modules/tasks/TasksRuntimeProvider.php
+          php tests/integration/tasks_read_api_12.php
