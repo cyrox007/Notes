@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use Core\Controller;
+use App\Services\PermissionService;
+use Modules\Tasks\TaskApiTokenService;
 use Core\DatabaseManager;
 use Core\Request;
 use InvalidArgumentException;
@@ -19,6 +21,31 @@ final class TaskReadApiController extends Controller
         header('Cache-Control: no-store, private');
         header('X-Content-Type-Options: nosniff');
 
+        $db = DatabaseManager::getInstance();
+        $authorization = $request->server('HTTP_AUTHORIZATION', '');
+        $authorization = is_string($authorization) ? trim($authorization) : '';
+        $userId = 0;
+
+        if ($authorization !== '') {
+            $principal = (new TaskApiTokenService($db))->authenticate($authorization);
+            if ($principal === null) {
+                $this->reply(['error' => 'invalid_token'], 401);
+                return;
+            }
+            $userId = $principal['user_id'];
+        } elseif ($request->session('auth')) {
+            $userId = (int) $request->session('user_id', 0);
+        }
+
+        if ($userId <= 0) {
+            $this->reply(['error' => 'unauthorized'], 401);
+            return;
+        }
+        if (!(new PermissionService($db))->hasPermission($userId, 'tasks.use')) {
+            $this->reply(['error' => 'forbidden'], 403);
+            return;
+        }
+
         $rawLimit = $request->get('limit', '30');
         $rawCursor = $request->get('cursor', null);
 
@@ -31,7 +58,7 @@ final class TaskReadApiController extends Controller
 
         try {
             $page = (new TaskReadApiService(DatabaseManager::getInstance()))->listOwned(
-                (int) $request->session('user_id', 0),
+                $userId,
                 (int) $rawLimit,
                 $rawCursor
             );
