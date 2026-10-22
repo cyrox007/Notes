@@ -66,7 +66,7 @@ final class TaskBoardApiController
             $limit = (int) $rawLimit;
             $rows = DatabaseManager::getInstance()->fetchAll(
                 'SELECT id,uid,title,description,status,priority,due_date,completed_at,
-                        archived_at,version,updated_at
+                        accepted_by_user_id,accepted_at,archived_at,version,updated_at
                  FROM task_board_items
                  WHERE board_id=:board_id AND is_deleted=0 AND id>:after_id
                  ORDER BY id ASC LIMIT ' . ($limit + 1),
