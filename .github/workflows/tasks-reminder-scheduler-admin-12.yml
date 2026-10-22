@@ -1,0 +1,94 @@
+name: Планировщик напоминаний и диагностика администратора 1.2
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/admin/controllers/NotificationSettingsController.php'
+      - 'modules/admin/views/notifications.php'
+      - 'app/services/notifications/TaskReminderScheduleHealth.php'
+      - 'tests/integration/tasks_reminder_scheduler_status_12.php'
+      - 'tools/scheduler/**'
+      - '.github/workflows/tasks-reminder-scheduler-admin-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'modules/admin/controllers/NotificationSettingsController.php'
+      - 'modules/admin/views/notifications.php'
+      - 'app/services/notifications/TaskReminderScheduleHealth.php'
+      - 'tests/integration/tasks_reminder_scheduler_status_12.php'
+      - 'tools/scheduler/**'
+      - '.github/workflows/tasks-reminder-scheduler-admin-12.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Админка и расписание Linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверить PHP и вычисление состояния
+        run: |
+          php -l app/services/notifications/TaskReminderScheduleHealth.php
+          php -l modules/admin/controllers/NotificationSettingsController.php
+          php -l modules/admin/views/notifications.php
+          php tests/integration/tasks_reminder_scheduler_status_12.php
+      - name: Проверить синтаксис установщика Linux
+        run: bash -n tools/scheduler/tasks-reminders-linux.sh
+      - name: Проверить установку, повтор и удаление без изменения настоящего cron
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="$(mktemp -d)"
+          cat > "$dir/crontab" <<'MOCK'
+          #!/usr/bin/env bash
+          if [[ "${1:-}" == '-l' ]]; then
+              [[ -f "$NOTES_TEST_CRONTAB" ]] && cat "$NOTES_TEST_CRONTAB"
+              exit 0
+          fi
+          if [[ "${1:-}" == '-' ]]; then
+              cat > "$NOTES_TEST_CRONTAB"
+              exit 0
+          fi
+          exit 2
+          MOCK
+          chmod +x "$dir/crontab"
+          export NOTES_TEST_CRONTAB="$dir/current-cron"
+          export PATH="$dir:$PATH"
+          printf '5 * * * * echo другое-задание\n' > "$NOTES_TEST_CRONTAB"
+          bash tools/scheduler/tasks-reminders-linux.sh install
+          bash tools/scheduler/tasks-reminders-linux.sh install
+          [[ "$(grep -Fc '# notes-tasks-reminder-cycle' "$NOTES_TEST_CRONTAB")" == 1 ]]
+          grep -Fq 'другое-задание' "$NOTES_TEST_CRONTAB"
+          bash tools/scheduler/tasks-reminders-linux.sh remove
+          ! grep -Fq '# notes-tasks-reminder-cycle' "$NOTES_TEST_CRONTAB"
+          grep -Fq 'другое-задание' "$NOTES_TEST_CRONTAB"
+
+  windows:
+    name: Синтаксис установщика Windows
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Проверить PowerShell без регистрации задания
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path 'tools/scheduler/tasks-reminders-windows.ps1').Path,
+              [ref]$tokens,
+              [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_.Message }
+              exit 1
+          }
+          Write-Output 'Синтаксис установщика Windows проверен'
