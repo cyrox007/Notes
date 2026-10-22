@@ -247,6 +247,7 @@ CREATE TABLE IF NOT EXISTS `task_user_preferences` (
 CREATE TABLE IF NOT EXISTS `task_morning_digest_settings` (
     `user_id` INT NOT NULL,
     `enabled` TINYINT(1) NOT NULL DEFAULT 0,
+    `repeat_interval_days` TINYINT UNSIGNED NOT NULL DEFAULT 1,
     PRIMARY KEY (`user_id`),
     CONSTRAINT `fk_task_digest_user` FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
