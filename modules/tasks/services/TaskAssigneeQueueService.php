@@ -84,15 +84,15 @@ final class TaskAssigneeQueueService
             ];
         }
 
+        // Точные итоги считаются в БД, а не по ограниченному предпросмотру.
+        $summary = $this->summary($userId, $bounds);
         $hasMore = [];
         foreach ($groups as $key => &$items) {
             usort($items, static fn(array $a, array $b): int =>
                 [$a['due_date'], $a['source'], $a['uid']]
                 <=> [$b['due_date'], $b['source'], $b['uid']]
             );
-            $hasMore[$key] = count($items) > self::PAGE_LIMIT
-                || count($personal) === self::MAX_PER_SOURCE
-                || count($assigned) === self::MAX_PER_SOURCE;
+            $hasMore[$key] = $summary[$key] > self::PAGE_LIMIT;
             $items = array_slice($items, 0, self::PAGE_LIMIT);
         }
         unset($items);
@@ -101,8 +101,61 @@ final class TaskAssigneeQueueService
             'date' => substr($bounds['today'], 0, 10),
             'timezone' => $now->getTimezone()->getName(),
             'groups' => $groups,
+            'summary' => $summary,
+            'summary_generated_at' => $now->format('Y-m-d H:i:sP'),
             'has_more' => $hasMore,
             'limit_per_group' => self::PAGE_LIMIT,
         ];
+    }
+
+    /**
+     * Точные количества по всем подходящим задачам, независимо от лимита карточек.
+     * @param array{today:string,tomorrow:string,after_tomorrow:string,now:string} $bounds
+     * @return array{overdue:int,today:int,tomorrow:int,total:int}
+     */
+    private function summary(int $userId, array $bounds): array
+    {
+        $result = [];
+        foreach (['overdue', 'today', 'tomorrow'] as $bucket) {
+            $start = match ($bucket) {
+                'today' => $bounds['today'],
+                'tomorrow' => $bounds['tomorrow'],
+                default => null,
+            };
+            $end = match ($bucket) {
+                'overdue' => $bounds['today'],
+                'today' => $bounds['tomorrow'],
+                default => $bounds['after_tomorrow'],
+            };
+            $range = 'due_date < :end';
+            $params = [':end' => $end];
+            if ($start !== null) {
+                $range .= ' AND due_date >= :start';
+                $params[':start'] = $start;
+            }
+            $personal = (int) $this->db->fetchValue(
+                "SELECT COUNT(*) FROM tasks
+                 WHERE user_id=:user AND is_deleted=0 AND archived_at IS NULL
+                   AND due_date IS NOT NULL AND status NOT IN ('completed','cancelled')
+                   AND " . $range,
+                [':user' => $userId, ...$params]
+            );
+            $board = (int) $this->db->fetchValue(
+                "SELECT COUNT(*) FROM task_board_assignees a
+                 INNER JOIN task_board_items i ON i.id=a.task_id
+                 INNER JOIN task_boards b ON b.id=i.board_id
+                 INNER JOIN users u ON u.id=:user AND u.is_active=1 AND u.account_status='active'
+                 LEFT JOIN task_board_members bm ON bm.board_id=b.id AND bm.user_id=u.id
+                 WHERE a.user_id=:assigned AND i.is_deleted=0 AND i.archived_at IS NULL
+                   AND b.is_archived=0 AND i.due_date IS NOT NULL
+                   AND i.status NOT IN ('completed','cancelled')
+                   AND (b.owner_user_id=u.id OR bm.user_id IS NOT NULL OR b.audience='all_active')
+                   AND " . str_replace('due_date', 'i.due_date', $range),
+                [':user' => $userId, ':assigned' => $userId, ...$params]
+            );
+            $result[$bucket] = $personal + $board;
+        }
+        $result['total'] = array_sum($result);
+        return $result;
     }
 }
