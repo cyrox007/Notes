@@ -14,11 +14,13 @@ if ($name === '' || !str_contains(strtolower($name), 'test')) {
 require_once $root . '/core/UpdateDatabaseMigrator.php';
 require_once $root . '/core/MigrationManifest.php';
 require_once $root . '/core/MigrationBaseline.php';
+require_once $root . '/core/DatabaseOwnership.php';
 
 $manifest = new \Core\MigrationManifest($root);
 $names = $manifest->names();
 $published = \Core\MigrationBaseline::appliedNames($names, 11000);
-$expected = count($names) - count($published);
+$owned = \Core\DatabaseOwnership::fromPackageRoot($root)->migrationNamesInCanonicalOrder($names);
+$expected = count(array_diff($owned, $published));
 if ($expected < 1) {
     throw new RuntimeException('Нет миграций новой версии');
 }
@@ -58,7 +60,7 @@ try {
     }
 
     $count = $db->query('SELECT COUNT(*) AS total FROM schema_migrations')->fetch_assoc();
-    if ((int) ($count['total'] ?? 0) !== count($names)) {
+    if ((int) ($count['total'] ?? 0) !== count(array_unique(array_merge($published, $owned)))) {
         throw new RuntimeException('Журнал миграций не соответствует релизу');
     }
 } finally {
