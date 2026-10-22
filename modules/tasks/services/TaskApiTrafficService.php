@@ -44,7 +44,7 @@ final class TaskApiTrafficService
             [':token_id' => $tokenId, ':window_start' => $start, ':max_requests' => $limit]
         );
         return [
-            'allowed' => $changed instanceof \PDOStatement && $changed->rowCount() === 1,
+            'allowed' => $changed === 1,
             'retry_after' => max(1, 60 - ($current - $window)),
             'limit' => $limit,
         ];
