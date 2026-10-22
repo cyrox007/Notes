@@ -37,7 +37,9 @@
       "task_board_assignees",
       "task_personal_day_queues",
       "task_personal_day_positions",
-      "task_api_tokens"
+      "task_api_tokens",
+      "task_api_rate_buckets",
+      "task_api_access_log"
     ],
     "schemas": [
       "database/tasks_schema.sql"
@@ -48,7 +50,8 @@
       "database/migrations/20261011_tasks_workflow_archive.sql",
       "database/migrations/20261017_tasks_entity_versions.sql",
       "database/migrations/20261019_tasks_personal_day_order.sql",
-      "database/migrations/20261022_tasks_api_tokens.sql"
+      "database/migrations/20261022_tasks_api_tokens.sql",
+      "database/migrations/20261022_tasks_api_rate_audit.sql"
     ]
   },
   "background": {
