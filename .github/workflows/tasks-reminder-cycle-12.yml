@@ -1,0 +1,72 @@
+name: Единый фоновый цикл Tasks
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'bin/tasks_reminder_cycle.php'
+      - 'modules/tasks/services/TaskReminderCycle.php'
+      - 'tests/integration/tasks_reminder_cycle_mysql_12.php'
+      - 'database/migrations/20261022_tasks_reminder_cycle_runs.sql'
+      - 'database/migrations/manifest.json'
+      - 'database/tasks_schema.sql'
+      - 'modules/tasks/module.json'
+      - '.github/workflows/tasks-reminder-cycle-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'bin/tasks_reminder_cycle.php'
+      - 'modules/tasks/services/TaskReminderCycle.php'
+      - 'tests/integration/tasks_reminder_cycle_mysql_12.php'
+      - '.github/workflows/tasks-reminder-cycle-12.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  cycle:
+    name: Цикл и блокировка (${{ matrix.db.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        db:
+          - {name: MySQL-8.4, image: 'mysql:8.4', health: 'mysqladmin ping -h 127.0.0.1 -uroot -proot'}
+          - {name: MariaDB-11.4, image: 'mariadb:11.4', health: 'healthcheck.sh --connect --innodb_initialized'}
+    services:
+      mysql:
+        image: ${{ matrix.db.image }}
+        env:
+          MYSQL_DATABASE: workspace_reminder_cycle_test
+          MYSQL_USER: workspace
+          MYSQL_PASSWORD: workspace
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="${{ matrix.db.health }}"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql,mbstring
+          coverage: none
+      - name: Проверить синтаксис и изоляцию фонового цикла
+        env:
+          TEST_DB_NAME: workspace_reminder_cycle_test
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: '3306'
+          TEST_DB_USER: workspace
+          TEST_DB_PASS: workspace
+        run: |
+          php -l bin/tasks_reminder_cycle.php
+          php -l modules/tasks/services/TaskReminderCycle.php
+          php -l tests/integration/tasks_reminder_cycle_mysql_12.php
+          php tests/integration/tasks_reminder_cycle_mysql_12.php
