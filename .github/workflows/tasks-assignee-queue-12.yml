@@ -62,6 +62,7 @@ jobs:
           TEST_DB_PASS: workspace
         run: |
           php -l modules/tasks/services/TaskAssigneeQueueService.php
+          php -l modules/tasks/services/TaskUserTimezoneService.php
           php -l modules/tasks/controllers/TaskAssigneeQueueController.php
           php -l modules/tasks/views/index.php
           node --check modules/tasks/assets/assignee-queue.js
