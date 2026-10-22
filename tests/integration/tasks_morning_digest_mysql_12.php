@@ -89,6 +89,9 @@ try {
         'рассылка вне утреннего окна');
     $db->execute('UPDATE task_morning_digest_settings SET enabled=0 WHERE user_id=11');
     digestAssert($worker->run($morning)['published'] === 0, 'отключение согласия не действует');
+    $db->execute('UPDATE task_morning_digest_settings SET enabled=1 WHERE user_id=11');
+    digestAssert($worker->run($morning, 1)['published'] === 1,
+        'постраничный обход с размером 1 должен достичь всех адресатов');
     echo "Сводки Tasks: согласие, временное окно, уникальный ключ и точные итоги проверены\n";
 } finally {
     foreach (['task_morning_digest_settings','task_user_preferences','task_board_assignees',
