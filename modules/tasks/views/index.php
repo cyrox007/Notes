@@ -97,6 +97,7 @@ ob_start();
 
         </details>
         <a class="btn-secondary tasks__archive-link" href="<?= $view->e($tasksRoute . ($filter === 'archive' ? '?filter=all' : '?filter=archive')) ?>"><i class="fa <?= $filter === 'archive' ? 'fa-columns' : 'fa-archive' ?>" aria-hidden="true"></i> <?= $filter === 'archive' ? 'К задачам' : 'Архив задач' ?></a>
+        <a class="btn-secondary" href="<?= $view->e($view->route('tasks_api_token_manage')) ?>"><i class="fa fa-key" aria-hidden="true"></i> Ключи API</a>
         <a class="btn-secondary tasks__shared-boards-link" data-shared-task-boards-link href="<?= $view->e($view->route('task_boards')) ?>"><i class="fa fa-users" aria-hidden="true"></i> Общие доски</a>
         <button class="btn-primary" id="open-create-task" type="button"><i class="fa fa-plus" aria-hidden="true"></i> Новая задача</button>
     </div>
