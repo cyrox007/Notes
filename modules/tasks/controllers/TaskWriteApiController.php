@@ -62,7 +62,7 @@ final class TaskWriteApiController
                 throw new InvalidArgumentException('Требуется положительная expected_version');
             }
             unset($data['command_id'], $data['expected_version']);
-            $allowed = ['title', 'description', 'priority', 'status', 'due_date'];
+            $allowed = ['title', 'description', 'priority', 'due_date'];
             if ($data === [] || array_diff(array_keys($data), $allowed) !== []) {
                 throw new InvalidArgumentException('Недопустимые изменяемые поля');
             }
@@ -125,17 +125,11 @@ final class TaskWriteApiController
             if ($key === 'priority' && !in_array($value, ['low', 'medium', 'high', 'urgent'], true)) {
                 throw new InvalidArgumentException('Некорректный приоритет');
             }
-            if ($key === 'status' && !in_array($value, ['pending','studying','in_progress','review','completed'], true)) {
-                throw new InvalidArgumentException('Некорректный статус');
-            }
             if ($key === 'due_date' && $value !== null
                 && (!is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D', $value) !== 1)) {
                 throw new InvalidArgumentException('Некорректный срок');
             }
             $changes[$key] = $key === 'title' ? trim($value) : $value;
-        }
-        if (isset($changes['status'])) {
-            $changes['completed_at'] = $changes['status'] === 'completed' ? gmdate('Y-m-d H:i:s') : null;
         }
         return $changes;
     }
