@@ -1,0 +1,90 @@
+name: 1.2 — полное применение миграций с опубликованной 1.1
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'core/UpdateDatabaseMigrator.php'
+      - 'core/DatabaseOwnership.php'
+      - 'database/migrations/**'
+      - 'tests/integration/upgrade_11000_full_migrations.php'
+      - '.github/workflows/upgrade-11000-full-migrations.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'core/UpdateDatabaseMigrator.php'
+      - 'database/migrations/**'
+      - 'tests/integration/upgrade_11000_full_migrations.php'
+      - '.github/workflows/upgrade-11000-full-migrations.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-upgrade:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        database:
+          - {name: 'MySQL 8.4', image: 'mysql:8.4', health: 'mysqladmin ping -h 127.0.0.1 -uroot -proot'}
+          - {name: 'MariaDB 11.4', image: 'mariadb:11.4', health: 'healthcheck.sh --connect --innodb_initialized'}
+    services:
+      mysql:
+        image: ${{ matrix.database.image }}
+        env:
+          MYSQL_DATABASE: workspace_full_upgrade_test
+          MYSQL_USER: workspace
+          MYSQL_PASSWORD: workspace
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="${{ matrix.database.health }}"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - name: Получить версию 1.2
+        uses: actions/checkout@v4
+        with:
+          path: candidate
+      - name: Получить опубликованный тег 1.1
+        uses: actions/checkout@v4
+        with:
+          path: published
+          ref: v1.1.0
+          persist-credentials: false
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql
+          coverage: none
+      - name: Подготовить клиент базы данных
+        run: sudo apt-get update -qq && sudo apt-get install -y default-mysql-client
+      - name: Собрать опубликованную схему и выполнить миграции 1.2
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: '3306'
+          DBNAME: workspace_full_upgrade_test
+          DBUSER: workspace
+          DBPASS: workspace
+          DBPREFIX: ''
+        run: |
+          set -euo pipefail
+          export MYSQL_PWD="$DBPASS"
+          # Только опубликованные схемы составленного пакета 1.1.0.
+          php -r 'require "published/core/ModuleManifest.php"; require "published/core/DatabaseOwnership.php"; foreach (\Core\DatabaseOwnership::fromPackageRoot("published")->schemaFiles() as $file) echo $file, "\n";' > /tmp/notes-published-schemas.txt
+          while IFS= read -r schema; do
+            mysql --protocol=tcp -h127.0.0.1 -u"$DBUSER" "$DBNAME" < "published/$schema"
+          done < /tmp/notes-published-schemas.txt
+          mysql --protocol=tcp -h127.0.0.1 -u"$DBUSER" "$DBNAME" <<'SQL'
+          INSERT INTO users(uid,username,email,password_hash,firstname,lastname)
+          VALUES ('00000000-0000-4000-8000-000000000211','upgrade_11000_fixture','upgrade-11000@example.test','hash-test','Проверка','Сохранено');
+          SQL
+          php -l candidate/tests/integration/upgrade_11000_full_migrations.php
+          php candidate/tests/integration/upgrade_11000_full_migrations.php
