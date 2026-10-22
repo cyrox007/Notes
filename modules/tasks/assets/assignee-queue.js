@@ -7,6 +7,9 @@
     const refresh = root.querySelector('[data-queue-refresh]');
     const status = root.querySelector('[data-queue-status]');
     const groups = root.querySelector('[data-queue-groups]');
+    const summary = root.querySelector('[data-queue-summary]');
+    const timezoneForm = root.querySelector('[data-queue-timezone-form]');
+    const timezoneInput = timezoneForm.querySelector('[name="timezone"]');
     const labels = { overdue: 'Просрочено', today: 'Сегодня', tomorrow: 'Завтра' };
     let loading = false;
 
@@ -19,6 +22,11 @@
 
     function draw(data) {
         groups.replaceChildren();
+        timezoneInput.value = data.timezone || '';
+        const counts = data.summary || {};
+        summary.textContent = 'На ' + (data.date || 'сегодня') + ': просрочено — ' + (counts.overdue ?? 0) +
+            ', сегодня — ' + (counts.today ?? 0) + ', завтра — ' + (counts.tomorrow ?? 0) +
+            '. Часовой пояс: ' + (data.timezone || 'не задан') + '.';
         for (const key of ['overdue', 'today', 'tomorrow']) {
             const section = node('section', 'tasks-assignee__group');
             const items = Array.isArray(data.groups?.[key]) ? data.groups[key] : [];
@@ -69,6 +77,26 @@
         }
     }
 
+    timezoneForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        const button = timezoneForm.querySelector('[type="submit"]');
+        button.disabled = true;
+        status.textContent = 'Сохраняем часовой пояс…';
+        try {
+            const response = await fetch(root.dataset.timezoneUrl, {
+                method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: new FormData(timezoneForm)
+            });
+            const body = await response.json();
+            if (!response.ok) throw new Error(body.message || 'Не удалось сохранить часовой пояс');
+            await load();
+        } catch (error) {
+            status.textContent = error.message || 'Ошибка сохранения';
+        } finally {
+            button.disabled = false;
+        }
+    });
     refresh.addEventListener('click', load);
     load();
 })();
