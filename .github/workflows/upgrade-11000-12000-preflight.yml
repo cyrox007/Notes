@@ -9,6 +9,7 @@ on:
       - 'core/PrefixMysqli.php'
       - 'database/migrations/**'
       - 'tests/integration/upgrade_11000_to_12000_preflight_mysql.php'
+      - 'tests/integration/upgrade_tasks_versions_mysql_12.php'
       - '.github/workflows/upgrade-11000-12000-preflight.yml'
   push:
     branches: ['1.2']
@@ -61,3 +62,5 @@ jobs:
           php -l core/UpdateDatabaseMigrator.php
           php -l tests/integration/upgrade_11000_to_12000_preflight_mysql.php
           php tests/integration/upgrade_11000_to_12000_preflight_mysql.php
+          php -l tests/integration/upgrade_tasks_versions_mysql_12.php
+          php tests/integration/upgrade_tasks_versions_mysql_12.php
