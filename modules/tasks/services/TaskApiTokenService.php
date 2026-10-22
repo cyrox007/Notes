@@ -69,7 +69,7 @@ final class TaskApiTokenService
     }
 
     /**
-     * @return array{user_id:int,scope:string}|null
+     * @return array{user_id:int,scope:string,token_id:int}|null
      */
     public function authenticate(string $authorization, string $neededScope = self::SCOPE_READ): ?array
     {
@@ -79,7 +79,7 @@ final class TaskApiTokenService
         }
 
         $row = $this->db->fetchOne(
-            'SELECT user_id,scope,expires_at,revoked_at
+            'SELECT id,user_id,scope,expires_at,revoked_at
              FROM task_api_tokens WHERE token_hash=:hash LIMIT 1',
             [':hash' => hash('sha256', $matches[1])]
         );
@@ -91,7 +91,7 @@ final class TaskApiTokenService
             return null;
         }
 
-        return ['user_id' => (int) $row['user_id'], 'scope' => (string) $row['scope']];
+        return ['user_id' => (int) $row['user_id'], 'scope' => (string) $row['scope'], 'token_id' => (int) $row['id']];
     }
 
     /** @return list<array<string,mixed>> */
