@@ -1,0 +1,43 @@
+name: 1.2 — прерывания и восстановление журнала обновлятора
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'core/UpdateTransactionJournal.php'
+      - 'core/UpdateTransactionStateMachine.php'
+      - 'tests/integration/updater_crash_resume_journal_12.php'
+      - '.github/workflows/updater-crash-journal-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'core/UpdateTransactionJournal.php'
+      - 'core/UpdateTransactionStateMachine.php'
+      - 'tests/integration/updater_crash_resume_journal_12.php'
+      - '.github/workflows/updater-crash-journal-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  crash-recovery:
+    name: Журнал после двух прерываний (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверить сохранность журнала при прерываниях
+        run: |
+          php -l tests/integration/updater_crash_resume_journal_12.php
+          php tests/integration/updater_crash_resume_journal_12.php
