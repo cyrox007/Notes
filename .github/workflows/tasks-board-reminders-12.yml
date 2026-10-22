@@ -1,0 +1,27 @@
+name: Командные напоминания Tasks
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/services/TaskBoardOverdueReminderPublisher.php'
+      - 'bin/tasks_board_overdue_reminders.php'
+      - '.github/workflows/tasks-board-reminders-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/services/TaskBoardOverdueReminderPublisher.php'
+      - 'bin/tasks_board_overdue_reminders.php'
+jobs:
+  syntax:
+    name: Синтаксис командных напоминаний
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверить PHP
+        run: |
+          php -l modules/tasks/services/TaskBoardOverdueReminderPublisher.php
+          php -l bin/tasks_board_overdue_reminders.php
