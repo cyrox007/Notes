@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Services\PermissionService;
+use App\Models\UserModel;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
@@ -17,6 +18,23 @@ use Modules\Tasks\TaskApiTokenService;
  */
 final class TaskApiTokenController extends Controller
 {
+    /** Страница управления собственными ключами доступа. */
+    public function page(Request $request): void
+    {
+        $userId = $this->owner($request);
+        if ($userId === null) {
+            return;
+        }
+        $user = UserModel::select()->where('id', '=', $userId)->first();
+        if (!$user) {
+            $this->respond(['error' => 'unauthorized'], 401);
+            return;
+        }
+        header('Cache-Control: no-store, private');
+        header('Referrer-Policy: no-referrer');
+        $this->render_template('@tasks/api-tokens', ['user' => $user]);
+    }
+
     public function index(Request $request): void
     {
         $userId = $this->owner($request);
