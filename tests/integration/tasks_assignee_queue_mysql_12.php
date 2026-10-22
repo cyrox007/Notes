@@ -89,7 +89,18 @@ try {
     $db->execute('DELETE FROM task_board_members WHERE user_id=11');
     checkQueue((new TaskAssigneeQueueService($db))->forUser(11,$now)['groups']['tomorrow'] === [],
         'отозванный доступ к доске не учитывается');
-    echo "Единая очередь: сроки, назначение, ACL и локальная дата проверены\n";
+    for ($index=100; $index<135; ++$index) {
+        $db->execute(
+            "INSERT INTO tasks(id,uid,user_id,title,due_date)
+             VALUES(:id,:uid,11,'Дополнительная задача','2026-10-22 19:00:00')",
+            [':id'=>$index, ':uid'=>str_pad((string)$index,32,'0',STR_PAD_LEFT)]
+        );
+    }
+    $large = (new TaskAssigneeQueueService($db))->forUser(11,$now);
+    checkQueue($large['summary']['today'] === 36, 'сводка обрезана по размеру списка');
+    checkQueue(count($large['groups']['today']) === 30 && $large['has_more']['today'],
+        'лимит карточек должен быть независим от точного итога');
+    echo "Единая очередь: сроки, назначение, ACL, зоны и полные сводки проверены\n";
 } finally {
     foreach (['task_user_preferences','task_board_assignees','task_board_items','task_board_members',
               'task_boards','tasks','users'] as $table) $db->execute('DROP TABLE IF EXISTS '.$table);
