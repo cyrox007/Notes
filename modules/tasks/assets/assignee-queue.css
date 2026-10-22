@@ -10,3 +10,9 @@
 .tasks-assignee__item strong{overflow-wrap:anywhere}
 .tasks-assignee__meta,.tasks-assignee__empty{color:var(--text-muted,#64748b);font-size:.86rem}
 @media(max-width:760px){.tasks-assignee__groups{grid-template-columns:1fr}.tasks-assignee__heading{align-items:flex-start}.tasks-assignee{padding:.8rem}}
+
+.tasks-assignee__timezone-form{display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;margin:.65rem 0}
+.tasks-assignee__timezone-form label{font-size:.85rem;font-weight:600}
+.tasks-assignee__timezone-form input{min-height:36px;min-width:170px;max-width:250px;flex:1;border:1px solid var(--border-color,#cbd5e1);border-radius:7px;background:var(--input-bg,#fff);color:var(--text-color,inherit);padding:.3rem .55rem}
+.tasks-assignee__timezone-form button{min-height:36px}
+.tasks-assignee__summary{font-weight:600;font-size:.9rem;line-height:1.5;margin:.6rem 0}
