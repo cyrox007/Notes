@@ -7,7 +7,6 @@ namespace App\Controllers\Admin;
 require_once dirname(__DIR__, 3) . '/app/services/notifications/NotificationChannelAdministration.php';
 require_once dirname(__DIR__, 3) . '/app/services/notifications/NotificationExternalChannelAdministration.php';
 require_once dirname(__DIR__, 3) . '/app/services/notifications/TaskReminderScheduleHealth.php';
-require_once dirname(__DIR__, 3) . '/modules/tasks/services/TaskReminderCycle.php';
 
 use App\Helpers\CryptMethods;
 use App\Models\UserModel;
@@ -16,7 +15,6 @@ use App\Services\Notifications\NotificationExternalChannelAdministration;
 use App\Services\Notifications\TaskReminderScheduleHealth;
 use Core\DatabaseManager;
 use Core\ModuleRuntimeLoader;
-use Modules\Tasks\TaskReminderCycle;
 use Core\Controller;
 use Core\Request;
 use Core\UserActionLog;
@@ -55,7 +53,7 @@ final class NotificationSettingsController extends Controller
         }
 
         try {
-            $report = (new TaskReminderCycle(DatabaseManager::getInstance()))->diagnose();
+            $report = TaskReminderScheduleHealth::readReport(DatabaseManager::getInstance());
             return TaskReminderScheduleHealth::evaluate($report);
         } catch (Throwable $error) {
             // Сбой чтения журнала не должен скрывать настройки остальных каналов.
