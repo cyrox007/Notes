@@ -4,9 +4,11 @@ declare(strict_types=1);
 require_once dirname(__DIR__,2).'/core/DatabaseManager.php';
 require_once dirname(__DIR__,2).'/modules/tasks/services/TaskPersonalQueue.php';
 require_once dirname(__DIR__,2).'/modules/tasks/services/TaskAssigneeQueueService.php';
+require_once dirname(__DIR__,2).'/modules/tasks/services/TaskUserTimezoneService.php';
 
 use Core\DatabaseManager;
 use Modules\Tasks\TaskAssigneeQueueService;
+use Modules\Tasks\TaskUserTimezoneService;
 
 function checkQueue(bool $ok,string $reason): void {
     if (!$ok) throw new RuntimeException('Общая очередь: '.$reason);
@@ -34,6 +36,7 @@ foreach ([
         priority VARCHAR(24) DEFAULT 'medium',due_date DATETIME,
         version INT DEFAULT 1,is_deleted TINYINT DEFAULT 0,archived_at DATETIME NULL)",
     "CREATE TABLE task_board_assignees(task_id INT,user_id INT,PRIMARY KEY(task_id,user_id))",
+    "CREATE TABLE task_user_preferences(user_id INT PRIMARY KEY,timezone VARCHAR(64) NOT NULL)",
 ] as $sql) $db->execute($sql);
 try {
     $db->execute("INSERT INTO users(id) VALUES(11),(12),(13)");
@@ -52,6 +55,27 @@ try {
     $db->execute("INSERT INTO task_board_assignees(task_id,user_id) VALUES(1,11),(2,11),(3,11)");
     $now = new DateTimeImmutable('2026-10-22 12:00:00',new DateTimeZone('Europe/Amsterdam'));
     $queue = (new TaskAssigneeQueueService($db))->forUser(11,$now);
+    checkQueue($queue['summary']['overdue'] === 1 && $queue['summary']['today'] === 2
+        && $queue['summary']['tomorrow'] === 1 && $queue['summary']['total'] === 4,
+        'нет точной ежедневной сводки');
+    $preferences = new TaskUserTimezoneService($db);
+    checkQueue($preferences->forUser(11)->getName() === date_default_timezone_get(),
+        'не работает зона установки по умолчанию');
+    checkQueue($preferences->save(11,'Europe/Amsterdam') === 'Europe/Amsterdam',
+        'пользователь не может сохранить зону');
+    checkQueue($preferences->save(12,'Asia/Vladivostok') === 'Asia/Vladivostok',
+        'зоны разных пользователей смешаны');
+    checkQueue($preferences->forUser(11)->getName() === 'Europe/Amsterdam',
+        'при повторном чтении личная зона потеряна');
+    $instant = new DateTimeImmutable('2026-10-22 22:30:00', new DateTimeZone('UTC'));
+    checkQueue($preferences->nowFor(12,$instant)->format('Y-m-d') === '2026-10-23'
+        && $preferences->nowFor(11,$instant)->format('Y-m-d') === '2026-10-23',
+        'смена местного календарного дня не учтена');
+    checkQueue($preferences->nowFor(11,new DateTimeImmutable('2026-03-29 01:30:00', new DateTimeZone('UTC')))
+        ->format('H:i') === '03:30', 'переход на летнее время не учтён');
+    $invalid = false;
+    try { $preferences->save(11,'../invalid'); } catch (InvalidArgumentException) { $invalid = true; }
+    checkQueue($invalid,'можно установить произвольную или небезопасную зону');
     $overdue = array_column($queue['groups']['overdue'],'title');
     $today = array_column($queue['groups']['today'],'title');
     $tomorrow = array_column($queue['groups']['tomorrow'],'title');
@@ -67,6 +91,6 @@ try {
         'отозванный доступ к доске не учитывается');
     echo "Единая очередь: сроки, назначение, ACL и локальная дата проверены\n";
 } finally {
-    foreach (['task_board_assignees','task_board_items','task_board_members',
+    foreach (['task_user_preferences','task_board_assignees','task_board_items','task_board_members',
               'task_boards','tasks','users'] as $table) $db->execute('DROP TABLE IF EXISTS '.$table);
 }
