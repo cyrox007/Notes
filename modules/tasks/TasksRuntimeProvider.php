@@ -57,6 +57,7 @@ final class TasksRuntimeProvider implements ModuleRuntimeProvider
             ->endGroup();
 
         $router->group('/tasks/api-tokens')
+            ->add('GET', '/history', [TaskApiTokenController::class, 'history'], [LoginRequared::class, RequireTasksUse::class], 'tasks_api_token_history')
             ->add('GET', '/manage', [TaskApiTokenController::class, 'page'], [LoginRequared::class, RequireTasksUse::class], 'tasks_api_token_manage')
             ->add('GET', '/', [TaskApiTokenController::class, 'index'], [LoginRequared::class, RequireTasksUse::class], 'tasks_api_token_list')
             ->add('POST', '/', [TaskApiTokenController::class, 'create'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'tasks_api_token_create')
