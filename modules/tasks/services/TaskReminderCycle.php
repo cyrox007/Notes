@@ -102,7 +102,7 @@ final class TaskReminderCycle
             "INSERT INTO task_reminder_cycle_runs(started_at,status)
              VALUES(UTC_TIMESTAMP(),'running')"
         );
-        $runId = (int) $this->db->getPdo()->lastInsertId();
+        $runId = (int) $this->db->lastInsertId();
         $results = [];
         $failedStages = [];
 
