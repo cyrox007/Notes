@@ -1,0 +1,46 @@
+name: Политика повторов Tasks 1.2
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/services/TaskReminderRepeatPolicy.php'
+      - 'modules/tasks/services/TaskOverdueReminderPublisher.php'
+      - 'modules/tasks/services/TaskBoardOverdueReminderPublisher.php'
+      - 'modules/tasks/controllers/TaskAssigneeQueueController.php'
+      - 'modules/tasks/views/index.php'
+      - 'modules/tasks/assets/assignee-queue.js'
+      - 'database/migrations/20261022_tasks_repeat_interval.sql'
+      - 'tests/integration/tasks_reminder_repeat_policy_12.php'
+      - '.github/workflows/tasks-reminder-repeat-policy-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/services/TaskReminderRepeatPolicy.php'
+      - 'modules/tasks/services/TaskOverdueReminderPublisher.php'
+      - 'modules/tasks/services/TaskBoardOverdueReminderPublisher.php'
+      - 'tests/integration/tasks_reminder_repeat_policy_12.php'
+      - '.github/workflows/tasks-reminder-repeat-policy-12.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    name: Календарные интервалы и настройки повторов
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверить синтаксис и календарные интервалы
+        run: |
+          php -l modules/tasks/services/TaskReminderRepeatPolicy.php
+          php -l modules/tasks/services/TaskOverdueReminderPublisher.php
+          php -l modules/tasks/services/TaskBoardOverdueReminderPublisher.php
+          php -l modules/tasks/controllers/TaskAssigneeQueueController.php
+          php -l modules/tasks/views/index.php
+          php tests/integration/tasks_reminder_repeat_policy_12.php
