@@ -11,6 +11,7 @@ use Core\DatabaseManager;
 use Core\Request;
 use InvalidArgumentException;
 use Modules\Tasks\TaskApiTokenService;
+use Modules\Tasks\TaskApiTrafficService;
 
 /**
  * Управление личными API-ключами возможно только через сессию и штатный CSRF.
@@ -42,6 +43,16 @@ final class TaskApiTokenController extends Controller
             return;
         }
         $this->respond(['items' => (new TaskApiTokenService(DatabaseManager::getInstance()))->listOwned($userId)]);
+    }
+
+    public function history(Request $request): void
+    {
+        $userId = $this->owner($request);
+        if ($userId === null) {
+            return;
+        }
+        $items = (new TaskApiTrafficService(DatabaseManager::getInstance()))->recentForOwner($userId);
+        $this->respond(['items' => $items]);
     }
 
     public function create(Request $request): void
