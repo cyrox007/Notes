@@ -60,6 +60,7 @@ final class TasksRuntimeProvider implements ModuleRuntimeProvider
 
         $router->group('/api/v1/task-board-items')
             ->add('PATCH', '/{str:taskUid}', [TaskBoardApiController::class, 'update'], [], 'api_v1_task_board_items_update')
+            ->add('POST', '/{str:taskUid}/accept', [TaskBoardApiController::class, 'accept'], [], 'api_v1_task_board_items_accept')
             ->endGroup();
 
         $router->group('/api/v1/tasks')
