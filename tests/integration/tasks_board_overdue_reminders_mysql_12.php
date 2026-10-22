@@ -37,7 +37,7 @@ $db = DatabaseManager::forConnection(new PDO(
 foreach ([
     "CREATE TABLE users(id INT PRIMARY KEY,is_active TINYINT DEFAULT 1,account_status VARCHAR(20) DEFAULT 'active',deletion_requested_at DATETIME NULL,anonymized_at DATETIME NULL)",
     "CREATE TABLE task_user_preferences(user_id INT PRIMARY KEY,timezone VARCHAR(64))",
-    "CREATE TABLE task_morning_digest_settings(user_id INT PRIMARY KEY,enabled TINYINT)",
+    "CREATE TABLE task_morning_digest_settings(user_id INT PRIMARY KEY,enabled TINYINT,repeat_interval_days TINYINT UNSIGNED NULL DEFAULT NULL)",
     "CREATE TABLE task_boards(id INT PRIMARY KEY,uid CHAR(32),owner_user_id INT,name VARCHAR(160),audience VARCHAR(32) DEFAULT 'members',is_archived TINYINT DEFAULT 0)",
     "CREATE TABLE task_board_members(board_id INT,user_id INT,role VARCHAR(32),PRIMARY KEY(board_id,user_id))",
     "CREATE TABLE task_board_items(id INT PRIMARY KEY,uid CHAR(32),board_id INT,status VARCHAR(32) DEFAULT 'pending',due_date DATETIME,is_deleted TINYINT DEFAULT 0,archived_at DATETIME NULL)",
