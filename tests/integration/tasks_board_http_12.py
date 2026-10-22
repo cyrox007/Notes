@@ -107,7 +107,7 @@ def run():
         verify(status == 409 and body.get("error") == "role_conflict",
                "Конфликт роли не возвращает 409")
         state = fixture("inspect")
-        verify(state["role"] == "member", "Конфликт или повтор поменял роль")
+        verify(state["role"] == "member", f"Конфликт или повтор поменял роль: {state}")
         verify(sum(c["command_id"] == "http-member-change-001"
                    for c in state["commands"]) == 1,
                "Одна команда породила несколько квитанций")
