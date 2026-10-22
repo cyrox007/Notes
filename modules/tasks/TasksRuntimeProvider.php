@@ -5,6 +5,7 @@ namespace Modules\Tasks;
 
 use App\Controllers\TaskBoardController;
 use App\Controllers\TaskController;
+use App\Controllers\TaskAssigneeQueueController;
 use App\Controllers\TaskReadApiController;
 use App\Controllers\TaskApiTokenController;
 use App\Controllers\TaskWriteApiController;
@@ -51,6 +52,7 @@ final class TasksRuntimeProvider implements ModuleRuntimeProvider
 
     public function registerRoutes(Router $router): void
     {
+        $router->add('GET', '/tasks/assignment-queue', [TaskAssigneeQueueController::class, 'index'], [LoginRequared::class, RequireTasksUse::class], 'tasks_assignee_queue');
         $router->group('/api/v1/task-boards')
             ->add('GET', '/', [TaskBoardApiController::class, 'boards'], [], 'api_v1_task_boards_index')
             ->add('GET', '/{str:boardUid}/tasks', [TaskBoardApiController::class, 'tasks'], [], 'api_v1_task_boards_tasks')
