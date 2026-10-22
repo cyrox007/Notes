@@ -62,6 +62,16 @@ apiTokenCheck($service->revoke(11, $created['id']) === true,
 apiTokenCheck($service->authenticate($auth) === null,
     'отозванный ключ продолжает работать');
 
+$write = $service->issue(11, 'Интеграция', 1, TaskApiTokenService::SCOPE_WRITE);
+apiTokenCheck($service->authenticate('Bearer ' . $write['token'], TaskApiTokenService::SCOPE_WRITE) !== null,
+    'ключ записи не работает');
+apiTokenCheck($service->authenticate('Bearer ' . $write['token']) !== null,
+    'ключ записи не может читать');
+apiTokenCheck($service->authenticate($auth, TaskApiTokenService::SCOPE_WRITE) === null,
+    'отозванный ключ чтения получил запись');
+$readAgain = $service->issue(11, 'Только чтение', 1);
+apiTokenCheck($service->authenticate('Bearer ' . $readAgain['token'], TaskApiTokenService::SCOPE_WRITE) === null,
+    'ключ чтения позволяет запись');
 $expired = $service->issue(11, 'Просроченный', 1);
 $db->execute('UPDATE task_api_tokens SET expires_at=:at WHERE id=:id', [
     ':at' => '2020-01-01 00:00:00',
@@ -69,7 +79,7 @@ $db->execute('UPDATE task_api_tokens SET expires_at=:at WHERE id=:id', [
 ]);
 apiTokenCheck($service->authenticate('Bearer ' . $expired['token']) === null,
     'просроченный ключ работает');
-apiTokenCheck(count($service->listOwned(11)) === 2, 'неполная история личных ключей');
+apiTokenCheck(count($service->listOwned(11)) === 4, 'неполная история личных ключей');
 
 $rejected = 0;
 foreach ([0, 91] as $days) {
