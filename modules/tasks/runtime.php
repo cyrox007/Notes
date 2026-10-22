@@ -16,6 +16,7 @@ $files = [
     '/services/TaskVersionMutationService.php',
     '/services/TaskReadApiService.php',
     '/services/TaskApiTokenService.php',
+    '/services/TaskApiTrafficService.php',
     '/services/TaskApiCreateService.php',
     '/services/TaskNotificationActionService.php',
     '/../../app/services/notifications/NotificationActionTokenStore.php',
