@@ -1,0 +1,42 @@
+name: 1.2 — API общих досок Tasks
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/controllers/TaskBoardApiController.php'
+      - 'modules/tasks/TasksRuntimeProvider.php'
+      - 'modules/tasks/runtime.php'
+      - 'tests/integration/tasks_board_api_contract_12.php'
+      - '.github/workflows/tasks-board-api-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/controllers/TaskBoardApiController.php'
+      - 'modules/tasks/TasksRuntimeProvider.php'
+      - 'modules/tasks/runtime.php'
+      - 'tests/integration/tasks_board_api_contract_12.php'
+      - '.github/workflows/tasks-board-api-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверить маршруты и контракт доступа
+        run: |
+          php -l modules/tasks/controllers/TaskBoardApiController.php
+          php -l modules/tasks/TasksRuntimeProvider.php
+          php -l modules/tasks/runtime.php
+          php tests/integration/tasks_board_api_contract_12.php

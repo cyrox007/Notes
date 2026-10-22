@@ -8,6 +8,7 @@ use App\Controllers\TaskController;
 use App\Controllers\TaskReadApiController;
 use App\Controllers\TaskApiTokenController;
 use App\Controllers\TaskWriteApiController;
+use App\Controllers\TaskBoardApiController;
 use App\Controllers\TaskDayOrderController;
 use App\Controllers\TaskMutationController;
 use App\Controllers\TaskRelationController;
@@ -50,6 +51,15 @@ final class TasksRuntimeProvider implements ModuleRuntimeProvider
 
     public function registerRoutes(Router $router): void
     {
+        $router->group('/api/v1/task-boards')
+            ->add('GET', '/', [TaskBoardApiController::class, 'boards'], [], 'api_v1_task_boards_index')
+            ->add('GET', '/{str:boardUid}/tasks', [TaskBoardApiController::class, 'tasks'], [], 'api_v1_task_boards_tasks')
+            ->endGroup();
+
+        $router->group('/api/v1/task-board-items')
+            ->add('PATCH', '/{str:taskUid}', [TaskBoardApiController::class, 'update'], [], 'api_v1_task_board_items_update')
+            ->endGroup();
+
         $router->group('/api/v1/tasks')
             ->add('GET', '/', [TaskReadApiController::class, 'index'], [], 'api_v1_tasks_index')
             ->add('POST', '/', [TaskWriteApiController::class, 'create'], [], 'api_v1_tasks_create')
