@@ -33,8 +33,8 @@ $db->execute("INSERT INTO users(id) VALUES (11),(12)");
 $db->execute("INSERT INTO task_api_tokens(id,user_id,name) VALUES (31,11,'Телефон'),(32,12,'Планшет')");
 $sql = file_get_contents(dirname(__DIR__, 2) . '/database/migrations/20261022_tasks_api_rate_audit.sql');
 trafficCheck(is_string($sql), 'не найдена реальная миграция');
+$sql = preg_replace('/^\s*--[^\n]*(?:\n|$)/m', '', $sql) ?? '';
 foreach (explode(';', $sql) as $statement) {
-    $statement = preg_replace('/^\s*--[^\n]*\n/m', '', $statement) ?? '';
     if (trim($statement) !== '') {
         $db->execute($statement);
     }
