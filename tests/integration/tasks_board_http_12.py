@@ -103,7 +103,7 @@ def run():
                f"Повтор выполнил вторую команду: {results}")
         status, body = request(ports[0], "PUT", path, 2,
                                {"command_id": "http-member-change-002",
-                                "expected_role": "viewer", "role": "manager"})
+                                "expected_role": "viewer", "role": "viewer"})
         verify(status == 409 and body.get("error") == "role_conflict",
                "Конфликт роли не возвращает 409")
         state = fixture("inspect")
