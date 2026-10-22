@@ -49,6 +49,7 @@
     "20261019_defects_reference_versions.sql",
     "20261020_notifications_max_channel.sql",
     "20261020_notifications_push_subscriptions.sql",
-    "20261021_notification_action_tokens.sql"
+    "20261021_notification_action_tokens.sql",
+    "20261022_tasks_api_tokens.sql"
   ]
 }

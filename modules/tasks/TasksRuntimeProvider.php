@@ -6,6 +6,7 @@ namespace Modules\Tasks;
 use App\Controllers\TaskBoardController;
 use App\Controllers\TaskController;
 use App\Controllers\TaskReadApiController;
+use App\Controllers\TaskApiTokenController;
 use App\Controllers\TaskDayOrderController;
 use App\Controllers\TaskMutationController;
 use App\Controllers\TaskRelationController;
@@ -49,7 +50,13 @@ final class TasksRuntimeProvider implements ModuleRuntimeProvider
     public function registerRoutes(Router $router): void
     {
         $router->group('/api/v1/tasks')
-            ->add('GET', '/', [TaskReadApiController::class, 'index'], [LoginRequared::class, RequireTasksUse::class], 'api_v1_tasks_index')
+            ->add('GET', '/', [TaskReadApiController::class, 'index'], [], 'api_v1_tasks_index')
+            ->endGroup();
+
+        $router->group('/tasks/api-tokens')
+            ->add('GET', '/', [TaskApiTokenController::class, 'index'], [LoginRequared::class, RequireTasksUse::class], 'tasks_api_token_list')
+            ->add('POST', '/', [TaskApiTokenController::class, 'create'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'tasks_api_token_create')
+            ->add('POST', '/{int:tokenId}/revoke', [TaskApiTokenController::class, 'revoke'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'tasks_api_token_revoke')
             ->endGroup();
 
         $router->group('/tasks')
