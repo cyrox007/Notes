@@ -1,0 +1,72 @@
+name: Очередь ручной приёмки уведомлений 1.2
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'app/services/notifications/NotificationDeliveryReviewQueue.php'
+      - 'modules/admin/controllers/NotificationSettingsController.php'
+      - 'modules/admin/views/notifications.php'
+      - 'tests/integration/notification_delivery_review_queue_mysql_12.php'
+      - 'tests/integration/notification_delivery_review_ui_12.php'
+      - '.github/workflows/notification-delivery-review-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'app/services/notifications/NotificationDeliveryReviewQueue.php'
+      - 'modules/admin/controllers/NotificationSettingsController.php'
+      - 'modules/admin/views/notifications.php'
+      - 'tests/integration/notification_delivery_review_queue_mysql_12.php'
+      - 'tests/integration/notification_delivery_review_ui_12.php'
+      - '.github/workflows/notification-delivery-review-12.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: Очередь приёмки (${{ matrix.db.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        db:
+          - {name: MySQL-8.4, image: 'mysql:8.4', health: 'mysqladmin ping -h 127.0.0.1 -uroot -proot'}
+          - {name: MariaDB-11.4, image: 'mariadb:11.4', health: 'healthcheck.sh --connect --innodb_initialized'}
+    services:
+      mysql:
+        image: ${{ matrix.db.image }}
+        env:
+          MYSQL_DATABASE: workspace_delivery_review_test
+          MYSQL_USER: workspace
+          MYSQL_PASSWORD: workspace
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="${{ matrix.db.health }}"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql
+          coverage: none
+      - name: Проверить интерфейс, выборку и безопасность
+        env:
+          TEST_DB_NAME: workspace_delivery_review_test
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: '3306'
+          TEST_DB_USER: workspace
+          TEST_DB_PASS: workspace
+        run: |
+          php -l app/services/notifications/NotificationDeliveryReviewQueue.php
+          php -l modules/admin/controllers/NotificationSettingsController.php
+          php -l modules/admin/views/notifications.php
+          php -l tests/integration/notification_delivery_review_queue_mysql_12.php
+          php tests/integration/notification_delivery_review_ui_12.php
+          php tests/integration/notification_delivery_review_queue_mysql_12.php
