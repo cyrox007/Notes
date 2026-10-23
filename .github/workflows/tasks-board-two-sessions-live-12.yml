@@ -89,6 +89,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/file_spaces_schema.sql
           mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/defects_schema.sql
           mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/migrations/20261017_mutation_commands.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/migrations/20261021_notification_action_tokens.sql
 
       - name: Seed browser user and environment
         shell: bash
