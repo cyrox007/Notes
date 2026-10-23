@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/core/DatabaseManager.php';
 require_once dirname(__DIR__, 2) . '/app/services/notifications/NotificationLiveAcceptanceReport.php';
+require_once dirname(__DIR__, 2) . '/app/services/notifications/NotificationReceiptAttestation.php';
 
 use App\Services\Notifications\NotificationLiveAcceptanceReport;
+use App\Services\Notifications\NotificationReceiptAttestation;
 use Core\DatabaseManager;
 
 function checkReport(bool $ok, string $message): void
@@ -22,6 +24,7 @@ $pdo = new PDO(
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
 );
 foreach ([
+    'CREATE TABLE users(id INT PRIMARY KEY,is_active INT,account_status VARCHAR(16),deletion_requested_at DATETIME NULL,anonymized_at DATETIME NULL)',
     'CREATE TABLE notification_events(id INT PRIMARY KEY,event_name VARCHAR(80),category VARCHAR(80))',
     'CREATE TABLE notifications(id INT PRIMARY KEY,event_id INT,recipient_user_id INT,title TEXT,body TEXT)',
     'CREATE TABLE notification_delivery_jobs(id INT PRIMARY KEY,notification_id INT,channel VARCHAR(32),state VARCHAR(32),attempts INT,last_result_code VARCHAR(80),created_at DATETIME,sent_at DATETIME NULL,updated_at DATETIME,recipient_ref VARCHAR(255),secret_ref TEXT)',
@@ -30,6 +33,7 @@ foreach ([
 ] as $sql) $pdo->exec($sql);
 
 try {
+    $pdo->exec("INSERT INTO users VALUES(42,1,'active',NULL,NULL)");
     $pdo->exec("INSERT INTO notification_events VALUES(1,'tasks.overdue_repeat','tasks.reminders')");
     $pdo->exec("INSERT INTO notifications VALUES(1,1,42,'Секретный заголовок','Личное сообщение')");
     $pdo->exec("INSERT INTO notification_delivery_jobs VALUES
@@ -48,13 +52,23 @@ try {
     }
     checkReport((new NotificationLiveAcceptanceReport(DatabaseManager::forConnection($pdo)))->forJob(999)['status'] === 'not_found',
         'несуществующее задание не распознано');
-    $pdo->exec("INSERT INTO notification_receipt_attestations VALUES(10,42,'received','2026-10-22 11:00:00','2026-10-22 11:00:00')");
+    $attest = new NotificationReceiptAttestation(DatabaseManager::forConnection($pdo));
+    $attest->record(10, 42, true);
+    $pdo->exec("UPDATE notification_delivery_jobs SET state='retry' WHERE id=10");
+    $rejected = false;
+    try { $attest->record(10, 42, true); } catch (DomainException) { $rejected = true; }
+    checkReport($rejected, 'принятие канала обязательно для положительной отметки');
+    $pdo->exec("UPDATE notification_delivery_jobs SET state='sent' WHERE id=10");
     $confirmed = (new NotificationLiveAcceptanceReport(DatabaseManager::forConnection($pdo)))->forJob(10);
     checkReport($confirmed['recipient_receipt_verified'] === true
         && $confirmed['recipient_receipt_status'] === 'received', 'ручное подтверждение не отражено');
+    $attest->record(10, 42, false);
+    $negative = (new NotificationLiveAcceptanceReport(DatabaseManager::forConnection($pdo)))->forJob(10);
+    checkReport(!$negative['recipient_receipt_verified'] && $negative['recipient_receipt_status'] === 'not_received',
+        'отрицательная отметка не отражена');
     echo "Отчёт приёмки: история, обезличивание, различие принятия и получения проверены\n";
 } finally {
-    foreach (['notification_receipt_attestations','notification_delivery_attempts','notification_delivery_jobs','notifications','notification_events'] as $table) {
+    foreach (['notification_receipt_attestations','notification_delivery_attempts','notification_delivery_jobs','notifications','notification_events','users'] as $table) {
         $pdo->exec('DROP TABLE ' . $table);
     }
 }
