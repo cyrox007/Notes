@@ -95,6 +95,7 @@ async function personal() {
         !document.querySelector('.task-item').hasAttribute('aria-busy'));
     assert.notEqual(await form.locator('input[name="command_id"]').inputValue(),firstCommand);
 
+    await page.evaluate(() => {document.querySelector('.task-edit-panel').hidden=false;});
     await form.locator('input[name="title"]').fill('Устаревшие изменения');
     await submit(2);
     await until(() => requests.length === 2, 'версионный конфликт');
