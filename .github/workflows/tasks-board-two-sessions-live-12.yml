@@ -1,0 +1,264 @@
+name: 1.2 — две сессии на общей доске Tasks
+
+on:
+  pull_request:
+    branches: ['1.2']
+  push:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/**'
+      - 'tests/e2e/tasks-board-two-sessions-live-12.mjs'
+      - '.github/workflows/tasks-board-two-sessions-live-12.yml'
+      - 'assets/js/usability-actions.js'
+      - 'assets/css/workspace.css'
+      - 'tests/e2e/router.php'
+
+permissions:
+  contents: read
+
+jobs:
+  tasks-board-two-sessions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: tasks_browser_lifecycle
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo
+          coverage: none
+
+      - name: Prove vendor-free Tasks runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf vendor
+          test ! -e vendor
+          ! grep -R -Fq 'vendor/autoload.php' modules/tasks core.php index.php
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Syntax and isolated ownership contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          find modules/tasks -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          node --check modules/tasks/assets/tasks-page.js
+          node --check modules/tasks/assets/tasks-kanban.js
+          node --check modules/tasks/assets/task-boards.js
+          node --check modules/tasks/assets/task-boards-nav.js
+          node --check tests/e2e/tasks-board-two-sessions-live-12.mjs
+          php -l tests/e2e/router.php
+          php tests/integration/native_tasks_contract.php
+
+          grep -Fq "moduleAsset('tasks', 'tasks-page.js')" modules/tasks/views/index.php
+          grep -Fq "moduleAsset('tasks', 'tasks-kanban.js')" modules/tasks/views/index.php
+          grep -Fq 'tasks-board__dropzone' modules/tasks/assets/tasks-kanban.js
+          ! test -e app/views/tasks_page/index.tpl
+          ! test -e app/controllers/TaskController.php
+          ! test -e assets/js/tasks-kanban.js
+
+      - name: Prepare canonical database
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/file_manager_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/user_fields_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/tasks_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/settings_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/module_lifecycle_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/access_control_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/audit_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/migrations/20261017_mutation_commands.sql
+
+      - name: Seed browser user and environment
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: tasks_browser_lifecycle
+        run: |
+          set -euo pipefail
+          TEST_PASSWORD="$(php -r 'echo bin2hex(random_bytes(18));')"
+          APP_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          MESSAGE_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          TICKET_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          echo "::add-mask::$TEST_PASSWORD"
+          echo "::add-mask::$APP_KEY"
+          echo "::add-mask::$MESSAGE_KEY"
+          echo "::add-mask::$TICKET_KEY"
+          export TEST_PASSWORD
+
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          $pdo = new PDO(
+              sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', getenv('DBHOST'), getenv('DBPORT'), getenv('DBNAME')),
+              getenv('DBUSER'),
+              getenv('DBPASS'),
+              [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+          );
+          $stmt = $pdo->prepare(
+              'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at) '
+              . 'VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,888,1,NOW(),NOW())'
+          );
+          $stmt->execute([
+              ':uid' => 'ba5e0000-0000-4000-8000-000000000015',
+              ':username' => 'tasks-lifecycle-user',
+              ':email' => 'tasks-lifecycle@example.test',
+              ':password_hash' => password_hash((string) getenv('TEST_PASSWORD'), PASSWORD_ARGON2ID),
+              ':firstname' => 'Tasks',
+              ':lastname' => 'Lifecycle',
+          ]);
+          $ownerId = (int) $pdo->lastInsertId();
+          $stmt->execute([
+              ':uid' => 'ba5e0000-0000-4000-8000-000000000016',
+              ':username' => 'tasks-collab-user',
+              ':email' => 'tasks-collab@example.test',
+              ':password_hash' => password_hash((string) getenv('TEST_PASSWORD'), PASSWORD_ARGON2ID),
+              ':firstname' => 'Задачи',
+              ':lastname' => 'Участник',
+          ]);
+          $memberId = (int) $pdo->lastInsertId();
+          $stmt = $pdo->prepare('INSERT INTO task_boards
+              (uid,owner_user_id,name,audience,created_at,updated_at)
+              VALUES (:uid,:owner,:name,"members",NOW(),NOW())');
+          $stmt->execute([':uid' => str_repeat('a',32), ':owner' => $ownerId,
+              ':name' => 'Доска двух пользователей']);
+          $boardId = (int) $pdo->lastInsertId();
+          $stmt = $pdo->prepare('INSERT INTO task_board_members
+              (board_id,user_id,role,joined_at) VALUES (:board,:member,"member",NOW())');
+          $stmt->execute([':board' => $boardId, ':member' => $memberId]);
+          $stmt = $pdo->prepare('INSERT INTO task_board_items
+              (uid,board_id,creator_user_id,title,description,status,priority,version,
+               created_at,updated_at)
+              VALUES (:uid,:board,:owner,:title,:description,"pending","medium",1,NOW(),NOW())');
+          $stmt->execute([':uid' => str_repeat('b',32), ':board' => $boardId, ':owner' => $ownerId,
+              ':title' => 'Общая задача приёмки', ':description' => 'Проверка двух сессий']);
+          file_put_contents('/tmp/notes-tasks-member-id', (string) $memberId);
+          PHP
+
+          rm -rf /tmp/workspace-tasks-lifecycle
+          mkdir -p /tmp/workspace-tasks-lifecycle/logs compile cache
+          chmod 700 /tmp/workspace-tasks-lifecycle /tmp/workspace-tasks-lifecycle/logs
+          rm -f /tmp/workspace-organizer-startup.log
+
+          cat > .env <<ENV
+          DBDRIVER=mysql
+          DBHOST=127.0.0.1
+          DBPORT=3306
+          DBUSER=root
+          DBPASS=root
+          DBNAME=tasks_browser_lifecycle
+          UNIQUE_KEY=${APP_KEY}
+          MSG_SECRET_KEY=${MESSAGE_KEY}
+          WS_TICKET_SECRET=${TICKET_KEY}
+          PRIVATE_STORAGE_PATH=/tmp/workspace-tasks-lifecycle
+          SITEURL=http://127.0.0.1:18090
+          BASE_PATH=/workspace/
+          WS_HOST=127.0.0.1
+          WS_PORT=27803
+          WS_PUBLIC_URL=ws://127.0.0.1:27803/workspace/ws
+          WS_ALLOWED_ORIGINS=http://127.0.0.1:18090
+          AUTH_RATE_LIMIT_ATTEMPTS=50
+          AUTH_RATE_LIMIT_WINDOW_SECONDS=60
+          UPLOAD_RATE_LIMIT_ATTEMPTS=100
+          UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+          LOG_LEVEL=INFO
+          LOG_FILE=/tmp/workspace-tasks-lifecycle/logs/app.log
+          CSRF_ENABLED=true
+          ENV
+          chmod 600 .env
+
+          printf 'E2E_USER=%s\n' 'tasks-lifecycle-user' >> "$GITHUB_ENV"
+          printf 'E2E_SECOND_USER=%s\n' 'tasks-collab-user' >> "$GITHUB_ENV"
+          printf 'E2E_SECOND_ID=%s\n' "$(cat /tmp/notes-tasks-member-id)" >> "$GITHUB_ENV"
+          printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Activate ephemeral CI license
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/support/ci_license_fixture.php
+
+      - name: Start subdirectory application
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/workspace-tasks-lifecycle-http.log
+          PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:18090 tests/e2e/router.php >/tmp/workspace-tasks-lifecycle-http.log 2>&1 &
+          echo $! >/tmp/workspace-tasks-lifecycle-http.pid
+          READY=0
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:18090/workspace/auth/login/ >/dev/null; then
+              READY=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$READY" != '1' ]]; then
+            cat /tmp/workspace-tasks-lifecycle-http.log >&2
+            exit 1
+          fi
+
+      - name: Проверить две настоящие сессии Chromium
+        shell: bash
+        env:
+          E2E_ORIGIN: http://127.0.0.1:18090
+          E2E_BASE_PATH: /workspace
+        run: node tests/e2e/tasks-board-two-sessions-live-12.mjs
+
+      - name: Проверить результат действий и принадлежность доски
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESULT="$(mysql -N -B -h127.0.0.1 -uroot -proot tasks_browser_lifecycle -e "SELECT CONCAT(version,':',status) FROM task_board_items WHERE uid=REPEAT('b',32)")"
+          test "$RESULT" = '2:in_progress'
+          MEMBER="$(mysql -N -B -h127.0.0.1 -uroot -proot tasks_browser_lifecycle -e "SELECT COUNT(*) FROM task_board_members WHERE user_id=$(cat /tmp/notes-tasks-member-id)")"
+          test "$MEMBER" = '1'
+          echo 'Версия, статус и повторное приглашение подтверждены настоящей базой'
+
+      - name: Logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          echo '--- PHP server ---'
+          cat /tmp/workspace-tasks-lifecycle-http.log || true
+          echo '--- PHP startup/application errors ---'
+          cat /tmp/workspace-organizer-startup.log || true
+          echo '--- application log ---'
+          cat /tmp/workspace-tasks-lifecycle/logs/app.log || true
+
+      - name: Stop local server
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f /tmp/workspace-tasks-lifecycle-http.pid ]]; then
+            PID="$(cat /tmp/workspace-tasks-lifecycle-http.pid)"
+            pkill -TERM -P "$PID" >/dev/null 2>&1 || true
+            kill "$PID" >/dev/null 2>&1 || true
+          fi
