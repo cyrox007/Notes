@@ -101,6 +101,8 @@ try {
         'После отзыва доступа статус изменился неверно');
 
     // Повторное приглашение проводится тем же штатным HTML-формуляром.
+    await owner.page.goto(boardUrl, { waitUntil: 'domcontentloaded' });
+    await taskCard(owner.page);
     const returned = await changeMembership(owner.page, memberId, true);
     assert.ok([200, 302, 303].includes(returned.status()));
     await member.page.goto(boardUrl, { waitUntil: 'domcontentloaded' });
