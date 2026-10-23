@@ -47,13 +47,14 @@ async function changeStatus(page, status) {
     return response;
 }
 async function changeMembership(owner, memberId, add) {
-    const form = owner.locator('form[action$="/members"]');
+    const form = owner.getByRole('button', { name: 'Сохранить состав' })
+        .locator('xpath=ancestor::form[1]');
     await form.waitFor({ state: 'visible', timeout: 10000 });
     const checkbox = form.locator('input[name="member_ids[]"][value="' + memberId + '"]');
     await checkbox.waitFor({ state: 'attached' });
     if (add) await checkbox.check(); else await checkbox.uncheck();
     const response = owner.waitForResponse(result => result.request().method() === 'POST'
-        && result.url().endsWith('/members'), { timeout: 15000 });
+        && /\/members\/?(?:\?.*)?$/.test(result.url()), { timeout: 15000 });
     await form.getByRole('button', { name: 'Сохранить состав' }).click();
     return response;
 }
