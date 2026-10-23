@@ -26,6 +26,7 @@ foreach ([
     'CREATE TABLE notifications(id INT PRIMARY KEY,event_id INT,recipient_user_id INT,title TEXT,body TEXT)',
     'CREATE TABLE notification_delivery_jobs(id INT PRIMARY KEY,notification_id INT,channel VARCHAR(32),state VARCHAR(32),attempts INT,last_result_code VARCHAR(80),created_at DATETIME,sent_at DATETIME NULL,updated_at DATETIME,recipient_ref VARCHAR(255),secret_ref TEXT)',
     'CREATE TABLE notification_delivery_attempts(job_id INT,attempt_no INT,result_state VARCHAR(32),result_code VARCHAR(80),attempted_at DATETIME,error_summary TEXT)',
+    'CREATE TABLE notification_receipt_attestations(job_id INT PRIMARY KEY,operator_user_id INT,receipt_state VARCHAR(16),confirmed_at DATETIME,updated_at DATETIME)',
 ] as $sql) $pdo->exec($sql);
 
 try {
@@ -47,9 +48,13 @@ try {
     }
     checkReport((new NotificationLiveAcceptanceReport(DatabaseManager::forConnection($pdo)))->forJob(999)['status'] === 'not_found',
         'несуществующее задание не распознано');
+    $pdo->exec("INSERT INTO notification_receipt_attestations VALUES(10,42,'received','2026-10-22 11:00:00','2026-10-22 11:00:00')");
+    $confirmed = (new NotificationLiveAcceptanceReport(DatabaseManager::forConnection($pdo)))->forJob(10);
+    checkReport($confirmed['recipient_receipt_verified'] === true
+        && $confirmed['recipient_receipt_status'] === 'received', 'ручное подтверждение не отражено');
     echo "Отчёт приёмки: история, обезличивание, различие принятия и получения проверены\n";
 } finally {
-    foreach (['notification_delivery_attempts','notification_delivery_jobs','notifications','notification_events'] as $table) {
+    foreach (['notification_receipt_attestations','notification_delivery_attempts','notification_delivery_jobs','notifications','notification_events'] as $table) {
         $pdo->exec('DROP TABLE ' . $table);
     }
 }
