@@ -15,7 +15,6 @@ use App\Services\Notifications\NotificationExternalChannelAdministration;
 use App\Services\Notifications\TaskReminderScheduleHealth;
 use App\Services\Notifications\NotificationReceiptAttestation;
 use Core\DatabaseManager;
-use Core\DatabaseManager;
 use Core\ModuleRuntimeLoader;
 use Core\Controller;
 use Core\Request;
