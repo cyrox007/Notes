@@ -52,11 +52,11 @@ $view = file_get_contents($root . '/modules/admin/views/notifications.php');
 notificationAdministrationCheck(is_string($routes) && is_string($controller)
     && is_string($service) && is_string($view), 'не все файлы административного канала доступны');
 
-foreach (['admin_notifications', 'admin_notifications_smtp', 'admin_notifications_test'] as $route) {
+foreach (['admin_notifications', 'admin_notifications_smtp', 'admin_notifications_test', 'admin_notifications_receipt'] as $route) {
     notificationAdministrationCheck(str_contains($routes, $route), 'отсутствует маршрут ' . $route);
 }
 notificationAdministrationCheck(
-    substr_count($routes, 'NotificationSettingsController::class') === 4
+    substr_count($routes, 'NotificationSettingsController::class') === 5
     && str_contains($routes, "'admin_notifications_external'")
     && str_contains($routes, 'RequireAdminSettingsManage::class, CSRFMiddleware::class'),
     'изменяющие маршруты требуют права и защитный токен'
