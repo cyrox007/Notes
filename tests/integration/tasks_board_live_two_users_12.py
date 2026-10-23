@@ -12,6 +12,7 @@ PORTS = (18861, 18862)
 def main():
     fixture("setup")
     servers = []
+    failed = False
     try:
         for port in PORTS:
             servers.append(subprocess.Popen(
@@ -57,14 +58,17 @@ def main():
         if not {200, 403, 404, 409}.issubset(statuses):
             raise AssertionError("Аудит API не зафиксировал отказ, конфликт и успешное изменение")
         print("HTTP/Chromium: две действующие учётные записи, отзыв доступа, повтор и восстановление подтверждены БД")
+    except Exception:
+        failed = True
+        raise
     finally:
         for server in servers:
             server.terminate()
         for server in servers:
             try:
                 _, errors = server.communicate(timeout=6)
-                if server.returncode not in (0, -15):
-                    print(errors.decode("utf-8", errors="replace")[-1400:])
+                if failed or server.returncode not in (0, -15):
+                    print('Диагностика PHP-сервера:', errors.decode("utf-8", errors="replace")[-6500:])
             except subprocess.TimeoutExpired:
                 server.kill()
                 server.wait()
