@@ -47,7 +47,7 @@ async function changeStatus(page, status) {
     return response;
 }
 async function changeMembership(owner, memberId, add) {
-    const form = owner.locator('form[action*="/tasks/boards/"][action$="/members"]');
+    const form = owner.locator('form[action$="/members"]');
     await form.waitFor({ state: 'visible', timeout: 10000 });
     const checkbox = form.locator('input[name="member_ids[]"][value="' + memberId + '"]');
     await checkbox.waitFor({ state: 'attached' });
@@ -78,6 +78,8 @@ try {
     assert.equal(stale.status(), 409, 'Конфликт двух открытых вкладок не обнаружен');
 
     // Владелец отзывает доступ через реальную форму управления доской и CSRF.
+    await owner.page.goto(boardUrl, { waitUntil: 'domcontentloaded' });
+    await taskCard(owner.page);
     const memberId = process.env.E2E_SECOND_ID;
     assert.ok(memberId, 'Не передан идентификатор второго пользователя');
     const removed = await changeMembership(owner.page, memberId, false);
