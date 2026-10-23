@@ -51,13 +51,6 @@ jobs:
           test ! -e vendor
           ! grep -R -Fq 'vendor/autoload.php' modules/tasks core.php index.php
 
-      - name: Install Chromium
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm install --no-save playwright@1.55.0
-          npx playwright install --with-deps chromium
-
       - name: Syntax and isolated ownership contracts
         shell: bash
         run: |
@@ -91,6 +84,10 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/module_lifecycle_schema.sql
           mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/access_control_schema.sql
           mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/audit_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/calendar_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/notifications_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/file_spaces_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/defects_schema.sql
           mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/migrations/20261017_mutation_commands.sql
 
       - name: Seed browser user and environment
@@ -198,6 +195,32 @@ jobs:
           printf 'E2E_SECOND_USER=%s\n' 'tasks-collab-user' >> "$GITHUB_ENV"
           printf 'E2E_SECOND_ID=%s\n' "$(cat /tmp/notes-tasks-member-id)" >> "$GITHUB_ENV"
           printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Проверить наличие всех таблиц и полей Notes 1.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          require_once 'core/Environment.php';
+          require_once 'core/DatabaseOwnership.php';
+          require_once 'core/SchemaReadiness.php';
+          \Core\Environment::load(getcwd() . '/.env');
+          $state = \Core\SchemaReadiness::inspect(getcwd());
+          if (!$state['ready']) {
+              fwrite(STDERR, 'Отсутствуют таблицы: ' . implode(', ', $state['missing_tables']) . PHP_EOL);
+              fwrite(STDERR, 'Отсутствуют поля users: ' . implode(', ', $state['missing_user_columns']) . PHP_EOL);
+              exit(1);
+          }
+          echo "Схема Notes 1.2 готова к запуску приложения\n";
+          PHP
+
+      - name: Подготовить Chromium
+        shell: bash
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
 
       - name: Activate ephemeral CI license
         shell: bash
