@@ -54,6 +54,10 @@ final class NotificationLiveAcceptanceReport
             ];
         }
 
+        $receipt = $this->db->fetchOne(
+            'SELECT receipt_state,confirmed_at FROM notification_receipt_attestations WHERE job_id=:job',
+            [':job' => $jobId]
+        );
         $state = (string) $row['state'];
         return [
             'status' => 'ok',
@@ -69,8 +73,9 @@ final class NotificationLiveAcceptanceReport
             'accepted_at_utc' => $row['sent_at'] === null ? null : (string) $row['sent_at'],
             'updated_utc' => (string) $row['updated_at'],
             'transport_accepted' => $state === 'sent',
-            'recipient_receipt_verified' => false,
-            'recipient_receipt_status' => 'not_verified',
+            'recipient_receipt_verified' => ($receipt['receipt_state'] ?? null) === 'received',
+            'recipient_receipt_status' => (string) ($receipt['receipt_state'] ?? 'not_verified'),
+            'recipient_receipt_at_utc' => $receipt['confirmed_at'] ?? null,
             'history' => $history,
         ];
     }
