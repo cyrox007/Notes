@@ -58,7 +58,8 @@
       "database/migrations/20261022_tasks_assignee_acceptance.sql",
       "database/migrations/20261022_tasks_user_timezone.sql",
       "database/migrations/20261022_tasks_morning_digest_settings.sql",
-      "database/migrations/20261022_tasks_reminder_cycle_runs.sql"
+      "database/migrations/20261022_tasks_reminder_cycle_runs.sql",
+      "database/migrations/20261022_tasks_repeat_interval.sql"
     ]
   },
   "background": {

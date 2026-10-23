@@ -73,6 +73,15 @@ ob_start();
             <option value="UTC">
         </datalist>
         <label><input type="checkbox" name="morning_digest_enabled" value="1"> Получать утреннюю сводку задач через уведомления</label>
+        <label for="tasks-repeat-interval">Повторять напоминания о просроченных задачах
+            <select id="tasks-repeat-interval" name="repeat_interval_days">
+                <option value="0">Не повторять</option>
+                <option value="1">Каждый день</option>
+                <option value="3">Каждые 3 дня</option>
+                <option value="7">Каждые 7 дней</option>
+            </select>
+        </label>
+        <p class="tasks-assignee__hint">Повторы личных и назначенных командных задач приходят в 09:00 по вашему часовому поясу. Первый повтор — на следующий день после срока. Настройка действует независимо от утренней сводки.</p>
         <button type="submit" class="btn-secondary">Сохранить настройки</button>
     </form>
     <p data-queue-status role="status" aria-live="polite">Загружаем рабочую очередь…</p>

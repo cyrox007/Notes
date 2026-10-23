@@ -77,7 +77,7 @@ acceptanceSchema($pdo, $root . '/database/notifications_schema.sql');
 acceptanceSchema($pdo, $root . '/database/migrations/20261022_tasks_reminder_cycle_runs.sql');
 foreach ([
     'CREATE TABLE task_user_preferences (user_id INT PRIMARY KEY,timezone VARCHAR(64) NOT NULL)',
-    'CREATE TABLE task_morning_digest_settings (user_id INT PRIMARY KEY,enabled TINYINT NOT NULL DEFAULT 0)',
+    'CREATE TABLE task_morning_digest_settings (user_id INT PRIMARY KEY,enabled TINYINT NOT NULL DEFAULT 0,repeat_interval_days TINYINT UNSIGNED NULL DEFAULT NULL)',
     "CREATE TABLE tasks (id INT PRIMARY KEY,uid CHAR(32) NOT NULL,user_id INT NOT NULL,
       title VARCHAR(255) NOT NULL,status VARCHAR(24) NOT NULL DEFAULT 'pending',
       due_date DATETIME NULL,is_deleted TINYINT NOT NULL DEFAULT 0,archived_at DATETIME NULL)",
@@ -88,7 +88,7 @@ try {
       VALUES (11,'00000000-0000-4000-8000-000000000011','e2e-one','one@example.test','hash','Тест','Один'),
              (12,'00000000-0000-4000-8000-000000000012','e2e-two','two@example.test','hash','Тест','Два')");
     $pdo->exec("INSERT INTO task_user_preferences VALUES (11,'Europe/Amsterdam'),(12,'Europe/Amsterdam')");
-    $pdo->exec('INSERT INTO task_morning_digest_settings VALUES (11,1),(12,0)');
+    $pdo->exec('INSERT INTO task_morning_digest_settings (user_id,enabled) VALUES (11,1),(12,0)');
     $pdo->exec("INSERT INTO tasks (id,uid,user_id,title,due_date)
       VALUES (1,'11111111111111111111111111111111',11,'Просроченная личная','2026-10-20 12:00:00'),
              (2,'22222222222222222222222222222222',12,'Без согласия','2026-10-20 12:00:00')");

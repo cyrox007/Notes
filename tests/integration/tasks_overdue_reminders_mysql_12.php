@@ -36,13 +36,13 @@ $db = DatabaseManager::forConnection(new PDO(
 foreach ([
     "CREATE TABLE users(id INT PRIMARY KEY,is_active TINYINT DEFAULT 1,account_status VARCHAR(20) DEFAULT 'active',deletion_requested_at DATETIME NULL,anonymized_at DATETIME NULL)",
     "CREATE TABLE task_user_preferences(user_id INT PRIMARY KEY,timezone VARCHAR(64))",
-    "CREATE TABLE task_morning_digest_settings(user_id INT PRIMARY KEY,enabled TINYINT DEFAULT 0)",
+    "CREATE TABLE task_morning_digest_settings(user_id INT PRIMARY KEY,enabled TINYINT DEFAULT 0,repeat_interval_days TINYINT UNSIGNED NULL DEFAULT NULL)",
     "CREATE TABLE tasks(id INT PRIMARY KEY,uid CHAR(32),user_id INT,title VARCHAR(255),due_date DATETIME,status VARCHAR(24) DEFAULT 'pending',is_deleted TINYINT DEFAULT 0,archived_at DATETIME NULL)"
 ] as $sql) $db->execute($sql);
 try {
     $db->execute("INSERT INTO users(id) VALUES(11),(12)");
     $db->execute("INSERT INTO task_user_preferences VALUES(11,'Europe/Amsterdam'),(12,'Europe/Amsterdam')");
-    $db->execute("INSERT INTO task_morning_digest_settings VALUES(11,1),(12,0)");
+    $db->execute("INSERT INTO task_morning_digest_settings (user_id,enabled) VALUES(11,1),(12,0)");
     $db->execute("INSERT INTO tasks(id,uid,user_id,title,due_date,status) VALUES
         (1,'11111111111111111111111111111111',11,'Просрочена','2026-10-20 12:00:00','pending'),
         (2,'22222222222222222222222222222222',11,'Завершена','2026-10-20 12:00:00','completed'),
@@ -63,6 +63,18 @@ try {
     verify(count($store->events) === 2, 'Завершённая задача получила повторное уведомление');
     verify(!isset($store->events['tasks:overdue:11:11111111111111111111111111111111:2026-10-23']),
         'Для завершённой задачи создано уведомление на следующий день');
+    $db->execute("UPDATE task_morning_digest_settings SET repeat_interval_days=3 WHERE user_id=11");
+    $db->execute("UPDATE tasks SET status='pending' WHERE id=1");
+    verify($publisher->run(new DateTimeImmutable('2026-10-24 07:20:00+00:00'),1)['published'] === 1,
+        'Повтор раз в три дня должен прийти на четвёртый день просрочки');
+    verify($publisher->run(new DateTimeImmutable('2026-10-25 08:20:00+00:00'),1)['published'] === 0,
+        'Повтор раз в три дня не должен приходить ежедневно');
+    $db->execute("UPDATE task_morning_digest_settings SET repeat_interval_days=0 WHERE user_id=11");
+    verify($publisher->run(new DateTimeImmutable('2026-10-26 08:20:00+00:00'))['published'] === 0,
+        'Явное отключение повторов проигнорировано');
+    $db->execute("UPDATE task_morning_digest_settings SET enabled=0,repeat_interval_days=1 WHERE user_id=11");
+    verify($publisher->run(new DateTimeImmutable('2026-10-27 08:20:00+00:00'))['published'] === 2,
+        'Независимые повторы должны работать без утренней сводки');
     echo "Напоминания Tasks: календарный день, согласие, завершение и повторобезопасность проверены\n";
 } finally {
     foreach (['tasks','task_morning_digest_settings','task_user_preferences','users'] as $name) {
