@@ -75,6 +75,7 @@ final class DatabaseOwnership
         '20261020_notifications_max_channel.sql',
         '20261020_notifications_push_subscriptions.sql',
         '20261021_notification_action_tokens.sql',
+        '20261023_notification_receipt_attestations.sql',
         '20261017_mutation_commands.sql',
     ];
 
@@ -164,6 +165,8 @@ final class DatabaseOwnership
                 'notification_delivery_attempts',
                 'notification_runtime_state',
                 'notification_push_subscriptions',
+                ... (in_array('database/migrations/20261023_notification_receipt_attestations.sql', $this->packageCoreMigrations, true)
+                    ? ['notification_receipt_attestations'] : []),
                 ... (in_array('database/migrations/20261021_notification_action_tokens.sql', $this->packageCoreMigrations, true)
                     ? ['notification_action_tokens'] : []),
             ] : [])],
