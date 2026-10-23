@@ -13,6 +13,7 @@ use App\Models\UserModel;
 use App\Services\Notifications\NotificationChannelAdministration;
 use App\Services\Notifications\NotificationExternalChannelAdministration;
 use App\Services\Notifications\TaskReminderScheduleHealth;
+use App\Services\Notifications\NotificationReceiptAttestation;
 use Core\DatabaseManager;
 use Core\ModuleRuntimeLoader;
 use Core\Controller;
@@ -132,6 +133,40 @@ final class NotificationSettingsController extends Controller
                     ? 'Внешний сервис принял уведомление. Проверьте его фактическое получение.'
                     : 'Пробное уведомление создано. Доставка ещё не подтверждена: смотрите состояние очереди.',
                 ...$result,
+            ];
+        });
+    }
+
+    /**
+     * Администратор вручную подтверждает наличие/отсутствие сообщения
+     * у контролируемого адресата; это не ответ внешнего провайдера.
+     */
+    public function confirmReceipt(Request $request): void
+    {
+        $this->handle(function () use ($request): array {
+            $actorId = (int) $request->session('user_id', 0);
+            $user = UserModel::select()->where('id', '=', $actorId)->first();
+            $password = (string) $request->rawPost('current_password', '');
+            if (!$user || !CryptMethods::verifyPassword($password, (string) $user->password_hash)) {
+                throw new DomainException('Неверный пароль администратора');
+            }
+            $jobRaw = (string) $request->rawPost('job_id', '');
+            $status = (string) $request->rawPost('receipt', '');
+            if (!ctype_digit($jobRaw) || (int) $jobRaw < 1
+                || !in_array($status, ['received', 'not_received'], true)) {
+                throw new InvalidArgumentException('Выберите задание и подтверждённый результат');
+            }
+            $jobId = (int) $jobRaw;
+            (new NotificationReceiptAttestation(DatabaseManager::getInstance()))
+                ->record($jobId, $actorId, $status === 'received');
+            UserActionLog::emit(
+                $actorId, 'notifications.delivery.receipt_attested',
+                'core', 'http', 'success', 200,
+                ['job_id' => $jobId, 'receipt' => $status]
+            );
+            return [
+                'status' => 'ok',
+                'message' => 'Ручное свидетельство сохранено. Оно не является подтверждением внешнего провайдера.',
             ];
         });
     }

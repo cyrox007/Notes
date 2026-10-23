@@ -42,7 +42,8 @@ final class AdminRuntimeProvider implements ModuleRuntimeProvider
             ->add('GET', '/notifications', [NotificationSettingsController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_notifications')
             ->add('POST', '/notifications/smtp', [NotificationSettingsController::class, 'saveSmtp'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_notifications_smtp')
             ->add('POST', '/notifications/external', [NotificationSettingsController::class, 'saveExternal'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_notifications_external')
-            ->add('POST', '/notifications/test', [NotificationSettingsController::class, 'sendTest'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_notifications_test');
+            ->add('POST', '/notifications/test', [NotificationSettingsController::class, 'sendTest'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_notifications_test')
+            ->add('POST', '/notifications/receipt', [NotificationSettingsController::class, 'confirmReceipt'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_notifications_receipt');
 
         if (ModuleRuntimeLoader::getInstance()->capabilities()->has('workspace.files')) {
             $group

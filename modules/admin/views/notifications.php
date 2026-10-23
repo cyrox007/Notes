@@ -173,6 +173,35 @@ ob_start();
     <section class="admin-panel-card">
         <div class="admin-panel-card__header">
             <div>
+                <h2>Ручная приёмка получения</h2>
+                <p>Для контролируемого адресата. Запись делает администратор после личной проверки почтового ящика или устройства; статус внешнего канала сам по себе не доказывает получение.</p>
+            </div>
+        </div>
+        <form action="<?= $view->e($view->route('admin_notifications_receipt')) ?>" method="post"
+              data-notification-ajax-form class="custom-fields-form">
+            <?= $view->csrfInput() ?>
+            <div class="admin-notification-fields">
+                <label class="custom-field__control">Номер задания доставки
+                    <input type="number" name="job_id" min="1" step="1" required>
+                </label>
+                <label class="custom-field__control">Результат личной проверки
+                    <select name="receipt" required>
+                        <option value="received">Сообщение найдено у адресата</option>
+                        <option value="not_received">Сообщение не найдено</option>
+                    </select>
+                </label>
+                <label class="custom-field__control">Текущий пароль администратора
+                    <input type="password" name="current_password" autocomplete="current-password" required>
+                </label>
+            </div>
+            <button class="admin-action admin-action--secondary" type="submit">Сохранить результат приёмки</button>
+        </form>
+        <p>Свидетельство оператора может быть исправлено повторной проверкой. Адрес, содержание уведомления и секреты в отчёт не включаются.</p>
+    </section>
+
+    <section class="admin-panel-card">
+        <div class="admin-panel-card__header">
+            <div>
                 <h2>Состояние очереди</h2>
                 <p>Последний резервный запуск через HTTP: <?= $view->e($details['last_http_run'] ?: 'не выполнялся') ?>. Отдельный cron из PHP определить надёжно нельзя — проверьте планировщик сервера.</p>
             </div>
