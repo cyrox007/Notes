@@ -1,0 +1,87 @@
+name: Браузерная приёмка конкурентных действий Tasks 1.2
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/assets/tasks-versioned-mutations.js'
+      - 'modules/tasks/assets/task-boards-versioned.js'
+      - 'tests/e2e/tasks-versioned-browser-race-12.mjs'
+      - '.github/workflows/tasks-versioned-browser-race-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'modules/tasks/assets/tasks-versioned-mutations.js'
+      - 'modules/tasks/assets/task-boards-versioned.js'
+      - 'tests/e2e/tasks-versioned-browser-race-12.mjs'
+      - '.github/workflows/tasks-versioned-browser-race-12.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    name: Конфликты и повторные нажатия в Chromium
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring
+          coverage: none
+      - name: Проверить синтаксис
+        run: |
+          node --check modules/tasks/assets/tasks-versioned-mutations.js
+          node --check modules/tasks/assets/task-boards-versioned.js
+          node --check tests/e2e/tasks-versioned-browser-race-12.mjs
+          php -l modules/tasks/views/elements/task_item/index.php
+      - name: Установить Chromium для настоящих браузерных испытаний
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Испытать двойную отправку, конфликт и восстановление
+        run: node tests/e2e/tasks-versioned-browser-race-12.mjs
+
+  database:
+    name: Версии и повтор команд (${{ matrix.db.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        db:
+          - {name: MySQL-8.4, image: 'mysql:8.4', health: 'mysqladmin ping -h 127.0.0.1 -uroot -proot'}
+          - {name: MariaDB-11.4, image: 'mariadb:11.4', health: 'healthcheck.sh --connect --innodb_initialized'}
+    services:
+      mysql:
+        image: ${{ matrix.db.image }}
+        env:
+          MYSQL_DATABASE: workspace_tasks_race_test
+          MYSQL_USER: workspace
+          MYSQL_PASSWORD: workspace
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="${{ matrix.db.health }}"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql,mbstring
+          coverage: none
+      - name: Проверить атомарность, версионность и повтор запроса на БД
+        env:
+          TEST_DB_NAME: workspace_tasks_race_test
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_USER: workspace
+          TEST_DB_PASS: workspace
+        run: |
+          php -l tests/integration/tasks_api_write_mysql_12.php
+          php tests/integration/tasks_api_write_mysql_12.php

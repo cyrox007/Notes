@@ -8,6 +8,7 @@ window.wspace.page.register('modules/tasks/assets/task-boards-versioned.js', (pa
         root.dataset.versionedBoardsReady = '1';
 
         const pending = new WeakMap();
+        const pendingCards = new WeakSet();
 
         function cardFor(form) {
             return form.closest('.task-board-card');
@@ -48,7 +49,7 @@ window.wspace.page.register('modules/tasks/assets/task-boards-versioned.js', (pa
         async function perform(form) {
             if (form.dataset.submitting === '1') return;
             const card = cardFor(form);
-            if (!card) return;
+            if (!card || pendingCards.has(card)) return;
 
             const body = new URLSearchParams(new FormData(form));
             const version = card.dataset.version;
@@ -64,7 +65,9 @@ window.wspace.page.register('modules/tasks/assets/task-boards-versioned.js', (pa
             pending.set(form, {signature, commandId});
             body.set('command_id', commandId);
             form.querySelector('input[name="command_id"]').value = commandId;
+            pendingCards.add(card);
             form.dataset.submitting = '1';
+            card.setAttribute('aria-busy', 'true');
             card.dataset.moveState = 'saving';
 
             try {
@@ -111,6 +114,8 @@ window.wspace.page.register('modules/tasks/assets/task-boards-versioned.js', (pa
                 if (select) select.value = select.dataset.serverStatus || select.defaultValue || select.value;
                 window.alert(error.message || 'Не удалось сохранить задачу');
             } finally {
+                pendingCards.delete(card);
+                card.removeAttribute('aria-busy');
                 delete form.dataset.submitting;
             }
         }
