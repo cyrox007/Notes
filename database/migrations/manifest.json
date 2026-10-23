@@ -56,7 +56,7 @@
     "20261022_tasks_user_timezone.sql",
     "20261022_tasks_morning_digest_settings.sql",
     "20261022_tasks_reminder_cycle_runs.sql",
-    "20261023_notification_receipt_attestations.sql",
-    "20261022_tasks_repeat_interval.sql"
+    "20261022_tasks_repeat_interval.sql",
+    "20261023_notification_receipt_attestations.sql"
   ]
 }
