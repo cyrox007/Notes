@@ -14,6 +14,7 @@ use App\Services\Notifications\NotificationChannelAdministration;
 use App\Services\Notifications\NotificationExternalChannelAdministration;
 use App\Services\Notifications\TaskReminderScheduleHealth;
 use App\Services\Notifications\NotificationReceiptAttestation;
+use App\Services\Notifications\NotificationLiveAcceptanceReport;
 use Core\DatabaseManager;
 use Core\ModuleRuntimeLoader;
 use Core\Controller;
@@ -34,11 +35,23 @@ final class NotificationSettingsController extends Controller
             return;
         }
 
+        $inspection = null;
+        $jobRaw = $request->get('inspect_job', '');
+        if (is_string($jobRaw) && ctype_digit($jobRaw) && (int) $jobRaw > 0) {
+            try {
+                $inspection = (new NotificationLiveAcceptanceReport(DatabaseManager::getInstance()))
+                    ->forJob((int) $jobRaw);
+            } catch (Throwable $error) {
+                error_log('Просмотр истории доставки недоступен: ' . $error::class);
+                $inspection = ['status' => 'unavailable'];
+            }
+        }
         $this->render_template('@admin/notifications', [
             'user' => $user,
             'notification_settings' => (new NotificationChannelAdministration())->overview(),
             'external_channels' => (new NotificationExternalChannelAdministration())->overview(),
             'reminder_scheduler' => $this->reminderSchedulerStatus(),
+            'receipt_inspection' => $inspection,
         ]);
     }
 
