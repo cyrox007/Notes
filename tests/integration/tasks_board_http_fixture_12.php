@@ -13,7 +13,7 @@ $db = new PDO(sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
 $mode = $argv[1] ?? 'setup';
 $tables = ['task_api_access_log','task_api_rate_buckets','mutation_commands',
     'task_board_members','task_board_assignees','task_board_items','task_boards','task_api_tokens',
-    'role_permissions','user_roles','permissions','roles','users'];
+    'role_module_policies','role_permissions','user_roles','permissions','roles','users'];
 if (in_array($mode, ['setup','cleanup'], true)) {
     foreach ($tables as $table) $db->exec('DROP TABLE IF EXISTS ' . $table);
 }
