@@ -177,6 +177,49 @@ ob_start();
                 <p>Для контролируемого адресата. Запись делает администратор после личной проверки почтового ящика или устройства; статус внешнего канала сам по себе не доказывает получение.</p>
             </div>
         </div>
+        <form method="get" action="<?= $view->e($view->route('admin_notifications')) ?>" class="custom-fields-form">
+            <label class="custom-field__control">Номер задания для безопасного просмотра
+                <input type="number" name="inspect_job" min="1" step="1" required
+                       value="<?= $view->e((string) ($_GET['inspect_job'] ?? '')) ?>">
+            </label>
+            <button class="admin-action admin-action--secondary" type="submit">Проверить состояние и попытки</button>
+        </form>
+        <?php $inspected = is_array($receipt_inspection ?? null) ? $receipt_inspection : null; ?>
+        <?php if ($inspected !== null): ?>
+            <?php if (($inspected['status'] ?? '') === 'ok'): ?>
+                <div role="status">
+                    <p>Задание №<?= (int) $inspected['job_id'] ?>.
+                       Канал: <?= $view->e($inspected['channel']) ?>.
+                       Состояние очереди: <strong><?= $view->e($inspected['queue_state']) ?></strong>.
+                       Принятие транспортом: <?= !empty($inspected['transport_accepted']) ? 'да' : 'нет' ?>.
+                       Результат личной проверки:
+                       <strong><?= $view->e([
+                           'received' => 'получено (подтверждено оператором)',
+                           'not_received' => 'не найдено (сообщил оператор)',
+                           'not_verified' => 'не проверялось',
+                       ][$inspected['recipient_receipt_status']] ?? 'неизвестно') ?></strong>.
+                    </p>
+                    <p>Создано (UTC): <?= $view->e($inspected['created_utc']) ?>.
+                       Принято каналом (UTC): <?= $view->e($inspected['accepted_at_utc'] ?? 'не подтверждено') ?>.
+                       Попыток: <?= (int) $inspected['attempts_total'] ?>.</p>
+                    <table class="admin-table">
+                        <thead><tr><th>Попытка</th><th>Состояние</th><th>Код</th><th>Время UTC</th></tr></thead>
+                        <tbody>
+                            <?php foreach ($inspected['history'] as $attempt): ?>
+                                <tr>
+                                    <td><?= (int) $attempt['number'] ?></td>
+                                    <td><?= $view->e($attempt['state']) ?></td>
+                                    <td><?= $view->e($attempt['code']) ?></td>
+                                    <td><?= $view->e($attempt['at_utc']) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php else: ?>
+                <p role="status">Задание не найдено или журнал недоступен. Проверьте номер и миграции.</p>
+            <?php endif; ?>
+        <?php endif; ?>
         <form action="<?= $view->e($view->route('admin_notifications_receipt')) ?>" method="post"
               data-notification-ajax-form class="custom-fields-form">
             <?= $view->csrfInput() ?>
