@@ -32,7 +32,7 @@ try {
     $pdo->exec("INSERT INTO notification_events VALUES(1,'tasks.overdue_repeat','tasks.reminders')");
     $pdo->exec("INSERT INTO notifications VALUES(1,1,42,'Секретный заголовок','Личное сообщение')");
     $pdo->exec("INSERT INTO notification_delivery_jobs VALUES
-        (10,1,'email','sent',2,'smtp_accepted','2026-10-22 10:00:00','2026-10-22 10:01:00','2026-10-22 10:01:00','hidden@example.test','secret')";
+        (10,1,'email','sent',2,'smtp_accepted','2026-10-22 10:00:00','2026-10-22 10:01:00','2026-10-22 10:01:00','hidden@example.test','secret')");
     $pdo->exec("INSERT INTO notification_delivery_attempts VALUES
         (10,1,'retry','smtp_temporary','2026-10-22 10:00:00','Частный текст'),
         (10,2,'sent','smtp_accepted','2026-10-22 10:01:00',NULL)");
