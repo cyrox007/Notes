@@ -12,8 +12,8 @@ $db = new PDO(sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
 $mode = $argv[1] ?? 'setup';
 $tables = ['task_api_access_log','task_api_rate_buckets','mutation_commands',
-    'task_board_members','task_board_items','task_boards','task_api_tokens',
-    'role_permissions','user_roles','permissions','roles','users'];
+    'task_board_members','task_board_assignees','task_board_items','task_boards','task_api_tokens',
+    'role_module_policies','role_permissions','user_roles','permissions','roles','users'];
 if (in_array($mode, ['setup','cleanup'], true)) {
     foreach ($tables as $table) $db->exec('DROP TABLE IF EXISTS ' . $table);
 }
@@ -29,6 +29,9 @@ if ($mode === 'restrict') {
 if ($mode === 'inspect') {
     echo json_encode([
         'role' => $db->query('SELECT role FROM task_board_members WHERE user_id=13')->fetchColumn(),
+        'member_role' => $db->query('SELECT role FROM task_board_members WHERE user_id=12')->fetchColumn(),
+        'version' => $db->query('SELECT version FROM task_board_items WHERE id=1')->fetchColumn(),
+        'task_status' => $db->query('SELECT status FROM task_board_items WHERE id=1')->fetchColumn(),
         'commands' => $db->query('SELECT command_id,status FROM mutation_commands ORDER BY id')->fetchAll(),
         'logs' => $db->query('SELECT action,status_code FROM task_api_access_log ORDER BY id')->fetchAll(),
     ], JSON_THROW_ON_ERROR);
@@ -41,6 +44,9 @@ foreach ([
     "CREATE TABLE roles (id INT PRIMARY KEY,code VARCHAR(60) NOT NULL) ENGINE=InnoDB",
     "CREATE TABLE permissions (id INT PRIMARY KEY,code VARCHAR(80) NOT NULL) ENGINE=InnoDB",
     "CREATE TABLE user_roles (user_id INT NOT NULL,role_id INT NOT NULL,PRIMARY KEY(user_id,role_id)) ENGINE=InnoDB",
+    "CREATE TABLE role_module_policies (role_id INT NOT NULL,module_id VARCHAR(64) NOT NULL,
+        policy_key VARCHAR(96) NOT NULL,value_type VARCHAR(24) NOT NULL,value_json TEXT NOT NULL,
+        PRIMARY KEY(role_id,module_id,policy_key)) ENGINE=InnoDB",
     "CREATE TABLE role_permissions (role_id INT NOT NULL,permission_id INT NOT NULL,
         PRIMARY KEY(role_id,permission_id)) ENGINE=InnoDB",
     "CREATE TABLE task_boards (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,uid CHAR(32) NOT NULL UNIQUE,
@@ -49,13 +55,17 @@ foreach ([
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB",
     "CREATE TABLE task_board_members (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
         board_id BIGINT UNSIGNED NOT NULL,user_id INT NOT NULL,role VARCHAR(20) NOT NULL,
+        joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uq_member(board_id,user_id)) ENGINE=InnoDB",
     "CREATE TABLE task_board_items (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,uid CHAR(32) NOT NULL UNIQUE,
         board_id BIGINT UNSIGNED NOT NULL,creator_user_id INT NOT NULL,title VARCHAR(255) NOT NULL,
         description TEXT NOT NULL,status VARCHAR(30) NOT NULL DEFAULT 'pending',
         priority VARCHAR(20) NOT NULL DEFAULT 'medium',due_date DATETIME NULL,completed_at DATETIME NULL,
-        archived_at DATETIME NULL,is_deleted TINYINT NOT NULL DEFAULT 0,deleted_at DATETIME NULL,
+        accepted_by_user_id INT NULL,accepted_at DATETIME NULL,archived_at DATETIME NULL,is_deleted TINYINT NOT NULL DEFAULT 0,deleted_at DATETIME NULL,
         version INT NOT NULL DEFAULT 1,created_at DATETIME NOT NULL,updated_at DATETIME NOT NULL) ENGINE=InnoDB",
+    "CREATE TABLE task_board_assignees (task_id BIGINT UNSIGNED NOT NULL,user_id INT NOT NULL,
+        assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(task_id,user_id)) ENGINE=InnoDB",
     "CREATE TABLE task_api_tokens (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,user_id INT NOT NULL,
         name VARCHAR(100) NOT NULL,token_hash CHAR(64) NOT NULL UNIQUE,scope VARCHAR(32) NOT NULL,
         expires_at DATETIME NOT NULL,revoked_at DATETIME NULL) ENGINE=InnoDB",

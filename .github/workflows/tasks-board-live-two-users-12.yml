@@ -1,0 +1,79 @@
+name: Две учётные записи и отзыв доступа Tasks 1.2
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'tests/e2e/tasks-board-live-two-users-12.mjs'
+      - 'tests/integration/tasks_board_live_two_users_12.py'
+      - 'tests/integration/tasks_board_http_fixture_12.php'
+      - 'tests/integration/tasks_board_http_router_12.php'
+      - '.github/workflows/tasks-board-live-two-users-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'tests/e2e/tasks-board-live-two-users-12.mjs'
+      - 'tests/integration/tasks_board_live_two_users_12.py'
+      - 'tests/integration/tasks_board_http_fixture_12.php'
+      - 'tests/integration/tasks_board_http_router_12.php'
+      - '.github/workflows/tasks-board-live-two-users-12.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    name: Два пользователя и отзыв прав (${{ matrix.database.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        database:
+          - {name: MySQL-8.4, image: 'mysql:8.4', health: 'mysqladmin ping -h 127.0.0.1 -uroot -proot'}
+          - {name: MariaDB-11.4, image: 'mariadb:11.4', health: 'healthcheck.sh --connect --innodb_initialized'}
+    services:
+      mysql:
+        image: ${{ matrix.database.image }}
+        env:
+          MYSQL_DATABASE: workspace_two_users_test
+          MYSQL_USER: workspace
+          MYSQL_PASSWORD: workspace
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="${{ matrix.database.health }}"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql,mbstring,mysqli
+          coverage: none
+      - name: Проверить исходники испытаний
+        run: |
+          php -l tests/integration/tasks_board_http_fixture_12.php
+          php -l tests/integration/tasks_board_http_router_12.php
+          node --check tests/e2e/tasks-board-live-two-users-12.mjs
+          python3 -m py_compile tests/integration/tasks_board_live_two_users_12.py
+          python3 -m py_compile tests/integration/tasks_board_http_12.py
+      - name: Подготовить Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Выполнить сквозную проверку на двух PHP-процессах
+        env:
+          DBNAME: workspace_two_users_test
+          DBHOST: 127.0.0.1
+          DBPORT: '3306'
+          DBUSER: workspace
+          DBPASS: workspace
+          DBPREFIX: ''
+          BASE_PATH: /
+        run: python3 tests/integration/tasks_board_live_two_users_12.py
