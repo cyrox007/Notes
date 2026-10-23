@@ -5,6 +5,7 @@ window.wspace.page.register('modules/tasks/assets/tasks-versioned-mutations.js',
     const root = document.querySelector('.tasks');
     if (!root || root.dataset.versionedMutationsReady === '1') return;
     root.dataset.versionedMutationsReady = '1';
+    const pendingTasks = new WeakSet();
 
     const appPath = (path) => window.wspace?.path ? window.wspace.path(path) : path;
 
@@ -153,8 +154,10 @@ window.wspace.page.register('modules/tasks/assets/tasks-versioned-mutations.js',
 
     async function changeStatus(control, targetStatus, previousStatus) {
         const task = taskFor(control);
-        if (!task) return;
+        if (!task || pendingTasks.has(task)) return;
 
+        pendingTasks.add(task);
+        task.setAttribute('aria-busy', 'true');
         control.disabled = true;
         saveState(task, 'saving');
         try {
@@ -174,6 +177,8 @@ window.wspace.page.register('modules/tasks/assets/tasks-versioned-mutations.js',
             });
             handleMutationError(task, error, 'Не удалось изменить задачу');
         } finally {
+            pendingTasks.delete(task);
+            task.removeAttribute('aria-busy');
             control.disabled = false;
         }
     }
@@ -216,7 +221,7 @@ window.wspace.page.register('modules/tasks/assets/tasks-versioned-mutations.js',
         event.preventDefault();
         event.stopImmediatePropagation();
         const task = taskFor(form);
-        if (!task) return;
+        if (!task || pendingTasks.has(task)) return;
 
         if (deleteForm && !window.confirm('Вы уверены, что хотите удалить эту задачу?')) return;
 
@@ -227,6 +232,8 @@ window.wspace.page.register('modules/tasks/assets/tasks-versioned-mutations.js',
         const params = new URLSearchParams(new FormData(form));
         params.set('expected_version', String(taskVersion(task) || form.querySelector('input[name="expected_version"]')?.value || ''));
 
+        pendingTasks.add(task);
+        task.setAttribute('aria-busy', 'true');
         saveState(task, 'saving');
         form.querySelectorAll('button, input, select, textarea').forEach((control) => {
             if (!control.matches('input[type="hidden"]')) control.dataset.wasDisabled = control.disabled ? '1' : '0';
@@ -255,6 +262,8 @@ window.wspace.page.register('modules/tasks/assets/tasks-versioned-mutations.js',
                 if (expected) expected.value = task.dataset.version || expected.value;
             }
         }).finally(() => {
+            pendingTasks.delete(task);
+            task.removeAttribute('aria-busy');
             if (!task.isConnected) return;
             form.querySelectorAll('button, input, select, textarea').forEach((control) => {
                 if (control.matches('input[type="hidden"]')) return;
