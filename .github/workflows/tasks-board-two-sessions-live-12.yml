@@ -204,6 +204,7 @@ jobs:
           <?php
           declare(strict_types=1);
           require_once 'core/Environment.php';
+          require_once 'core/ModuleManifest.php';
           require_once 'core/DatabaseOwnership.php';
           require_once 'core/SchemaReadiness.php';
           \Core\Environment::load(getcwd() . '/.env');
