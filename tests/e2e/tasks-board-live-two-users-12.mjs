@@ -36,7 +36,13 @@ async function openUser(url, tokenDigit) {
                 },
                 ...(body === undefined ? {} : {body: JSON.stringify(body)})
             });
-            const data = await response.json();
+            const raw = await response.text();
+            let data;
+            try {
+                data = JSON.parse(raw);
+            } catch {
+                throw new Error('Сервер вернул не JSON: HTTP ' + response.status + ' ' + raw.slice(0, 500));
+            }
             document.getElementById('result').textContent = String(response.status);
             return {status: response.status, data};
         }, {method, path, body, token});
