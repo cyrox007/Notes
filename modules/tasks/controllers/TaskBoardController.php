@@ -29,6 +29,7 @@ final class TaskBoardController extends Controller
         $tasks = [];
         $members = [];
         $stats = ['pending' => 0, 'in_progress' => 0, 'studying' => 0, 'review' => 0, 'completed' => 0];
+        $operational = null;
         $boardUid = trim((string) $request->get('board', ''));
         $flash = $request->session('task_boards_flash');
         $request->unsetSession('task_boards_flash');
@@ -41,6 +42,11 @@ final class TaskBoardController extends Controller
                 $selected = $service->boardForUser($userId, $boardUid);
                 $tasks = $service->listTasks($userId, $boardUid);
                 $members = $service->members($userId, $boardUid);
+                if (!empty($selected['can_manage'])) {
+                    $operational = (new \Modules\Tasks\TaskBoardOperationalSummary(
+                        \Core\DatabaseManager::getInstance()
+                    ))->forBoard($userId, $boardUid);
+                }
                 foreach ($tasks as $task) {
                     $status = (string) ($task['status'] ?? '');
                     if (empty($task['archived_at']) && array_key_exists($status, $stats)) {
@@ -73,6 +79,7 @@ final class TaskBoardController extends Controller
             'activeUsers' => $activeUsers,
             'boardPolicies' => $policies,
             'boardStats' => $stats,
+            'boardOperational' => $operational,
             'task_boards_flash' => is_array($flash) ? $flash : null,
         ]);
     }

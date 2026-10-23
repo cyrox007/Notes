@@ -13,6 +13,7 @@ $files = [
     '/services/TaskAssigneeQueueService.php',
     '/services/TaskUserTimezoneService.php',
     '/services/TaskBoardService.php',
+    '/services/TaskBoardOperationalSummary.php',
     '/services/TaskDayOrderService.php',
     '/controllers/TaskDayOrderController.php',
     '/services/TaskVersionMutationService.php',

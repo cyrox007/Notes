@@ -12,6 +12,7 @@ $memberRows = isset($boardMembers) && is_array($boardMembers) ? $boardMembers : 
 $activeUserRows = isset($activeUsers) && is_array($activeUsers) ? $activeUsers : [];
 $policies = isset($boardPolicies) && is_array($boardPolicies) ? $boardPolicies : [];
 $statsData = isset($boardStats) && is_array($boardStats) ? $boardStats : [];
+$operational = isset($boardOperational) && is_array($boardOperational) ? $boardOperational : null;
 $flash = isset($task_boards_flash) && is_array($task_boards_flash) ? $task_boards_flash : null;
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
@@ -95,6 +96,33 @@ ob_start();
                 <div class="task-board-stat"><strong><?= (int) ($statsData[$code] ?? 0) ?></strong><span><?= $view->e($label) ?></span></div>
             <?php endforeach; ?>
         </section>
+
+        <?php if ($canManage && $operational !== null): ?>
+            <section class="task-board-panel" aria-labelledby="board-operations-title">
+                <div class="task-board-section-title">
+                    <div>
+                        <h2 id="board-operations-title">Состояние задач команды</h2>
+                        <div class="task-board-hint">Только для управляющих доской. Итоги рассчитаны по всем задачам, а не по текущему экрану.</div>
+                    </div>
+                </div>
+                <div class="task-board-stats">
+                    <?php foreach ([
+                        'active' => 'Не завершены',
+                        'overdue' => 'Просрочены',
+                        'stagnant' => 'Без изменений 7 дней',
+                        'unassigned' => 'Без исполнителя',
+                        'completed_7d' => 'Завершены за 7 дней',
+                    ] as $metric => $caption): ?>
+                        <div class="task-board-stat">
+                            <strong><?= (int) ($operational[$metric] ?? 0) ?></strong>
+                            <span><?= $view->e($caption) ?></span>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <p class="task-board-hint">Просроченная задача может одновременно считаться задачей без изменений или исполнителя.
+                    Расчёт на <?= $view->e($operational['generated_at_utc'] ?? '') ?> UTC.</p>
+            </section>
+        <?php endif; ?>
 
         <?php if ($canWrite): ?>
             <section class="task-board-panel">
