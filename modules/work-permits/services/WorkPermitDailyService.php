@@ -211,6 +211,12 @@ final class WorkPermitDailyService
             [':id' => $documentId]
         );
         if ($row === null) throw new DomainException('Документ не найден', 404);
+        if ($this->db->fetchOne(
+            'SELECT document_id FROM work_permit_completions WHERE document_id=:id',
+            [':id' => $documentId]
+        ) !== null) {
+            throw new DomainException('Работы завершены: новые допуски и остановки запрещены', 409);
+        }
         // Проверка идемпотентности повторяется после блокировки, до проверки версии.
         if ((int) $row['version'] !== $version || $row['state'] !== 'issued') {
             throw new DomainException('Версия или состояние документа изменены. Обновите карточку', 409);
