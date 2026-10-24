@@ -17,6 +17,7 @@ use Modules\WorkPermits\Services\WorkPermitIssuanceService;
 use Modules\WorkPermits\Services\WorkPermitDailyService;
 use Modules\WorkPermits\Services\WorkPermitChangeService;
 use Modules\WorkPermits\Services\WorkPermitClosureService;
+use Modules\WorkPermits\Services\WorkPermitPdfRenderer;
 use Throwable;
 
 /**
@@ -69,6 +70,46 @@ final class WorkPermitController extends Controller
             }
             return ['document' => $document];
         });
+    }
+
+    /** Скачивание только собственного наряда или наряда при праве управления. */
+    public function pdf(Request $request, int $id): void
+    {
+        $actor = (int) $request->session('user_id', 0);
+        $permissions = new PermissionService();
+        if ($actor < 1 || !$permissions->hasPermission($actor, 'work_permits.use')) {
+            http_response_code(403);
+            return;
+        }
+        $canManage = $permissions->hasPermission($actor, 'work_permits.manage');
+        $document = $this->drafts()->detail($id, $actor, $canManage);
+        if ($document === null) {
+            http_response_code(404);
+            return;
+        }
+        try {
+            $output = (new WorkPermitPdfRenderer())->render($document);
+        } catch (DomainException $error) {
+            http_response_code($error->getCode() === 409 ? 409 : 400);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo $error->getMessage();
+            return;
+        } catch (Throwable $error) {
+            http_response_code(503);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'Формирование PDF временно недоступно: проверьте локальный шрифт и журнал сервера.';
+            error_log('[Наряды/PDF] ' . $error->getMessage());
+            return;
+        }
+
+        UserActionLog::emit($actor, 'work_permits.pdf_export', 'work-permits',
+            'http', 'success', 200, ['document_id' => $id, 'version' => $document['version']]);
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="naryad-' . $id . '.pdf"');
+        header('Content-Length: ' . strlen($output));
+        header('Cache-Control: private, no-store, max-age=0');
+        header('X-Content-Type-Options: nosniff');
+        echo $output;
     }
 
     public function managementList(Request $request): void
