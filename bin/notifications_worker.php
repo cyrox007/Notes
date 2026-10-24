@@ -9,6 +9,7 @@ require_once $root . '/core/Config.php';
 
 use App\Services\Notifications\NotificationDeliveryRuntime;
 use App\Services\Notifications\NotificationActionTokenStore;
+use App\Services\Notifications\NotificationWorkerScheduleHealth;
 use Core\CliRuntime;
 use Core\DatabaseManager;
 
@@ -46,6 +47,14 @@ try {
     $expiredTokensRemoved = (new NotificationActionTokenStore($db))->purgeExpired(100);
     $runtime = new NotificationDeliveryRuntime($db);
     $stats = $runtime->run($workerId, $limit);
+
+    // Отмечаем только завершившийся проход. Сбой диагностической записи
+    // не должен делать уже доставленные сообщения ошибкой или дубликатами.
+    try {
+        NotificationWorkerScheduleHealth::recordSuccess($db);
+    } catch (Throwable $error) {
+        error_log('Не удалось записать завершение обработчика уведомлений: ' . $error::class);
+    }
 
     $result = [
         'status' => 'ok',

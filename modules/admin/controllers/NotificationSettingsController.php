@@ -7,12 +7,14 @@ namespace App\Controllers\Admin;
 require_once dirname(__DIR__, 3) . '/app/services/notifications/NotificationChannelAdministration.php';
 require_once dirname(__DIR__, 3) . '/app/services/notifications/NotificationExternalChannelAdministration.php';
 require_once dirname(__DIR__, 3) . '/app/services/notifications/TaskReminderScheduleHealth.php';
+require_once dirname(__DIR__, 3) . '/app/services/notifications/NotificationWorkerScheduleHealth.php';
 
 use App\Helpers\CryptMethods;
 use App\Models\UserModel;
 use App\Services\Notifications\NotificationChannelAdministration;
 use App\Services\Notifications\NotificationExternalChannelAdministration;
 use App\Services\Notifications\TaskReminderScheduleHealth;
+use App\Services\Notifications\NotificationWorkerScheduleHealth;
 use App\Services\Notifications\NotificationReceiptAttestation;
 use App\Services\Notifications\NotificationLiveAcceptanceReport;
 use App\Services\Notifications\NotificationDeliveryReviewQueue;
@@ -54,9 +56,29 @@ final class NotificationSettingsController extends Controller
             'notification_settings' => (new NotificationChannelAdministration())->overview(),
             'external_channels' => (new NotificationExternalChannelAdministration())->overview(),
             'reminder_scheduler' => $this->reminderSchedulerStatus(),
+            'notification_worker' => $this->deliveryWorkerStatus(),
             'receipt_inspection' => $inspection,
             'receipt_review' => $this->receiptReview($attentionPage, $unverifiedPage),
         ]);
+    }
+
+    /** @return array<string,mixed> */
+    private function deliveryWorkerStatus(): array
+    {
+        try {
+            return NotificationWorkerScheduleHealth::evaluate(
+                NotificationWorkerScheduleHealth::readLastSuccess(DatabaseManager::getInstance())
+            );
+        } catch (Throwable $error) {
+            // Устаревшая схема не должна скрывать остальные настройки администратора.
+            error_log('Диагностика обработчика уведомлений недоступна: ' . $error::class);
+            return [
+                'state' => 'unavailable',
+                'message' => 'Не удалось прочитать время прохода. Проверьте миграции уведомлений.',
+                'last_success_utc' => null,
+                'minutes_since_success' => null,
+            ];
+        }
     }
 
     private function reviewPage(Request $request, string $name): int
