@@ -77,3 +77,10 @@
  }
  body:has(.wp-journal) .navbar{min-width:0;max-width:100%;box-sizing:border-box}
 }
+
+/* Боковая панель скрыта сдвигом; её вынесенная за экран геометрия
+   не должна создавать горизонтальную область прокрутки документа. */
+@media(max-width:480px){
+ html:has(.wp-journal),body:has(.wp-journal),
+ body:has(.wp-journal) .wrapper{max-width:100%;overflow-x:clip}
+}
