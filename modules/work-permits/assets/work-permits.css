@@ -84,3 +84,10 @@
  html:has(.wp-journal),body:has(.wp-journal),
  body:has(.wp-journal) .wrapper{max-width:100%;overflow-x:clip}
 }
+
+/* Невидимая фиксированная подложка боковой панели не должна расширять
+   мобильную область просмотра: выводим её только при открытой панели. */
+@media(max-width:900px){
+ body:has(.wp-journal) .sidebar-backdrop:not(.is-visible){display:none!important}
+ body:has(.wp-journal) .sidebar-backdrop.is-visible{display:block}
+}
