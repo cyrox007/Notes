@@ -128,6 +128,7 @@ ob_start();
             <label>Название шаблона <input name="name" maxlength="160" required></label>
             <label data-wp-template-description>Содержание задания
                 <textarea name="work_description" maxlength="10000" rows="3"></textarea>
+                <button type="button" data-wp-copy-job>Взять задание из открытой формы</button>
             </label>
             <p data-wp-template-crew-hint hidden>Для шаблона бригады сначала откройте собственный черновик, назначьте сотрудников и выберите ту же организацию.</p>
             <button type="submit">Сохранить новый шаблон</button>
