@@ -38,6 +38,7 @@ final class WorkPermitsRuntimeProvider implements ModuleRuntimeProvider
             ->add('GET', '/', [WorkPermitController::class, 'list'], [ApiLoginRequired::class], 'work_permits_list')
             ->add('GET', '/management', [WorkPermitController::class, 'managementList'], [ApiLoginRequired::class], 'work_permits_management')
             ->add('GET', '/{int:id}', [WorkPermitController::class, 'show'], [ApiLoginRequired::class], 'work_permits_show')
+            ->add('GET', '/{int:id}/pdf', [WorkPermitController::class, 'pdf'], [ApiLoginRequired::class], 'work_permits_pdf')
             ->add('POST', '/', [WorkPermitController::class, 'create'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_create')
             ->add('POST', '/{int:id}/edit', [WorkPermitController::class, 'edit'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_edit')
             ->add('POST', '/{int:id}/issue', [WorkPermitController::class, 'issue'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_issue')
