@@ -1,0 +1,208 @@
+window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.js', (pageScope) => {
+    pageScope.onInit(() => {
+        const root = document.querySelector('[data-work-permits]');
+        const panel = root?.querySelector('[data-wp-lifecycle]');
+        if (!panel) return;
+
+        const api = (root.dataset.baseUrl || '') + '/api/work-permits';
+        const issueForm = panel.querySelector('[data-wp-issue-form]');
+        const admitForm = panel.querySelector('[data-wp-admission-form]');
+        const title = panel.querySelector('[data-wp-lifecycle-title]');
+        const list = panel.querySelector('[data-wp-measure-list]');
+        const csrf = root.querySelector('[name="csrf_token"]');
+        const feedback = root.querySelector('[data-wp-feedback]');
+        const state = { document: null, action: null, command: null, busy: false };
+
+        const alert = (text, error = false) => {
+            feedback.hidden = !text;
+            feedback.textContent = text;
+            feedback.dataset.state = error ? 'error' : 'success';
+        };
+        const request = async (suffix, payload) => {
+            const options = { credentials: 'same-origin', headers: { Accept: 'application/json' } };
+            if (payload !== undefined) {
+                options.method = 'POST';
+                options.headers['Content-Type'] = 'application/json';
+                options.headers['X-CSRF-Token'] = csrf?.value || '';
+                options.body = JSON.stringify(payload);
+            }
+            const response = await pageScope.fetch(api + suffix, options);
+            const result = await response.json().catch(() => null);
+            if (!response.ok || result?.status !== 'ok') {
+                throw new Error(result?.message || 'Операция с документом не выполнена');
+            }
+            return result;
+        };
+        const command = () => {
+            const bytes = new Uint8Array(16);
+            crypto.getRandomValues(bytes);
+            return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
+        };
+        const utc = (value) => {
+            if (!value) throw new Error('Укажите дату и время');
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) throw new Error('Некорректная дата');
+            return date.toISOString().slice(0, 19).replace('T', ' ');
+        };
+        const addMeasure = () => {
+            if (list.children.length >= 20) {
+                alert('Не более двадцати мероприятий', true);
+                return;
+            }
+            const row = document.createElement('fieldset');
+            row.className = 'wp-journal__measure';
+            for (const [name, label, length, value] of [
+                ['equipment', 'Оборудование / участок', 240, ''],
+                ['isolation', 'Что отключить, заземлить или почему это не требуется', 1000, ''],
+                ['remaining_live', 'Что осталось под напряжением', 500,
+                    'Оборудование и токоведущие части, оставшиеся в работе под напряжением.'],
+            ]) {
+                const wrapper = document.createElement('label');
+                wrapper.textContent = label;
+                const input = document.createElement('textarea');
+                input.name = name;
+                input.maxLength = length;
+                input.rows = 2;
+                input.value = value;
+                input.required = true;
+                wrapper.append(input);
+                row.append(wrapper);
+            }
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.textContent = 'Удалить мероприятие';
+            pageScope.listen(remove, 'click', () => {
+                if (list.children.length > 1) row.remove();
+            });
+            row.append(remove);
+            list.append(row);
+        };
+        const fillEmployees = async (org) => {
+            const employees = [];
+            let cursor = '';
+            for (let i = 0; i < 5; i += 1) {
+                const params = new URLSearchParams({ organization_id: String(org), limit: '100' });
+                if (cursor) params.set('before_id', cursor);
+                const result = await request('/references/employees?' + params);
+                employees.push(...(result.items || []));
+                if (!result.next_cursor) break;
+                cursor = String(result.next_cursor);
+                if (i === 4) throw new Error('В справочнике слишком много работников — уточните выбор');
+            }
+            for (const select of admitForm.querySelectorAll('select')) {
+                select.replaceChildren(new Option('Выберите работника', ''));
+                for (const employee of employees) {
+                    select.add(new Option(employee.name + ' (' + (employee.electrical_group || 'группа не указана') + ')',
+                        String(employee.id)));
+                }
+            }
+        };
+        const open = async ({ id, action }) => {
+            if (state.busy) return;
+            state.busy = true;
+            alert('Проверяем актуальную карточку…');
+            try {
+                const document = (await request('/' + id)).document;
+                if (action === 'issue' && document.state !== 'draft') throw new Error('Документ уже выдан');
+                if (action === 'admit' && (document.state !== 'issued'
+                    || document.kind !== 'permit' || document.lifecycle?.first_admission)) {
+                    throw new Error('Первый допуск недоступен для этого документа');
+                }
+                state.document = document;
+                state.action = action;
+                state.command = null;
+                issueForm.reset();
+                admitForm.reset();
+                list.replaceChildren();
+                if (action === 'issue') {
+                    addMeasure();
+                    title.textContent = 'Выдача ' + (document.kind === 'permit' ? 'наряда-допуска' : 'распоряжения')
+                        + ' №' + document.id;
+                } else {
+                    title.textContent = 'Первичный допуск по наряду №' + document.id;
+                    await fillEmployees(document.organization_id);
+                    const crewAdmitter = (document.crew || []).find(item => item.role === 'admitter');
+                    const issuer = (document.crew || []).find(item => item.role === 'issuer');
+                    const producer = document.lifecycle?.issuance?.producer_employee_id;
+                    if (crewAdmitter) admitForm.elements.namedItem('admitted_employee_id').value =
+                        String(crewAdmitter.employee_id);
+                    if (issuer) admitForm.elements.namedItem('briefed_by_employee_id').value =
+                        String(issuer.employee_id);
+                    if (producer) admitForm.elements.namedItem('briefing_recipient_id').value =
+                        String(producer);
+                }
+                issueForm.hidden = action !== 'issue';
+                admitForm.hidden = action !== 'admit';
+                panel.hidden = false;
+                panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                alert('');
+            } catch (error) {
+                alert(error.message, true);
+            } finally {
+                state.busy = false;
+            }
+        };
+        pageScope.listen(root, 'wp:lifecycle-open', event => void open(event.detail));
+        pageScope.listen(panel, 'input', () => { state.command = null; });
+        pageScope.listen(panel, 'change', () => { state.command = null; });
+        for (const button of panel.querySelectorAll('[data-wp-lifecycle-cancel]')) {
+            pageScope.listen(button, 'click', () => {
+                panel.hidden = true;
+                state.document = null;
+                state.command = null;
+            });
+        }
+        pageScope.listen(panel.querySelector('[data-wp-add-measure]'), 'click', addMeasure);
+        const submit = async (action) => {
+            if (state.busy || !state.document || state.action !== action) return;
+            const form = action === 'issue' ? issueForm : admitForm;
+            const submitButton = form.querySelector('[type="submit"]');
+            state.busy = true;
+            submitButton.disabled = true;
+            form.setAttribute('aria-busy', 'true');
+            try {
+                if (!state.command) state.command = command();
+                const data = Object.fromEntries(new FormData(form));
+                const payload = {
+                    version: Number(state.document.version),
+                    command_id: state.command,
+                };
+                if (action === 'issue') {
+                    payload.planned_start = utc(data.planned_start);
+                    payload.planned_finish = utc(data.planned_finish);
+                    payload.special_instructions = data.special_instructions;
+                    payload.measures = [...list.children].map(row => Object.fromEntries(
+                        [...row.querySelectorAll('textarea')].map(field => [field.name, field.value])
+                    ));
+                } else {
+                    payload.started_at = utc(data.started_at);
+                    payload.admitted_employee_id = data.admitted_employee_id;
+                    payload.briefed_by_employee_id = data.briefed_by_employee_id;
+                    payload.briefing_recipient_id = data.briefing_recipient_id;
+                    payload.workplace_prepared = data.workplace_prepared === 'on';
+                    payload.briefing_confirmed = data.briefing_confirmed === 'on';
+                }
+                await request('/' + state.document.id + (action === 'issue' ? '/issue' : '/first-admission'), payload);
+                panel.hidden = true;
+                state.document = null;
+                state.command = null;
+                alert(action === 'issue' ? 'Выдача записана в журнал.' : 'Первичный допуск записан в журнал.');
+                root.dispatchEvent(new CustomEvent('wp:lifecycle-recorded'));
+            } catch (error) {
+                alert(error.message, true);
+            } finally {
+                state.busy = false;
+                submitButton.disabled = false;
+                form.removeAttribute('aria-busy');
+            }
+        };
+        pageScope.listen(issueForm, 'submit', event => {
+            event.preventDefault();
+            void submit('issue');
+        });
+        pageScope.listen(admitForm, 'submit', event => {
+            event.preventDefault();
+            void submit('admit');
+        });
+    });
+});
