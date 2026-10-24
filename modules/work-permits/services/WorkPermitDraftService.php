@@ -46,11 +46,12 @@ final class WorkPermitDraftService
             $input['department_id'] ?? null,
             $input['facility_id'] ?? null,
         ] : null;
-        $fingerprint = hash('sha256', json_encode([
-            $userId, $kind,
-            $usesReferences ? $referenceIds : [$organization, $subdivision, $facility],
-            $description,
-        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
+        $fingerprintParts = $usesReferences
+            ? [$userId, $kind, $referenceIds, $description]
+            : [$userId, $kind, $organization, $subdivision, $facility, $description];
+        $fingerprint = hash('sha256', json_encode(
+            $fingerprintParts, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE
+        ));
 
         $existing = $this->existing($command, $userId, $fingerprint);
         if ($existing !== null) {
