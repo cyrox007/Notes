@@ -37,12 +37,6 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-closure.js
             crypto.getRandomValues(bytes);
             return [...bytes].map(value => value.toString(16).padStart(2, '0')).join('');
         };
-        const utc = input => {
-            if (!input) throw new Error('Укажите дату и время');
-            const time = new Date(input);
-            if (Number.isNaN(time.getTime())) throw new Error('Некорректная дата и время');
-            return time.toISOString().slice(0, 19).replace('T', ' ');
-        };
         const notice = text => {
             const line = document.createElement('p');
             line.textContent = text;
@@ -81,17 +75,18 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-closure.js
                 }
                 if (sequence !== state.sequence) return;
                 state.document = document;
+                window.WorkPermitTime.context(panel, document);
                 state.command = null;
                 completeForm.reset();
                 closeForm.reset();
                 history.replaceChildren();
                 const lifecycle = document.lifecycle || {};
                 if (lifecycle.completion) {
-                    notice('Работы завершены (UTC): ' + lifecycle.completion.completed_at
+                    notice('Работы завершены: ' + window.WorkPermitTime.display(lifecycle.completion.completed_at, document)
                         + ' · производитель: ' + lifecycle.completion.producer_name);
                 }
                 if (lifecycle.closure) {
-                    notice('Документ закрыт (UTC): ' + lifecycle.closure.closed_at);
+                    notice('Документ закрыт: ' + window.WorkPermitTime.display(lifecycle.closure.closed_at, document));
                 }
                 const action = document.kind === 'order' ? 'close_order'
                     : lifecycle.completion ? 'close_permit' : 'complete';
@@ -144,12 +139,12 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-closure.js
                     note: values.note,
                 };
                 if (action === 'complete') {
-                    body.completed_at = utc(values.completed_at);
+                    body.completed_at = window.WorkPermitTime.toUtc(completeForm.elements.namedItem('completed_at'), state.document);
                     body.producer_employee_id = values.producer_employee_id;
                     body.workplace_safe = values.workplace_safe === 'on';
                     body.crew_withdrawn = values.crew_withdrawn === 'on';
                 } else {
-                    body.closed_at = utc(values.closed_at);
+                    body.closed_at = window.WorkPermitTime.toUtc(closeForm.elements.namedItem('closed_at'), state.document);
                     body.closer_employee_id = values.closer_employee_id;
                     body.workplace_accepted = values.workplace_accepted === 'on';
                     body.documents_handed_over = values.documents_handed_over === 'on';
