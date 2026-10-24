@@ -33,6 +33,57 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
             }
             return result;
         };
+        // Шаблоны только подставляют текст, его можно изменить перед выдачей.
+        const issuePickers = [...issueForm.querySelectorAll('[data-wp-issue-template]')];
+        let issueTemplatesGeneration = 0;
+        const loadIssueTemplates = async (organization) => {
+            const generation = ++issueTemplatesGeneration;
+            await Promise.all(issuePickers.map(async picker => {
+                const kind = picker.dataset.wpIssueTemplate;
+                const select = picker.querySelector('[data-wp-issue-choice]');
+                const button = picker.querySelector('[data-wp-issue-apply]');
+                select.disabled = true;
+                button.disabled = true;
+                select.replaceChildren(new Option('Загрузка шаблонов…', ''));
+                const params = new URLSearchParams({
+                    organization_id: String(organization), kind, limit: '100',
+                });
+                const result = await request('/templates?' + params);
+                if (generation !== issueTemplatesGeneration) return;
+                select.replaceChildren(new Option('Без шаблона', ''));
+                for (const template of result.items || []) {
+                    select.add(new Option(template.name, String(template.id)));
+                }
+                select.disabled = false;
+                button.disabled = false;
+            }));
+        };
+        for (const picker of issuePickers) {
+            const select = picker.querySelector('[data-wp-issue-choice]');
+            const button = picker.querySelector('[data-wp-issue-apply]');
+            pageScope.listen(button, 'click', async () => {
+                const organization = state.document?.organization_id;
+                const templateId = select.value;
+                if (!organization || !templateId || state.action !== 'issue') return;
+                button.disabled = true;
+                try {
+                    const params = new URLSearchParams({ organization_id: String(organization) });
+                    const template = (await request('/templates/' + Number(templateId) + '?' + params)).template;
+                    const kind = picker.dataset.wpIssueTemplate;
+                    if (template.kind !== kind) throw new Error('Вид шаблона не совпадает');
+                    const fieldName = kind === 'conditions' ? 'work_conditions' : 'special_instructions';
+                    const field = issueForm.elements.namedItem(fieldName);
+                    field.value = template.work_description || '';
+                    field.dispatchEvent(new Event('input', { bubbles: true }));
+                    alert('Текст подставлен. Проверьте его и уточните для конкретного объекта.');
+                } catch (error) {
+                    alert(error.message, true);
+                } finally {
+                    button.disabled = false;
+                }
+            });
+        }
+
         const manager = root.querySelector('[data-wp-management]');
         const managerList = manager?.querySelector('[data-wp-management-list]');
         const managerState = manager?.querySelector('[data-wp-management-state]');
@@ -212,6 +263,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                 list.replaceChildren();
                 if (action === 'issue') {
                     addMeasure();
+                    void loadIssueTemplates(document.organization_id).catch(error => alert(error.message, true));
                     title.textContent = 'Выдача ' + (document.kind === 'permit' ? 'наряда-допуска' : 'распоряжения')
                         + ' №' + document.id;
                 } else {
@@ -267,6 +319,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                     payload.planned_start = utc(data.planned_start);
                     payload.planned_finish = utc(data.planned_finish);
                     payload.special_instructions = data.special_instructions;
+                    payload.work_conditions = data.work_conditions;
                     payload.measures = [...list.children].map(row => Object.fromEntries(
                         [...row.querySelectorAll('textarea')].map(field => [field.name, field.value])
                     ));
