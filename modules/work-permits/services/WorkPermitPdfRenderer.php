@@ -30,6 +30,7 @@ final class WorkPermitPdfRenderer
         if (!is_array($issue)) {
             throw new DomainException('Сведения о выдаче отсутствуют', 409);
         }
+        $zone = WorkPermitLocalDay::validate($issue['time_zone'] ?? 'UTC');
         $pdf = new WorkPermitPdfDocument($this->font ?? new WorkPermitPdfFont());
 
         $pdf->section('1. Регистрация наряда и место производства работ');
@@ -39,7 +40,7 @@ final class WorkPermitPdfRenderer
             ['Организация', $this->text($document['organization'] ?? null)],
             ['Подразделение', $this->text($document['subdivision'] ?? null)],
             ['Объект (электроустановка)', $this->text($document['facility'] ?? null)],
-            ['Дата создания (UTC)', $this->text($document['created_at'] ?? null)],
+            ['Дата создания', $this->localTime($document['created_at'] ?? null, $zone)],
         ], [1.15, 2.75]);
 
         $pdf->section('2. Ответственные работники и состав бригады');
@@ -81,12 +82,12 @@ final class WorkPermitPdfRenderer
 
         $pdf->section('5. Сроки, выдача и отдельные указания');
         $pdf->table(['Сведение', 'Значение'], [
-            ['Часовой пояс рабочих суток', $this->text($issue['time_zone'] ?? 'UTC')],
-            ['Начало (UTC)', $this->text($issue['planned_start'] ?? null)],
-            ['Окончание (UTC)', $this->text($issue['planned_finish'] ?? null)],
+            ['Часовой пояс объекта (IANA)', $zone],
+            ['Работу начать (время объекта)', $this->localTime($issue['planned_start'] ?? null, $zone)],
+            ['Работу закончить (время объекта)', $this->localTime($issue['planned_finish'] ?? null, $zone)],
             ['Наряд выдал', $this->text($issue['issuer_name'] ?? null)],
             ['Производитель работ', $this->text($issue['producer_name'] ?? null)],
-            ['Зарегистрирован (UTC)', $this->text($issue['issued_at'] ?? null)],
+            ['Выдан (время объекта)', $this->localTime($issue['issued_at'] ?? null, $zone)],
         ], [1.3, 2.7]);
         $pdf->paragraph('Условия производства работ', $this->text($issue['work_conditions'] ?? null));
         $pdf->paragraph('Отдельные указания', $this->text($issue['special_instructions'] ?? null));
@@ -94,7 +95,7 @@ final class WorkPermitPdfRenderer
         $pdf->section('6. Первичный допуск и целевой инструктаж');
         $admission = $lifecycle['first_admission'] ?? null;
         $pdf->table(['Сведение', 'Значение'], is_array($admission) ? [
-            ['Первый допуск (UTC)', $this->text($admission['started_at'] ?? null)],
+            ['Первый допуск (время объекта)', $this->localTime($admission['started_at'] ?? null, $zone)],
             ['Допускающий', $this->text($admission['admitted_name'] ?? null)],
             ['Инструктаж провёл', $this->text($admission['briefed_by_name'] ?? null)],
             ['Инструктаж получил', $this->text($admission['briefing_recipient_name'] ?? null)],
@@ -112,11 +113,11 @@ final class WorkPermitPdfRenderer
                     'resume' => 'После перерыва',
                     default => 'Допуск',
                 },
-                $this->text($period['started_at'] ?? null),
+                $this->localTime($period['started_at'] ?? null, $zone),
                 $this->text($period['admitter_name'] ?? null),
                 $this->text($period['instructor_name'] ?? null)
                     . ' / ' . $this->text($period['recipient_name'] ?? null),
-                $this->text($period['ended_at'] ?? null) . "\n"
+                $this->localTime($period['ended_at'] ?? null, $zone) . "\n"
                     . match ($period['end_kind'] ?? '') {
                         'break' => 'Перерыв',
                         'day_end' => 'Конец дня',
@@ -125,23 +126,23 @@ final class WorkPermitPdfRenderer
             ];
         }
         $pdf->table([
-            'Вид', 'Начало UTC', 'Допускающий', 'Инструктаж: провёл / получил',
-            'Окончание UTC и причина',
+            'Вид', 'Начало (объект)', 'Допускающий', 'Инструктаж: провёл / получил',
+            'Окончание (объект) и причина',
         ], $periodRows, [0.8, 1.0, 1.1, 1.4, 1.25]);
 
         $pdf->section('8. Продления наряда');
         $extensionRows = [];
         foreach ($lifecycle['extensions'] ?? [] as $extension) {
             $extensionRows[] = [
-                $this->text($extension['previous_finish'] ?? null),
-                $this->text($extension['new_finish'] ?? null),
-                $this->text($extension['extended_at'] ?? null),
+                $this->localTime($extension['previous_finish'] ?? null, $zone),
+                $this->localTime($extension['new_finish'] ?? null, $zone),
+                $this->localTime($extension['extended_at'] ?? null, $zone),
                 $this->text($extension['issuer_name'] ?? null),
                 $this->text($extension['reason'] ?? null),
             ];
         }
         $pdf->table([
-            'Было до UTC', 'Продлено до UTC', 'Оформлено UTC', 'Выдал', 'Основание',
+            'Было до (объект)', 'Продлено до (объект)', 'Оформлено (объект)', 'Выдал', 'Основание',
         ], $extensionRows, [1, 1, 1, 1, 1.5]);
 
         $pdf->section('9. Изменения состава бригады');
@@ -151,7 +152,7 @@ final class WorkPermitPdfRenderer
         }
         foreach ($revisions as $index => $revision) {
             $pdf->paragraph(
-                'Изменение №' . ($index + 1) . ' · ' . $this->text($revision['changed_at'] ?? null) . ' UTC',
+                'Изменение №' . ($index + 1) . ' · ' . $this->localTime($revision['changed_at'] ?? null, $zone),
                 $this->text($revision['reason'] ?? null)
             );
             $revisionRoles = $this->roles($revision['members'] ?? []);
@@ -165,7 +166,7 @@ final class WorkPermitPdfRenderer
         $pdf->section('10. Полное окончание работ');
         $completion = $lifecycle['completion'] ?? null;
         $pdf->table(['Сведение', 'Значение'], is_array($completion) ? [
-            ['Окончание (UTC)', $this->text($completion['completed_at'] ?? null)],
+            ['Окончание (время объекта)', $this->localTime($completion['completed_at'] ?? null, $zone)],
             ['Производитель работ', $this->text($completion['producer_name'] ?? null)],
             ['Безопасное состояние', !empty($completion['workplace_safe']) ? 'Подтверждено' : 'Не подтверждено'],
             ['Бригада выведена', !empty($completion['crew_withdrawn']) ? 'Подтверждено' : 'Не подтверждено'],
@@ -175,7 +176,7 @@ final class WorkPermitPdfRenderer
         $pdf->section('11. Окончательное закрытие наряда');
         $closure = $lifecycle['closure'] ?? null;
         $pdf->table(['Сведение', 'Значение'], is_array($closure) ? [
-            ['Закрыт (UTC)', $this->text($closure['closed_at'] ?? null)],
+            ['Закрыт (время объекта)', $this->localTime($closure['closed_at'] ?? null, $zone)],
             ['Закрывающий работник', $this->text($closure['closer_name'] ?? null)],
             ['Рабочее место принято', !empty($closure['workplace_accepted']) ? 'Подтверждено' : 'Не подтверждено'],
             ['Документы переданы', !empty($closure['documents_handed_over']) ? 'Подтверждено' : 'Не подтверждено'],
@@ -214,6 +215,12 @@ final class WorkPermitPdfRenderer
             'member' => 'Члены бригады',
             default => 'Назначение',
         };
+    }
+
+    private function localTime(mixed $value, string $zone): string
+    {
+        $utc = $this->text($value);
+        return $utc === '' ? 'Не заполнено' : WorkPermitLocalDay::forPrint($utc, $zone);
     }
 
     private function text(mixed $value): string
