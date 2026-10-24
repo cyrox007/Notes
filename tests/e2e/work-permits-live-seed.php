@@ -24,14 +24,14 @@ $users = [
     ['wp-manager-two', 'wp-manager-two@example.test', 'Управляющий', 'Второй', 'superadmin', 1],
     ['wp-worker', 'wp-worker@example.test', 'Работник', 'РЭС', 'user', 888],
 ];
-foreach ($users as [$username, $email, $first, $last, $role, $legacyRole]) {
+foreach ($users as $index => [$username, $email, $first, $last, $role, $legacyRole]) {
     $insert = $pdo->prepare(
         'INSERT INTO users
          (uid,username,email,password_hash,firstname,lastname,role,is_active,account_status,created_at,updated_at)
          VALUES (:uid,:name,:mail,:hash,:first,:last,:role,1,\'active\',NOW(),NOW())'
     );
     $insert->execute([
-        ':uid' => sprintf('b7f60000-0000-4000-8000-%012d', count($users) + strlen($username)),
+        ':uid' => sprintf('b7f60000-0000-4000-8000-%012d', $index + 1),
         ':name' => $username,
         ':mail' => $email,
         ':hash' => password_hash($password, PASSWORD_ARGON2ID),
