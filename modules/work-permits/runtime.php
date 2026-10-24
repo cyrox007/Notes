@@ -7,6 +7,7 @@ foreach ([
     'services/WorkPermitCrewService.php',
     'services/WorkPermitTemplateService.php',
     'services/WorkPermitDraftEditService.php',
+    'services/WorkPermitDailyService.php',
     'services/WorkPermitIssuanceService.php',
     'services/WorkPermitDraftService.php',
     'controllers/WorkPermitController.php',
