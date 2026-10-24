@@ -32,3 +32,11 @@
 .wp-journal__actions{display:flex;gap:10px;flex-wrap:wrap}
 .wp-journal__actions button:nth-child(2){background:transparent;color:inherit}
 @media(max-width:650px){.wp-journal__crew{grid-template-columns:1fr}}
+
+.wp-journal__template-picker{display:flex;flex-wrap:wrap;align-items:end;gap:12px;padding:8px 0}
+.wp-journal__template-picker label{flex:1 1 220px}
+.wp-journal [data-wp-template-admin] form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px 0}
+.wp-journal [data-wp-template-admin] form label{display:grid;gap:6px;font-size:13px}
+.wp-journal [data-wp-template-description],.wp-journal [data-wp-template-crew-hint]{grid-column:1/-1}
+.wp-journal__template-row .wp-journal__actions button{font-size:12px}
+@media(max-width:650px){.wp-journal [data-wp-template-admin] form{grid-template-columns:1fr}}

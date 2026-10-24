@@ -5,6 +5,7 @@ declare(strict_types=1);
 foreach ([
     'services/WorkPermitReferenceService.php',
     'services/WorkPermitCrewService.php',
+    'services/WorkPermitTemplateService.php',
     'services/WorkPermitDraftEditService.php',
     'services/WorkPermitDraftService.php',
     'controllers/WorkPermitController.php',

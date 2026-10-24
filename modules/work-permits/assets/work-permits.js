@@ -376,6 +376,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
                     (detail.kind === 'permit' ? 'Наряд-допуск ' : 'Распоряжение ') + '№' + id
                     + ' · черновик, версия ' + editState.version;
                 editor.hidden = false;
+                root.dispatchEvent(new CustomEvent('wp:draft-opened', { detail: { id: Number(detail.id) } }));
                 editor.scrollIntoView({ block: 'start', behavior: 'smooth' });
                 notify(missingStaff ? 'В документе есть недоступные или архивные сотрудники. Замените их перед сохранением.' : '',
                     missingStaff);
