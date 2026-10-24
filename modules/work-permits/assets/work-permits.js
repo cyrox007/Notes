@@ -49,6 +49,12 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
             const state = node('small', (item.state === 'draft' ? 'Черновик' : item.state === 'issued' ? 'Выдан' : 'Закрыт') + ' · ' + item.created_at);
             const work = node('p', item.work_description);
             section.append(number, facility, state, work);
+            if (item.kind === 'permit' && item.state !== 'draft') {
+                const exportLink = node('a', 'Скачать PDF');
+                exportLink.href = api + '/' + Number(item.id) + '/pdf';
+                exportLink.setAttribute('download', 'naryad-' + Number(item.id) + '.pdf');
+                section.append(exportLink);
+            }
             if (item.state === 'draft') {
                 const edit = node('button', 'Открыть и изменить');
                 edit.type = 'button';
