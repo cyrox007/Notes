@@ -221,6 +221,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
             root.querySelector('[data-wp-employee-field]').hidden = kind !== 'employees';
             root.querySelector('[data-wp-group-field]').hidden = kind !== 'employees';
             root.querySelector('[data-wp-time-zone-field]').hidden = kind !== 'organizations';
+            referenceForm.elements.namedItem('time_zone').disabled = kind !== 'organizations';
             await loadAdminDept();
             await loadReferenceList(true);
         };
