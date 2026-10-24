@@ -29,10 +29,14 @@ final class WorkPermitPdfDocument
 
     public function section(string $heading): void
     {
-        $this->ensure(31);
-        $this->rect(self::MARGIN, $this->y, $this->contentWidth(), 22, true);
-        $this->write(self::MARGIN + 7, $this->y + 14.5, $heading, 10.5);
-        $this->y += 29;
+        $lines = $this->wrap($heading, $this->contentWidth() - 14, 10.5);
+        $height = max(22.0, 8.0 + count($lines) * 13.0);
+        $this->ensure($height + 7);
+        $this->rect(self::MARGIN, $this->y, $this->contentWidth(), $height, true);
+        foreach ($lines as $index => $line) {
+            $this->write(self::MARGIN + 7, $this->y + 14.5 + $index * 13, $line, 10.5);
+        }
+        $this->y += $height + 7;
     }
 
     public function paragraph(string $label, string $value): void
@@ -203,18 +207,23 @@ final class WorkPermitPdfDocument
 
     private function tableHeader(array $headers, array $widths): void
     {
-        if ($this->y + 26 > self::BOTTOM) $this->newPage();
+        $columns = [];
+        $maxLines = 1;
+        foreach ($widths as $index => $width) {
+            $columns[$index] = $this->wrap((string) $headers[$index], $width - 8, 8.0);
+            $maxLines = max($maxLines, count($columns[$index]));
+        }
+        $height = max(24.0, 7.0 + $maxLines * 10.0);
+        if ($this->y + $height > self::BOTTOM) $this->newPage();
         $x = self::MARGIN;
         foreach ($widths as $index => $width) {
-            $this->rect($x, $this->y, $width, 24, true);
-            $wrapped = $this->wrap((string) $headers[$index], $width - 8, 8.5);
-            $this->write($x + 4, $this->y + 11, $wrapped[0] ?? '', 8.5);
-            if (count($wrapped) > 1) {
-                $this->write($x + 4, $this->y + 21, $wrapped[1], 8.0);
+            $this->rect($x, $this->y, $width, $height, true);
+            foreach ($columns[$index] as $line => $text) {
+                $this->write($x + 4, $this->y + 11 + $line * 10, $text, 8.0);
             }
             $x += $width;
         }
-        $this->y += 24;
+        $this->y += $height;
     }
 
     private function ensure(float $required): void
