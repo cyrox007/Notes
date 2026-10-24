@@ -41,6 +41,7 @@ final class ModuleManifest
         private readonly array $databaseMigrations,
         private readonly ?string $backgroundAccountGuard,
         private readonly ?string $backgroundRetentionCleanup,
+        private readonly ?string $backgroundNotificationOutbox,
         private readonly string $manifestPath,
         private readonly string $integrityHash,
     ) {
@@ -189,6 +190,17 @@ final class ModuleManifest
             }
         }
 
+        $backgroundNotificationOutbox = $background['notification_outbox'] ?? null;
+        if ($backgroundNotificationOutbox !== null) {
+            if (!is_string($backgroundNotificationOutbox)
+                || !str_starts_with($backgroundNotificationOutbox, 'background/')
+                || str_contains($backgroundNotificationOutbox, '..')
+                || str_contains($backgroundNotificationOutbox, '\\\\')
+                || preg_match('~^background/[A-Za-z0-9_./-]+\\.php$~D', $backgroundNotificationOutbox) !== 1) {
+                throw new RuntimeException("Модуль {$id}: небезопасный путь исходящих уведомлений");
+            }
+        }
+
         return new self(
             $id,
             $name,
@@ -209,6 +221,7 @@ final class ModuleManifest
             $databaseMigrations,
             $backgroundAccountGuard,
             $backgroundRetentionCleanup,
+            $backgroundNotificationOutbox,
             $manifestPath,
             hash('sha256', $raw),
         );
@@ -327,6 +340,11 @@ final class ModuleManifest
     public function backgroundRetentionCleanup(): ?string
     {
         return $this->backgroundRetentionCleanup;
+    }
+
+    public function backgroundNotificationOutbox(): ?string
+    {
+        return $this->backgroundNotificationOutbox;
     }
 
     public function manifestPath(): string
