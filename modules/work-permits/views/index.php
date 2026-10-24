@@ -22,9 +22,15 @@ ob_start();
                     <option value="order">Распоряжение</option>
                 </select>
             </label>
-            <label>Организация <input name="organization" maxlength="160" required></label>
-            <label>Подразделение <input name="subdivision" maxlength="160"></label>
-            <label>Объект / подстанция <input name="facility" maxlength="180" required></label>
+            <label>Организация
+                <select name="organization_id" data-wp-organization required><option value="">Загрузка организаций…</option></select>
+            </label>
+            <label>Подразделение
+                <select name="department_id" data-wp-department><option value="">Не выбрано</option></select>
+            </label>
+            <label>Объект / подстанция
+                <select name="facility_id" data-wp-facility required><option value="">Выберите объект</option></select>
+            </label>
             <label class="wp-journal__wide">Задание на производство работ
                 <textarea name="work_description" maxlength="10000" rows="4" required></textarea>
             </label>
@@ -32,6 +38,42 @@ ob_start();
         </form>
         <p>Номер присваивается сервером. Черновик ещё не является выданным нарядом или распоряжением.</p>
     </section>
+
+    <?php if (!empty($can_manage_references)): ?>
+    <details class="calendar-shell wp-journal__registry" data-wp-admin>
+        <summary>Управление справочниками</summary>
+        <p>Названия можно изменять; старые документы сохраняют название на момент регистрации. Удаления нет — используйте архив.</p>
+        <form data-wp-reference-form>
+            <label>Справочник
+                <select name="kind" data-wp-kind>
+                    <option value="organizations">Организации</option>
+                    <option value="departments">Подразделения</option>
+                    <option value="facilities">Объекты</option>
+                    <option value="employees">Сотрудники</option>
+                </select>
+            </label>
+            <label data-wp-parent-field hidden>Организация
+                <select name="organization_id" data-wp-admin-org><option value="">Выберите организацию</option></select>
+            </label>
+            <label data-wp-employee-field hidden>Подразделение сотрудника
+                <select name="department_id" data-wp-admin-dept><option value="">Без подразделения</option></select>
+            </label>
+            <label>Название / ФИО <input name="name" maxlength="180" required></label>
+            <label data-wp-group-field hidden>Группа электробезопасности
+                <select name="electrical_group">
+                    <option value="">Не указана</option>
+                    <?php foreach (['I', 'II', 'III', 'IV', 'V'] as $group): ?>
+                    <option value="<?= $view->e($group) ?>"><?= $view->e($group) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+            <button type="submit">Добавить</button>
+        </form>
+        <label><input type="checkbox" data-wp-show-archive> Показать архивные записи</label>
+        <div data-wp-reference-list aria-live="polite"></div>
+        <button type="button" data-wp-reference-more hidden>Показать ещё</button>
+    </details>
+    <?php endif; ?>
     <section class="calendar-shell wp-journal__registry" aria-labelledby="wp-registry-title">
         <h2 id="wp-registry-title">Мои документы за последний месяц</h2>
         <div data-wp-list aria-live="polite"></div>
