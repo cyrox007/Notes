@@ -43,6 +43,8 @@ final class WorkPermitsRuntimeProvider implements ModuleRuntimeProvider
             ->add('POST', '/{int:id}/issue', [WorkPermitController::class, 'issue'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_issue')
             ->add('POST', '/{int:id}/first-admission', [WorkPermitController::class, 'firstAdmission'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_first_admission')
             ->add('POST', '/{int:id}/work-period/{str:action}', [WorkPermitController::class, 'workPeriod'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_work_period')
+            ->add('POST', '/{int:id}/change-crew', [WorkPermitController::class, 'changeCrew'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_change_crew')
+            ->add('POST', '/{int:id}/extend', [WorkPermitController::class, 'extend'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_extend')
             ->add('GET', '/templates', [WorkPermitController::class, 'templates'], [ApiLoginRequired::class], 'work_permits_templates')
             ->add('GET', '/templates/{int:id}', [WorkPermitController::class, 'template'], [ApiLoginRequired::class], 'work_permits_template')
             ->add('POST', '/templates', [WorkPermitController::class, 'createTemplate'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_template_create')

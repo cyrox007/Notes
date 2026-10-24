@@ -78,6 +78,15 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                         ));
                         row.append(periods);
                     }
+                    if (item.state === 'issued' && item.kind === 'permit') {
+                        const button = document.createElement('button');
+                        button.type = 'button';
+                        button.textContent = 'Состав бригады и продление';
+                        pageScope.listen(button, 'click', () => root.dispatchEvent(
+                            new CustomEvent('wp:amendments-open', { detail: { id: Number(item.id) } })
+                        ));
+                        row.append(button);
+                    }
                     managerList.append(row);
                 }
                 managerCursor = result.next_cursor || null;

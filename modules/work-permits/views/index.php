@@ -142,6 +142,45 @@ ob_start();
     <?php endif; ?>
 
     <?php if (!empty($can_manage_references)): ?>
+    <section class="calendar-shell wp-journal__editor" data-wp-amendments hidden>
+        <h2 data-wp-amendments-title>Изменения выданного наряда</h2>
+        <p>Изменения оформляются между рабочими периодами. Все прежние сроки и составы сохраняются в истории.</p>
+        <div data-wp-amendments-history aria-live="polite"></div>
+        <form data-wp-crew-change>
+            <h3>Изменить членов бригады</h3>
+            <p>Выдавший, производитель и другие ответственные роли не изменяются.</p>
+            <label>Дата и время изменения (местное время)
+                <input type="datetime-local" name="changed_at" required>
+            </label>
+            <label>Причина изменения
+                <textarea name="reason" maxlength="1000" required></textarea>
+            </label>
+            <label class="wp-journal__wide">Члены бригады (несколько значений)
+                <select name="member_ids" data-wp-amendment-members multiple size="7" required></select>
+            </label>
+            <button type="submit">Сохранить состав бригады</button>
+        </form>
+        <form data-wp-extension>
+            <h3>Продлить срок наряда</h3>
+            <label>Дата и время оформления (местное время)
+                <input type="datetime-local" name="extended_at" required>
+            </label>
+            <label>Новая дата окончания (местное время)
+                <input type="datetime-local" name="new_finish" required>
+            </label>
+            <label>Причина продления
+                <textarea name="reason" maxlength="1000" required></textarea>
+            </label>
+            <label>Выдавший наряд
+                <select name="issuer_employee_id" data-wp-extension-issuer required></select>
+            </label>
+            <button type="submit">Зарегистрировать продление</button>
+        </form>
+        <button type="button" data-wp-amendments-close>Закрыть карточку</button>
+    </section>
+    <?php endif; ?>
+
+    <?php if (!empty($can_manage_references)): ?>
     <section class="calendar-shell wp-journal__editor" data-wp-daily-panel hidden>
         <h2 data-wp-daily-title>Рабочие смены наряда</h2>
         <p>Сведения отражают фактические допуски и остановки работ. Запись в Notes не заменяет подписи работников в официальном наряде.</p>
@@ -270,5 +309,6 @@ echo $view->layout('core/base', [
         $view->moduleAsset('work-permits', 'work-permits-templates.js'),
         $view->moduleAsset('work-permits', 'work-permits-lifecycle.js'),
         $view->moduleAsset('work-permits', 'work-permits-daily.js'),
+        $view->moduleAsset('work-permits', 'work-permits-amendments.js'),
     ],
 ], $content);
