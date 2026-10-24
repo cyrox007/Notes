@@ -60,6 +60,7 @@
     "20261023_notification_receipt_attestations.sql",
     "20261024_work_permits_drafts.sql",
     "20261024_work_permits_references.sql",
-    "20261024_work_permits_edit_crew.sql"
+    "20261024_work_permits_edit_crew.sql",
+    "20261024_work_permits_templates.sql"
   ]
 }
