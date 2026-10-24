@@ -124,6 +124,9 @@ function workspaceEnsureCiLicense(): void
             if (getenv('E2E_ENABLE_DEFECTS') === '1') {
                 $payload['features'][] = 'workspace.defects';
             }
+            if (getenv('E2E_ENABLE_WORK_PERMITS') === '1') {
+                $payload['features'][] = 'workspace.work-permits';
+            }
             $json = json_encode(
                 $payload,
                 JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
