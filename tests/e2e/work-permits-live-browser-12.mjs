@@ -84,7 +84,7 @@ async function layout(page, width) {
 }
 
 try {
-    const { page: first } = await login('E2E_MANAGER_ONE');
+    const { page: first, context: firstContext } = await login('E2E_MANAGER_ONE');
     const { page: second } = await login('E2E_MANAGER_TWO');
     const { page: worker } = await login('E2E_WORKER', 390);
     assert.equal(await worker.locator('[data-wp-management]').count(), 0,
@@ -100,12 +100,16 @@ try {
     const a = Number(staff.find(x => x.name.includes('Иванов')).id);
     const b = Number(staff.find(x => x.name.includes('Петров')).id);
 
-    const forbiddenCreate = await http(first, 'POST', '/', {
-        command_id: cmd(), kind: 'permit', organization_id: org, facility_id: facility,
-        work_description: 'Запрещённая запись без CSRF',
-    }, false);
-    assert.ok([400, 403, 419].includes(forbiddenCreate.status),
-        'Создание без CSRF прошло: ' + JSON.stringify(forbiddenCreate));
+    // Контекст Playwright разделяет cookie браузера, но не клиентскую обёртку fetch.
+    const unprotected = await firstContext.request.post(base + apiPath + '/', {
+        data: {
+            command_id: cmd(), kind: 'permit', organization_id: org, facility_id: facility,
+            work_description: 'Запрещённая запись без CSRF',
+        },
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    });
+    assert.equal(unprotected.status(), 403,
+        'Сервер принял запрос без токена CSRF, вне браузерной обёртки');
     const created = check(await http(first, 'POST', '/', {
         kind: 'permit', organization_id: org, facility_id: facility,
         work_description: 'Проверка автоматики РЗА в реальном браузере',
