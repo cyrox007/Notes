@@ -25,6 +25,8 @@ body.sidebar-is-collapsed .wrapper__content{margin-left:var(--ui-sidebar-collaps
 .visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 .sidebar-backdrop{position:fixed;inset:0;z-index:990;background:rgba(5,12,24,.52);opacity:0;pointer-events:none;transition:opacity .2s ease}
 .sidebar-backdrop.is-visible{opacity:1;pointer-events:auto}
+/* На экране нарядов закрытая боковая панель не должна расширять мобильный viewport. */
+body:has(.wp-journal) .sidebar-backdrop:not(.is-visible){display:none}
 .skip-link{position:fixed;left:14px;top:10px;z-index:3000;transform:translateY(-160%);padding:9px 12px;border-radius:8px;background:var(--ui-action);color:#fff;font-weight:700}
 .skip-link:focus{transform:none}
 @media(max-width:900px){
