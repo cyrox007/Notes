@@ -68,7 +68,7 @@ final class WorkPermitTemplateService
         if ($row === null || (!$includeArchived && (int) $row['is_archived'] !== 0)) {
             throw new DomainException('Шаблон не найден или недоступен', 404);
         }
-        if ($row['kind'] === 'job') {
+        if ($row['kind'] !== 'crew') {
             return $row;
         }
         $rows = $this->db->fetchAll(
