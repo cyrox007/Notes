@@ -358,19 +358,27 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
                 editDept.value = detail.department_id ? String(detail.department_id) : '';
                 editFacility.value = detail.facility_id ? String(detail.facility_id) : '';
                 editForm.elements.namedItem('work_description').value = detail.work_description;
+                let missingStaff = false;
                 for (const person of detail.crew || []) {
                     const select = person.role === 'member' ? editMembers
                         : editForm.elements.namedItem('role_' + person.role);
                     if (!select) continue;
-                    const option = [...select.options].find(x => x.value === String(person.employee_id));
-                    if (option) option.selected = true;
+                    let option = [...select.options].find(x => x.value === String(person.employee_id));
+                    if (!option) {
+                        missingStaff = true;
+                        option = new Option(person.employee_name + ' (недоступен — замените)',
+                            String(person.employee_id));
+                        select.add(option);
+                    }
+                    option.selected = true;
                 }
                 root.querySelector('[data-wp-edit-title]').textContent =
                     (detail.kind === 'permit' ? 'Наряд-допуск ' : 'Распоряжение ') + '№' + id
                     + ' · черновик, версия ' + editState.version;
                 editor.hidden = false;
                 editor.scrollIntoView({ block: 'start', behavior: 'smooth' });
-                notify('');
+                notify(missingStaff ? 'В документе есть недоступные или архивные сотрудники. Замените их перед сохранением.' : '',
+                    missingStaff);
             } catch (error) {
                 notify(error instanceof Error ? error.message : 'Не удалось загрузить карточку', true);
             } finally {
