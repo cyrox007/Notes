@@ -34,6 +34,8 @@ $otherEmployee = $refs->create('employees', [
 
 $document = $drafts->detail($created['id'], $userA);
 wpAssert($document !== null && (int) $document['version'] === 1, 'Ожидалась исходная версия черновика');
+wpAssert($crewService->prepare($org1['id'], ['roles' => [], 'member_ids' => []]) === [],
+    'Пустую бригаду можно сохранять как черновик');
 wpAssert($document['crew'] === [], 'Новые черновики не должны получать выдуманный состав бригады');
 $update = [
     'version' => 1,
