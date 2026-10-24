@@ -42,7 +42,7 @@
         return zone;
     };
     const candidates = (value, zone) => {
-        if (!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$/.test(value || '')) {
+        if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value || '')) {
             throw new Error('Укажите календарную дату и время объекта');
         }
         const nominal = Date.parse(value + ':00Z');
@@ -112,8 +112,8 @@
         return localText(instant, zone).replace('T', ' ')
             + ' (' + zone + ', ' + offsetLabel(offsetAt(instant, zone)) + ')';
     };
-    const context = (panel, document) => {
-        const zone = zoneFor(document);
+    const context = (panel, card) => {
+        const zone = zoneFor(card);
         let hint = panel.querySelector('[data-wp-time-context]');
         if (!hint) {
             hint = document.createElement('p');
@@ -122,7 +122,7 @@
         }
         hint.textContent = 'Время объекта: ' + zone + '. Вводите часы и минуты по местному '
             + 'времени организации, независимо от часового пояса устройства.'
-            + (document.lifecycle?.issuance ? ' Пояс зафиксирован при выдаче.' : '');
+            + (card.lifecycle?.issuance ? ' Пояс зафиксирован при выдаче.' : '');
         panel.querySelectorAll('[data-wp-time-choice]').forEach(node => node.remove());
     };
     window.WorkPermitTime = { zoneFor, candidates, toUtc, display, context };
