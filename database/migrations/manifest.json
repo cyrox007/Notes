@@ -62,6 +62,7 @@
     "20261024_work_permits_references.sql",
     "20261024_work_permits_edit_crew.sql",
     "20261024_work_permits_templates.sql",
-    "20261024_work_permits_issue_admission.sql"
+    "20261024_work_permits_issue_admission.sql",
+    "20261024_work_permits_daily_periods.sql"
   ]
 }
