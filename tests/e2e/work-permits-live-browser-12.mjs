@@ -112,8 +112,21 @@ async function layout(page, width) {
                 parent: node.parentElement?.className,
             })),
     }));
-    assert.ok(measured.pageWidth <= measured.viewport + 5,
-        'Горизонтальная прокрутка на ' + width + ': ' + JSON.stringify(measured));
+    const scrolledX = await page.evaluate(() => {
+        window.scrollTo(1000, window.scrollY);
+        const reached = window.scrollX;
+        window.scrollTo(0, window.scrollY);
+        return reached;
+    });
+    // На мобильном Chromium scrollWidth может включать невидимую
+    // смещённую боковую панель. Проверяем возможность реальной прокрутки
+    // и фактическую ширину рабочей области, а не только scrollWidth.
+    const contentWidth = await page.locator('.wrapper__content').evaluate(
+        element => element.getBoundingClientRect().width
+    );
+    assert.ok(scrolledX <= 1 && contentWidth >= width - 5,
+        'Содержимое смещается по горизонтали на ' + width + ': '
+        + JSON.stringify({ ...measured, scrolledX, contentWidth }));
     assert.equal(measured.shownHidden, 0, 'Видны скрытые формы: ' + width);
     assert.equal(measured.outOfBounds.length, 0, 'Элементы за экраном: ' + width + ': ' + JSON.stringify(measured.outOfBounds));
 }
