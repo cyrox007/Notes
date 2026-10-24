@@ -12,6 +12,8 @@ on:
       - 'tests/integration/work_permits_references_mysql_12.php'
       - 'tests/integration/work_permits_edit_crew_mysql_12.php'
       - 'tests/integration/work_permits_issue_admission_mysql_12.php'
+      - 'tests/integration/work_permits_crew_extensions_mysql_12.php'
+      - 'database/migrations/20261024_work_permits_crew_extensions.sql'
       - 'database/migrations/20261024_work_permits_issue_admission.sql'
       - 'tests/integration/work_permits_issue_admission_mysql_12.php'
       - 'database/migrations/20261024_work_permits_issue_admission.sql'
@@ -73,6 +75,8 @@ jobs:
           node --check modules/work-permits/assets/work-permits.js
           node --check modules/work-permits/assets/work-permits-templates.js
           node --check modules/work-permits/assets/work-permits-lifecycle.js
+          node --check modules/work-permits/assets/work-permits-daily.js
+          node --check modules/work-permits/assets/work-permits-amendments.js
           node --check modules/work-permits/assets/work-permits-lifecycle.js
           php tests/integration/module_registry_contract.php
           php tests/integration/module_schema_ownership_contract_12.php
@@ -83,4 +87,4 @@ jobs:
           TEST_DB_NAME: workspace_test
           TEST_DB_USER: root
           TEST_DB_PASS: root
-        run: php tests/integration/work_permits_daily_periods_mysql_12.php
+        run: php tests/integration/work_permits_crew_extensions_mysql_12.php
