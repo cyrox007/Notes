@@ -76,7 +76,7 @@ final class WorkPermitIssuanceService
             }
             $timeZone = WorkPermitLocalDay::validate($zone['time_zone']);
             // При смене пояса между открытием формы и выдачей нельзя молча сдвинуть время.
-            if (array_key_exists('time_zone', $input) && $input['time_zone'] !== $timeZone) {
+            if (array_key_exists('time_zone', $data) && $data['time_zone'] !== $timeZone) {
                 throw new DomainException('Часовой пояс организации изменился. Откройте документ повторно', 409);
             }
             if ($document['kind'] === 'order' && !WorkPermitLocalDay::sameDay($start, $finish, $timeZone)) {
