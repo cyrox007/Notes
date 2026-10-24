@@ -68,6 +68,10 @@ async function layout(page, width) {
     const measured = await page.locator('[data-work-permits]').evaluate(root => ({
         pageWidth: document.documentElement.scrollWidth,
         viewport: document.documentElement.clientWidth,
+        innerWidth: window.innerWidth,
+        mobileMediaMatched: matchMedia('(max-width: 900px)').matches,
+        contentMargin: getComputedStyle(document.querySelector('.wrapper__content')).marginLeft,
+        viewportMeta: document.querySelector('meta[name="viewport"]')?.content,
         overflowing: [...document.querySelectorAll('body *')]
             .filter(node => {
                 if (!node.getClientRects().length) return false;
