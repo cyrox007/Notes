@@ -75,12 +75,18 @@ async function layout(page, width) {
                 if (!node.getClientRects().length) return false;
                 const bounds = node.getBoundingClientRect();
                 return bounds.left < -4 || bounds.right > innerWidth + 4;
-            }).length,
+            }).map(node => ({
+                type: node.tagName.toLowerCase(), name: node.getAttribute('name'),
+                label: node.textContent?.trim().slice(0, 50),
+                rect: { left: Math.round(node.getBoundingClientRect().left),
+                    right: Math.round(node.getBoundingClientRect().right) },
+                parent: node.parentElement?.className,
+            })),
     }));
     assert.ok(measured.pageWidth <= measured.viewport + 5,
         'Горизонтальная прокрутка на ' + width + ': ' + JSON.stringify(measured));
     assert.equal(measured.shownHidden, 0, 'Видны скрытые формы: ' + width);
-    assert.equal(measured.outOfBounds, 0, 'Элементы за экраном: ' + width);
+    assert.equal(measured.outOfBounds.length, 0, 'Элементы за экраном: ' + width + ': ' + JSON.stringify(measured.outOfBounds));
 }
 
 try {
