@@ -56,3 +56,38 @@
  .wp-journal__actions{align-items:stretch}
  .wp-journal__actions button{width:100%}
 }
+
+/* На экранах 320–390px раскрытые формы и легенды не выходят за пределы viewport. */
+@media(max-width:480px){
+ .wp-journal{width:100%;max-width:100%;box-sizing:border-box;min-width:0}
+ .wp-journal .wp-journal__registry,.wp-journal .wp-journal__editor,
+ .wp-journal .wp-journal__row,.wp-journal fieldset{min-width:0;max-width:100%;box-sizing:border-box}
+ .wp-journal .wp-journal__row>*,.wp-journal label,.wp-journal legend{min-width:0;max-width:100%;overflow-wrap:anywhere}
+ .wp-journal select,.wp-journal input,.wp-journal textarea,.wp-journal button{max-width:100%;min-width:0;box-sizing:border-box}
+ .wp-journal .wp-journal__reference{grid-template-columns:minmax(0,1fr)}
+ .wp-journal .wp-journal__template-picker{grid-template-columns:minmax(0,1fr)}
+}
+
+/* В некоторых обёртках модуля отступ рабочего содержимого от боковой панели
+   оставался 204px на телефонах, несмотря на общие мобильные правила. */
+@media(max-width:900px){
+ body:has(.wp-journal) .wrapper__content,
+ body.sidebar-is-collapsed:has(.wp-journal) .wrapper__content{
+  margin-left:0!important;width:100%;max-width:100%;min-width:0;
+ }
+ body:has(.wp-journal) .navbar{min-width:0;max-width:100%;box-sizing:border-box}
+}
+
+/* Боковая панель скрыта сдвигом; её вынесенная за экран геометрия
+   не должна создавать горизонтальную область прокрутки документа. */
+@media(max-width:480px){
+ html:has(.wp-journal),body:has(.wp-journal),
+ body:has(.wp-journal) .wrapper{max-width:100%;overflow-x:clip}
+}
+
+/* Невидимая фиксированная подложка боковой панели не должна расширять
+   мобильную область просмотра: выводим её только при открытой панели. */
+@media(max-width:900px){
+ body:has(.wp-journal) .sidebar-backdrop:not(.is-visible){display:none!important}
+ body:has(.wp-journal) .sidebar-backdrop.is-visible{display:block}
+}
