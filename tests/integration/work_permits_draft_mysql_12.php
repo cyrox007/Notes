@@ -59,6 +59,7 @@ putenv('DBPASS=' . $dbPass);
 require_once $root . '/core/Config.php';
 require_once $root . '/core/DatabaseManager.php';
 require_once $root . '/app/services/PermissionService.php';
+require_once $root . '/modules/work-permits/services/WorkPermitCrewService.php';
 require_once $root . '/modules/work-permits/services/WorkPermitDraftService.php';
 
 \Core\DatabaseManager::resetInstance();
