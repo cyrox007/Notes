@@ -8,6 +8,7 @@ require_once dirname(__DIR__, 3) . '/app/services/notifications/NotificationChan
 require_once dirname(__DIR__, 3) . '/app/services/notifications/NotificationExternalChannelAdministration.php';
 require_once dirname(__DIR__, 3) . '/app/services/notifications/TaskReminderScheduleHealth.php';
 require_once dirname(__DIR__, 3) . '/app/services/notifications/NotificationWorkerScheduleHealth.php';
+require_once dirname(__DIR__, 3) . '/app/services/notifications/SmtpDeliveryGuidance.php';
 
 use App\Helpers\CryptMethods;
 use App\Models\UserModel;
@@ -15,6 +16,7 @@ use App\Services\Notifications\NotificationChannelAdministration;
 use App\Services\Notifications\NotificationExternalChannelAdministration;
 use App\Services\Notifications\TaskReminderScheduleHealth;
 use App\Services\Notifications\NotificationWorkerScheduleHealth;
+use App\Services\Notifications\SmtpDeliveryGuidance;
 use App\Services\Notifications\NotificationReceiptAttestation;
 use App\Services\Notifications\NotificationLiveAcceptanceReport;
 use App\Services\Notifications\NotificationDeliveryReviewQueue;
@@ -192,11 +194,18 @@ final class NotificationSettingsController extends Controller
                 'success', 200,
                 ['channel' => $channel, 'job_id' => $result['job_id'], 'state' => $result['state']]
             );
+            $message = match ($result['state']) {
+                'sent' => 'Внешний сервис принял уведомление. Проверьте его фактическое получение.',
+                'failed' => 'Пробная доставка завершилась ошибкой. Сообщение не принято внешним сервисом.',
+                'retry' => 'Пробная доставка временно не удалась. Задание ожидает повторной попытки.',
+                default => 'Пробное уведомление создано, но доставка ещё не завершена.',
+            };
             return [
                 'status' => 'ok',
-                'message' => $result['state'] === 'sent'
-                    ? 'Внешний сервис принял уведомление. Проверьте его фактическое получение.'
-                    : 'Пробное уведомление создано. Доставка ещё не подтверждена: смотрите состояние очереди.',
+                'message' => $message,
+                'guidance' => $channel === 'email'
+                    ? SmtpDeliveryGuidance::forCode($result['last_result_code'] ?? null)
+                    : null,
                 ...$result,
             ];
         });
