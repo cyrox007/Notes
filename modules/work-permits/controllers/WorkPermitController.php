@@ -13,6 +13,7 @@ use DomainException;
 use InvalidArgumentException;
 use Modules\WorkPermits\Services\WorkPermitDraftService;
 use Modules\WorkPermits\Services\WorkPermitDraftEditService;
+use Modules\WorkPermits\Services\WorkPermitIssuanceService;
 use Throwable;
 
 /**
@@ -58,11 +59,24 @@ final class WorkPermitController extends Controller
     public function show(Request $request, int $id): void
     {
         $this->handle($request, function (int $actor) use ($id): array {
-            $document = $this->drafts()->detail($id, $actor);
+            $canManage = (new PermissionService())->hasPermission($actor, 'work_permits.manage');
+            $document = $this->drafts()->detail($id, $actor, $canManage);
             if ($document === null) {
                 throw new DomainException('Документ не найден или недоступен', 404);
             }
             return ['document' => $document];
+        });
+    }
+
+    public function managementList(Request $request): void
+    {
+        $this->handle($request, function (int $actor) use ($request): array {
+            (new PermissionService())->requirePermission($actor, 'work_permits.manage');
+            return $this->drafts()->managementList(
+                $this->number($request->get('limit', 20), 'limit'),
+                $this->number($request->get('before_id', 0), 'before_id'),
+                (string) $request->get('state', 'draft')
+            );
         });
     }
 
@@ -91,6 +105,35 @@ final class WorkPermitController extends Controller
                     ]);
             }
             return ['document' => $changed];
+        });
+    }
+
+    /** Только управление модулем: регистрация события выдачи не равна подписи работника. */
+    public function issue(Request $request, int $id): void
+    {
+        $this->handle($request, function (int $actor) use ($request, $id): array {
+            (new PermissionService())->requirePermission($actor, 'work_permits.manage');
+            $result = (new WorkPermitIssuanceService(DatabaseManager::getInstance()))
+                ->issue($id, $actor, $this->json($request));
+            if (!$result['replayed']) {
+                UserActionLog::emit($actor, 'work_permits.issued', 'work-permits', 'http',
+                    'success', 200, ['document_id' => $id, 'version' => $result['version']]);
+            }
+            return ['document' => $result];
+        });
+    }
+
+    public function firstAdmission(Request $request, int $id): void
+    {
+        $this->handle($request, function (int $actor) use ($request, $id): array {
+            (new PermissionService())->requirePermission($actor, 'work_permits.manage');
+            $result = (new WorkPermitIssuanceService(DatabaseManager::getInstance()))
+                ->firstAdmission($id, $actor, $this->json($request));
+            if (!$result['replayed']) {
+                UserActionLog::emit($actor, 'work_permits.first_admission', 'work-permits',
+                    'http', 'success', 200, ['document_id' => $id, 'version' => $result['version']]);
+            }
+            return ['document' => $result];
         });
     }
 

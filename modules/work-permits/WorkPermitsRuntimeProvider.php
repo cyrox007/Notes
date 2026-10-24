@@ -36,9 +36,12 @@ final class WorkPermitsRuntimeProvider implements ModuleRuntimeProvider
 
         $router->group('/api/work-permits')
             ->add('GET', '/', [WorkPermitController::class, 'list'], [ApiLoginRequired::class], 'work_permits_list')
+            ->add('GET', '/management', [WorkPermitController::class, 'managementList'], [ApiLoginRequired::class], 'work_permits_management')
             ->add('GET', '/{int:id}', [WorkPermitController::class, 'show'], [ApiLoginRequired::class], 'work_permits_show')
             ->add('POST', '/', [WorkPermitController::class, 'create'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_create')
             ->add('POST', '/{int:id}/edit', [WorkPermitController::class, 'edit'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_edit')
+            ->add('POST', '/{int:id}/issue', [WorkPermitController::class, 'issue'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_issue')
+            ->add('POST', '/{int:id}/first-admission', [WorkPermitController::class, 'firstAdmission'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_first_admission')
             ->add('GET', '/templates', [WorkPermitController::class, 'templates'], [ApiLoginRequired::class], 'work_permits_templates')
             ->add('GET', '/templates/{int:id}', [WorkPermitController::class, 'template'], [ApiLoginRequired::class], 'work_permits_template')
             ->add('POST', '/templates', [WorkPermitController::class, 'createTemplate'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_template_create')

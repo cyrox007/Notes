@@ -6,7 +6,7 @@ declare(strict_types=1);
 $baseUrl = rtrim((string) ($base_url ?? ''), '/');
 ob_start();
 ?>
-<main class="wp-journal" data-work-permits data-base-url="<?= $view->e($baseUrl) ?>">
+<main class="wp-journal" data-work-permits data-base-url="<?= $view->e($baseUrl) ?>" data-wp-can-manage="<?= !empty($can_manage_references) ? '1' : '0' ?>">
     <?= $csrf_input ?? '' ?>
     <header class="module-page-header">
         <h1>Наряды и допуски</h1>
@@ -75,6 +75,71 @@ ob_start();
             </div>
         </form>
     </section>
+
+    <?php if (!empty($can_manage_references)): ?>
+    <section class="calendar-shell wp-journal__registry" data-wp-management>
+        <h2>Журнал на выдачу и первичный допуск</h2>
+        <p>Показываются документы разных авторов. Операции требуют разрешения на управление модулем.</p>
+        <label>Состояние
+            <select data-wp-management-state>
+                <option value="draft">Черновики для выдачи</option>
+                <option value="issued">Выданные документы</option>
+                <option value="closed">Закрытые</option>
+            </select>
+        </label>
+        <div data-wp-management-list aria-live="polite"></div>
+        <button type="button" data-wp-management-more hidden>Показать ещё</button>
+    </section>
+    <section class="calendar-shell wp-journal__editor" data-wp-lifecycle hidden aria-label="Выдача и первичный допуск">
+        <h2 data-wp-lifecycle-title>Выдача документа</h2>
+        <p>Операция фиксирует действие пользователя системы. Электронной подписью работника она не является. Фактическую подготовку места и инструктаж подтверждайте только после их выполнения.</p>
+        <form data-wp-issue-form hidden>
+            <label>Плановое начало (местное время)
+                <input type="datetime-local" name="planned_start" required>
+            </label>
+            <label>Плановое окончание (местное время)
+                <input type="datetime-local" name="planned_finish" required>
+            </label>
+            <label class="wp-journal__wide">Отдельные указания
+                <textarea name="special_instructions" maxlength="4000" rows="3"></textarea>
+            </label>
+            <fieldset class="wp-journal__wide" data-wp-measures>
+                <legend>Меры безопасности и подготовка рабочего места</legend>
+                <p>Укажите отдельные мероприятия. Если отключения не нужны, явно опишите почему.</p>
+                <div data-wp-measure-list></div>
+                <button type="button" data-wp-add-measure>Добавить мероприятие</button>
+            </fieldset>
+            <div class="wp-journal__actions wp-journal__wide">
+                <button type="submit" data-wp-issue-submit>Выдать документ</button>
+                <button type="button" data-wp-lifecycle-cancel>Отмена</button>
+            </div>
+        </form>
+        <form data-wp-admission-form hidden>
+            <label>Фактическое начало работ (местное время)
+                <input type="datetime-local" name="started_at" required>
+            </label>
+            <label>Допускающий
+                <select name="admitted_employee_id" required></select>
+            </label>
+            <label>Инструктаж провёл
+                <select name="briefed_by_employee_id" required></select>
+            </label>
+            <label>Инструктаж получил (производитель работ)
+                <select name="briefing_recipient_id" required></select>
+            </label>
+            <label class="wp-journal__wide"><input type="checkbox" name="workplace_prepared" required>
+                Рабочее место фактически подготовлено
+            </label>
+            <label class="wp-journal__wide"><input type="checkbox" name="briefing_confirmed" required>
+                Целевой инструктаж фактически проведён и получен
+            </label>
+            <div class="wp-journal__actions wp-journal__wide">
+                <button type="submit" data-wp-admission-submit>Зафиксировать первый допуск</button>
+                <button type="button" data-wp-lifecycle-cancel>Отмена</button>
+            </div>
+        </form>
+    </section>
+    <?php endif; ?>
 
     <?php if (!empty($can_manage_references)): ?>
     <details class="calendar-shell wp-journal__registry" data-wp-admin>
@@ -153,5 +218,6 @@ echo $view->layout('core/base', [
     'module_scripts' => [
         $view->moduleAsset('work-permits', 'work-permits.js'),
         $view->moduleAsset('work-permits', 'work-permits-templates.js'),
+        $view->moduleAsset('work-permits', 'work-permits-lifecycle.js'),
     ],
 ], $content);
