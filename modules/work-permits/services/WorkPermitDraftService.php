@@ -163,7 +163,9 @@ final class WorkPermitDraftService
             'SELECT id,kind,state,organization,facility,work_description,version,
                     created_by_user_id,created_at,
                     (SELECT COUNT(*) FROM work_permit_first_admissions fa
-                     WHERE fa.document_id=work_permit_documents.id) AS has_first_admission
+                     WHERE fa.document_id=work_permit_documents.id) AS has_first_admission,
+                    (SELECT COUNT(*) FROM work_permit_completions co
+                     WHERE co.document_id=work_permit_documents.id) AS has_completion
              FROM work_permit_documents
              WHERE state=:state' . $cursor . ' ORDER BY id DESC LIMIT ' . ($limit + 1),
             $params
@@ -197,6 +199,7 @@ final class WorkPermitDraftService
         $document['crew'] = (new WorkPermitCrewService($this->db))->forDocument($documentId);
         $document['lifecycle'] = (new WorkPermitIssuanceService($this->db))->details($documentId);
         $document['lifecycle'] += (new WorkPermitChangeService($this->db))->details($documentId);
+        $document['lifecycle'] += (new WorkPermitClosureService($this->db))->details($documentId);
         return $document;
     }
 

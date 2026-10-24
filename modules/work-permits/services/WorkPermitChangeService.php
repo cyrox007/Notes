@@ -216,6 +216,12 @@ final class WorkPermitChangeService
     /** @param array<string,mixed> $document */
     private function requireIssuedPermit(array $document, int $expected): void
     {
+        if ($this->db->fetchOne(
+            'SELECT document_id FROM work_permit_completions WHERE document_id=:doc',
+            [':doc' => $document['id']]
+        ) !== null) {
+            throw new DomainException('После завершения работ изменение бригады и продление запрещены', 409);
+        }
         if ($document['kind'] !== 'permit' || $document['state'] !== 'issued'
             || (int) $document['version'] !== $expected) {
             throw new DomainException('Наряд изменён, закрыт или находится в другом состоянии', 409);

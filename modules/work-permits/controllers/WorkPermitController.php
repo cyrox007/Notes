@@ -16,6 +16,7 @@ use Modules\WorkPermits\Services\WorkPermitDraftEditService;
 use Modules\WorkPermits\Services\WorkPermitIssuanceService;
 use Modules\WorkPermits\Services\WorkPermitDailyService;
 use Modules\WorkPermits\Services\WorkPermitChangeService;
+use Modules\WorkPermits\Services\WorkPermitClosureService;
 use Throwable;
 
 /**
@@ -182,6 +183,43 @@ final class WorkPermitController extends Controller
                     'http', 'success', 200, ['document_id' => $id, 'version' => $changed['version']]);
             }
             return ['document' => $changed];
+        });
+    }
+
+    public function complete(Request $request, int $id): void
+    {
+        $this->closeStage($request, $id, 'complete');
+    }
+
+    public function closePermit(Request $request, int $id): void
+    {
+        $this->closeStage($request, $id, 'close_permit');
+    }
+
+    public function closeOrder(Request $request, int $id): void
+    {
+        $this->closeStage($request, $id, 'close_order');
+    }
+
+    /** Оформление событий завершения требует отдельного административного права. */
+    private function closeStage(Request $request, int $id, string $action): void
+    {
+        $this->handle($request, function (int $actor) use ($request, $id, $action): array {
+            (new PermissionService())->requirePermission($actor, 'work_permits.manage');
+            $service = new WorkPermitClosureService(DatabaseManager::getInstance());
+            $input = $this->json($request);
+            $result = match ($action) {
+                'complete' => $service->complete($id, $actor, $input),
+                'close_permit' => $service->closePermit($id, $actor, $input),
+                'close_order' => $service->closeOrder($id, $actor, $input),
+            };
+            if (!$result['replayed']) {
+                UserActionLog::emit($actor, 'work_permits.' . $action, 'work-permits',
+                    'http', 'success', 200, [
+                        'document_id' => $id, 'version' => $result['version'],
+                    ]);
+            }
+            return ['document' => $result];
         });
     }
 

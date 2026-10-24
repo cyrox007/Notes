@@ -142,6 +142,53 @@ ob_start();
     <?php endif; ?>
 
     <?php if (!empty($can_manage_references)): ?>
+    <section class="calendar-shell wp-journal__editor" data-wp-closure hidden>
+        <h2 data-wp-closure-title>Завершение и закрытие</h2>
+        <p>Действия фиксируют события в Notes, но не заменяют собственноручные подписи или обязательное оформление наряда.</p>
+        <div data-wp-closure-history aria-live="polite"></div>
+        <form data-wp-complete-form hidden>
+            <h3>Полное окончание работ по наряду</h3>
+            <label>Фактическое время окончания (местное время)
+                <input type="datetime-local" name="completed_at" required>
+            </label>
+            <label>Производитель работ
+                <select name="producer_employee_id" required></select>
+            </label>
+            <label class="wp-journal__wide">Примечание
+                <textarea name="note" maxlength="1000" rows="3"></textarea>
+            </label>
+            <label class="wp-journal__wide"><input type="checkbox" name="workplace_safe" required>
+                Рабочее место приведено в безопасное состояние
+            </label>
+            <label class="wp-journal__wide"><input type="checkbox" name="crew_withdrawn" required>
+                Бригада выведена с рабочего места
+            </label>
+            <button type="submit">Зафиксировать окончание работ</button>
+        </form>
+        <form data-wp-final-close-form hidden>
+            <h3 data-wp-final-close-label>Окончательно закрыть документ</h3>
+            <label>Дата и время закрытия (местное время)
+                <input type="datetime-local" name="closed_at" required>
+            </label>
+            <label>Закрывающий работник
+                <select name="closer_employee_id" required></select>
+            </label>
+            <label class="wp-journal__wide">Примечание
+                <textarea name="note" maxlength="1000" rows="3"></textarea>
+            </label>
+            <label class="wp-journal__wide"><input type="checkbox" name="workplace_accepted" required>
+                Состояние рабочего места проверено
+            </label>
+            <label class="wp-journal__wide"><input type="checkbox" name="documents_handed_over" required>
+                Оформленные документы переданы
+            </label>
+            <button type="submit" data-wp-final-close-submit>Закрыть документ</button>
+        </form>
+        <button type="button" data-wp-closure-cancel>Вернуться в журнал</button>
+    </section>
+    <?php endif; ?>
+
+    <?php if (!empty($can_manage_references)): ?>
     <section class="calendar-shell wp-journal__editor" data-wp-amendments hidden>
         <h2 data-wp-amendments-title>Изменения выданного наряда</h2>
         <p>Изменения оформляются между рабочими периодами. Все прежние сроки и составы сохраняются в истории.</p>
@@ -310,5 +357,6 @@ echo $view->layout('core/base', [
         $view->moduleAsset('work-permits', 'work-permits-lifecycle.js'),
         $view->moduleAsset('work-permits', 'work-permits-daily.js'),
         $view->moduleAsset('work-permits', 'work-permits-amendments.js'),
+        $view->moduleAsset('work-permits', 'work-permits-closure.js'),
     ],
 ], $content);
