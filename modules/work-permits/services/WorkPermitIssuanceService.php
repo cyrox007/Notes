@@ -71,16 +71,24 @@ final class WorkPermitIssuanceService
             $this->activeEmployee((int) $issuer['employee_id'], (int) $document['organization_id']);
             $this->activeEmployee((int) $producer['employee_id'], (int) $document['organization_id']);
 
+            $zone = $this->db->fetchOne(
+                'SELECT time_zone FROM work_permit_organizations WHERE id=:org FOR UPDATE',
+                [':org' => $document['organization_id']]
+            );
+            if ($zone === null) {
+                throw new DomainException('Организация наряда не найдена', 409);
+            }
+            $timeZone = WorkPermitLocalDay::validate($zone['time_zone']);
             $this->db->execute(
                 'INSERT INTO work_permit_issuances
                     (document_id,issuer_employee_id,issuer_name,producer_employee_id,producer_name,
-                     planned_start,planned_finish,special_instructions,work_conditions,issued_by_user_id)
-                 VALUES (:doc,:issuer,:issuer_name,:producer,:producer_name,:start,:finish,:instructions,:conditions,:actor)',
+                     planned_start,planned_finish,time_zone,special_instructions,work_conditions,issued_by_user_id)
+                 VALUES (:doc,:issuer,:issuer_name,:producer,:producer_name,:start,:finish,:zone,:instructions,:conditions,:actor)',
                 [
                     ':doc' => $documentId,
                     ':issuer' => $issuer['employee_id'], ':issuer_name' => $issuer['employee_name'],
                     ':producer' => $producer['employee_id'], ':producer_name' => $producer['employee_name'],
-                    ':start' => $start, ':finish' => $finish,
+                    ':start' => $start, ':finish' => $finish, ':zone' => $timeZone,
                     ':instructions' => $instructions, ':conditions' => $conditions, ':actor' => $actor,
                 ]
             );
@@ -195,7 +203,7 @@ final class WorkPermitIssuanceService
         return [
             'issuance' => $this->db->fetchOne(
                 'SELECT issuer_employee_id,issuer_name,producer_employee_id,producer_name,
-                        planned_start,planned_finish,special_instructions,work_conditions,issued_at
+                        planned_start,planned_finish,time_zone,special_instructions,work_conditions,issued_at
                  FROM work_permit_issuances WHERE document_id=:id LIMIT 1',
                 [':id' => $documentId]
             ),
