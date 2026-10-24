@@ -39,6 +39,7 @@ final class WorkPermitController extends Controller
         $this->render_template('@work-permits/index', [
             'user' => $user,
             'csrf_input' => $this->getCSRFInputTag(),
+            'can_manage_references' => (new PermissionService())->hasPermission($id, 'work_permits.manage'),
         ]);
     }
 
@@ -67,10 +68,7 @@ final class WorkPermitController extends Controller
     public function create(Request $request): void
     {
         $this->handle($request, function (int $actor) use ($request): array {
-            $payload = $request->rawJson();
-            if (!is_array($payload) || array_is_list($payload)) {
-                throw new InvalidArgumentException('Ожидается JSON-объект');
-            }
+            $payload = $this->json($request);
             $created = $this->drafts()->create($actor, $payload);
             if (!$created['replayed']) {
                 UserActionLog::emit($actor, 'work_permits.draft_created', 'work-permits', 'http',
@@ -78,6 +76,76 @@ final class WorkPermitController extends Controller
             }
             return ['document' => $created];
         }, 201);
+    }
+
+    /** Ограниченный список для формы; архив виден только управляющему. */
+    public function references(Request $request, string $kind): void
+    {
+        $this->handle($request, function (int $actor) use ($request, $kind): array {
+            $archived = (string) $request->get('archived', '0') === '1';
+            if ($archived) {
+                (new PermissionService())->requirePermission($actor, 'work_permits.manage');
+            }
+            return $this->referencesService()->listing(
+                $kind,
+                $this->number($request->get('organization_id', 0), 'organization_id'),
+                $archived,
+                $this->number($request->get('limit', 50), 'limit'),
+                $this->number($request->get('before_id', 0), 'before_id')
+            );
+        });
+    }
+
+    public function createReference(Request $request, string $kind): void
+    {
+        $this->handle($request, function (int $actor) use ($request, $kind): array {
+            (new PermissionService())->requirePermission($actor, 'work_permits.manage');
+            $created = $this->referencesService()->create($kind, $this->json($request), $actor);
+            UserActionLog::emit($actor, 'work_permits.reference_created', 'work-permits',
+                'http', 'success', 201, ['kind' => $kind, 'id' => $created['id']]);
+            return ['reference' => $created];
+        }, 201);
+    }
+
+    public function changeReference(Request $request, string $kind, int $id): void
+    {
+        $this->handle($request, function (int $actor) use ($request, $kind, $id): array {
+            (new PermissionService())->requirePermission($actor, 'work_permits.manage');
+            $payload = $this->json($request);
+            $action = $payload['action'] ?? null;
+            $name = $action === 'rename' ? ($payload['name'] ?? null) : null;
+            if ($action === 'rename' && !is_string($name)) {
+                throw new InvalidArgumentException('Название должно быть строкой');
+            }
+            $archived = match ($action) {
+                'archive' => true,
+                'restore' => false,
+                'rename' => null,
+                default => throw new InvalidArgumentException('Неизвестное действие со справочником'),
+            };
+            $updated = $this->referencesService()->change(
+                $kind, $id, $this->number($payload['version'] ?? null, 'version'),
+                $actor, $name, $archived
+            );
+            UserActionLog::emit($actor, 'work_permits.reference_changed', 'work-permits',
+                'http', 'success', 200, ['kind' => $kind, 'id' => $id, 'action' => $action]);
+            return ['reference' => $updated];
+        });
+    }
+
+    /** @return array<string,mixed> */
+    private function json(Request $request): array
+    {
+        $payload = $request->rawJson();
+        if (!is_array($payload) || array_is_list($payload)) {
+            throw new InvalidArgumentException('Ожидается JSON-объект');
+        }
+        return $payload;
+    }
+
+    private function referencesService(): \Modules\WorkPermits\Services\WorkPermitReferenceService
+    {
+        return new \Modules\WorkPermits\Services\WorkPermitReferenceService(DatabaseManager::getInstance());
     }
 
     private function drafts(): WorkPermitDraftService

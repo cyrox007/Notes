@@ -27,13 +27,19 @@
   "database": {
     "tables": [
       "work_permit_documents",
-      "work_permit_history"
+      "work_permit_history",
+      "work_permit_organizations",
+      "work_permit_departments",
+      "work_permit_facilities",
+      "work_permit_employees",
+      "work_permit_reference_history"
     ],
     "schemas": [
       "database/work_permits_schema.sql"
     ],
     "migrations": [
-      "database/migrations/20261024_work_permits_drafts.sql"
+      "database/migrations/20261024_work_permits_drafts.sql",
+      "database/migrations/20261024_work_permits_references.sql"
     ]
   },
   "background": {

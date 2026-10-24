@@ -15,3 +15,10 @@
 .wp-journal [data-wp-feedback][data-state=error]{color:var(--ui-danger);background:var(--ui-danger-soft)}
 @media(max-width:640px){.wp-journal{padding:10px}.wp-journal__editor form{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.wp-journal *{scroll-behavior:auto!important}}
+
+.wp-journal [data-wp-admin] summary{cursor:pointer;font-weight:700;padding:8px 0}
+.wp-journal [data-wp-reference-form]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px 0}
+.wp-journal [data-wp-reference-form] label{display:grid;gap:6px;font-size:13px}
+.wp-journal__reference{grid-template-columns:1fr minmax(160px,2fr) auto auto;align-items:center;gap:8px}
+.wp-journal__reference button{font-size:12px}
+@media(max-width:700px){.wp-journal [data-wp-reference-form]{grid-template-columns:1fr}.wp-journal__reference{grid-template-columns:1fr 1fr}.wp-journal__reference strong,.wp-journal__reference input{grid-column:1/-1}}

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 foreach ([
+    'services/WorkPermitReferenceService.php',
     'services/WorkPermitDraftService.php',
     'controllers/WorkPermitController.php',
     'WorkPermitsCapability.php',
