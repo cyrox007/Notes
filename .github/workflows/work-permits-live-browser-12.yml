@@ -59,7 +59,9 @@ jobs:
             database/file_storage_quota_schema.sql database/file_spaces_schema.sql \
             database/user_fields_schema.sql database/tasks_schema.sql \
             database/calendar_schema.sql database/notifications_schema.sql \
-            database/work_permits_schema.sql database/migrations/20261017_mutation_commands.sql; do
+            database/defects_schema.sql database/work_permits_schema.sql \
+            database/migrations/20261017_mutation_commands.sql \
+            database/migrations/20261019_defects_foundation.sql; do
             mysql -h 127.0.0.1 -uroot -proot work_permits_browser < "$file"
           done
       - name: Подготовить роли и временную лицензию
