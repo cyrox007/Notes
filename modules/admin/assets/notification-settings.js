@@ -36,11 +36,13 @@ window.wspace.page.register('modules/admin/assets/notification-settings.js', (pa
                     }
                     // HTTP 200 подтверждает запись пробного события, но не
                     // означает успешную передачу письма внешнему серверу.
-                    feedback.dataset.state = result.job_id && result.state === 'failed'
-                        ? 'error'
-                        : result.job_id && result.state !== 'sent'
-                            ? 'warning'
-                            : 'success';
+                    let indication = 'success';
+                    if (result.job_id && result.state === 'failed') {
+                        indication = 'error';
+                    } else if (result.job_id && result.state !== 'sent') {
+                        indication = 'warning';
+                    }
+                    feedback.dataset.state = indication;
                     const password = form.querySelector('[name="current_password"]');
                     if (password) password.value = '';
                 } catch (error) {
