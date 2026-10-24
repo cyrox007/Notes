@@ -295,7 +295,7 @@ ob_start();
     <?php if (!empty($can_manage_references)): ?>
     <details class="calendar-shell wp-journal__registry" data-wp-admin>
         <summary>Управление справочниками</summary>
-        <p>Названия можно изменять; старые документы сохраняют название на момент регистрации. Удаления нет — используйте архив.</p>
+        <p>Названия можно изменять; старые документы сохраняют название на момент регистрации. Для организаций укажите часовой пояс IANA: он фиксируется при выдаче наряда и не изменяет ранее выданные документы. Удаления нет — используйте архив.</p>
         <form data-wp-reference-form>
             <label>Справочник
                 <select name="kind" data-wp-kind>
@@ -312,6 +312,10 @@ ob_start();
                 <select name="department_id" data-wp-admin-dept><option value="">Без подразделения</option></select>
             </label>
             <label>Название / ФИО <input name="name" maxlength="180" required></label>
+            <label data-wp-time-zone-field>Часовой пояс организации (IANA)
+                <input name="time_zone" maxlength="64" value="UTC" list="wp-time-zones" required>
+                <datalist id="wp-time-zones"><option value="UTC"></option><option value="Europe/Moscow"></option><option value="Europe/Amsterdam"></option><option value="Asia/Yekaterinburg"></option><option value="Asia/Novosibirsk"></option><option value="Asia/Vladivostok"></option></datalist>
+            </label>
             <label data-wp-group-field hidden>Группа электробезопасности
                 <select name="electrical_group">
                     <option value="">Не указана</option>

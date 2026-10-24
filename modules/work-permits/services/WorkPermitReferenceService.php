@@ -52,7 +52,7 @@ final class WorkPermitReferenceService
             $params[':before'] = $beforeId;
         }
         $where = $conditions !== [] ? ' WHERE ' . implode(' AND ', $conditions) : '';
-        $fields = $kind === 'organizations' ? 'id,name,is_archived,version'
+        $fields = $kind === 'organizations' ? 'id,name,time_zone,is_archived,version'
             : ($kind === 'employees' ? 'id,organization_id,department_id,name,electrical_group,is_archived,version'
                 : 'id,organization_id,name,is_archived,version');
         $rows = $this->db->fetchAll(
@@ -97,6 +97,10 @@ final class WorkPermitReferenceService
 
         $cols = ['name'];
         $params = [':name' => $name];
+        if ($kind === 'organizations') {
+            $cols[] = 'time_zone';
+            $params[':time_zone'] = WorkPermitLocalDay::validate($data['time_zone'] ?? 'UTC');
+        }
         if ($kind !== 'organizations') {
             $cols[] = 'organization_id';
             $params[':organization_id'] = $org;
@@ -169,6 +173,32 @@ final class WorkPermitReferenceService
             throw $e;
         }
         return ['id' => $id, 'version' => $expectedVersion + 1, 'archived' => $archived ?? false];
+    }
+
+    /** Смена часового пояса относится только к будущим выдачам нарядов. */
+    public function changeTimeZone(int $id, int $version, int $actor, mixed $zone): array
+    {
+        if ($id < 1 || $version < 1) {
+            throw new InvalidArgumentException('Неверный идентификатор или версия');
+        }
+        $zone = WorkPermitLocalDay::validate($zone);
+        $this->db->beginTransaction();
+        try {
+            $changed = $this->db->execute(
+                'UPDATE work_permit_organizations SET time_zone=:zone,version=version+1
+                 WHERE id=:id AND version=:version AND is_archived=0',
+                [':zone' => $zone, ':id' => $id, ':version' => $version]
+            );
+            if ($changed !== 1) {
+                throw new DomainException('Организация изменена или архивирована', 409);
+            }
+            $this->record('organizations', $id, $actor, 'time_zone_changed', $version + 1);
+            $this->db->endTransaction();
+        } catch (Throwable $error) {
+            $this->db->endTransaction(false);
+            throw $error;
+        }
+        return ['id' => $id, 'version' => $version + 1, 'time_zone' => $zone];
     }
 
     /**

@@ -57,6 +57,7 @@ WHERE r.code IN ('admin','superadmin');
 CREATE TABLE IF NOT EXISTS `work_permit_organizations` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `name` VARCHAR(160) NOT NULL,
+    `time_zone` VARCHAR(64) NOT NULL DEFAULT 'UTC',
     `is_archived` TINYINT(1) NOT NULL DEFAULT 0,
     `version` BIGINT UNSIGNED NOT NULL DEFAULT 1,
     UNIQUE KEY `uq_wpo_name` (`name`)
@@ -198,6 +199,7 @@ CREATE TABLE IF NOT EXISTS work_permit_issuances (
  producer_name VARCHAR(180) NOT NULL,
  planned_start DATETIME NOT NULL,
  planned_finish DATETIME NOT NULL,
+ time_zone VARCHAR(64) NOT NULL DEFAULT 'UTC',
  special_instructions TEXT NOT NULL,
  work_conditions TEXT NULL,
  issued_by_user_id INT DEFAULT NULL,

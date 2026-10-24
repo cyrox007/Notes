@@ -362,6 +362,18 @@ final class WorkPermitController extends Controller
             (new PermissionService())->requirePermission($actor, 'work_permits.manage');
             $payload = $this->json($request);
             $action = $payload['action'] ?? null;
+            if ($action === 'set_time_zone') {
+                if ($kind !== 'organizations') {
+                    throw new InvalidArgumentException('Часовой пояс настраивается только у организации');
+                }
+                $updated = $this->referencesService()->changeTimeZone(
+                    $id, $this->number($payload['version'] ?? null, 'version'),
+                    $actor, $payload['time_zone'] ?? null
+                );
+                UserActionLog::emit($actor, 'work_permits.time_zone_changed',
+                    'work-permits', 'http', 'success', 200, ['id' => $id]);
+                return ['reference' => $updated];
+            }
             $name = $action === 'rename' ? ($payload['name'] ?? null) : null;
             if ($action === 'rename' && !is_string($name)) {
                 throw new InvalidArgumentException('Название должно быть строкой');

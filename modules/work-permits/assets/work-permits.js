@@ -220,6 +220,8 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
             root.querySelector('[data-wp-parent-field]').hidden = kind === 'organizations';
             root.querySelector('[data-wp-employee-field]').hidden = kind !== 'employees';
             root.querySelector('[data-wp-group-field]').hidden = kind !== 'employees';
+            root.querySelector('[data-wp-time-zone-field]').hidden = kind !== 'organizations';
+            referenceForm.elements.namedItem('time_zone').disabled = kind !== 'organizations';
             await loadAdminDept();
             await loadReferenceList(true);
         };
@@ -236,15 +238,25 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
             const rename = node('button', 'Переименовать');
             rename.type = 'button';
             const toggle = node('button', Number(item.is_archived) ? 'Восстановить' : 'В архив');
+            const timezone = referenceKind.value === 'organizations' ? document.createElement('input') : null;
+            const saveZone = timezone ? node('button', 'Сохранить часовой пояс') : null;
+            if (timezone) {
+                timezone.value = item.time_zone || 'UTC';
+                timezone.maxLength = 64;
+                timezone.setAttribute('aria-label', 'Часовой пояс организации №' + item.id);
+                saveZone.type = 'button';
+            }
             toggle.type = 'button';
             const change = async (action) => {
                 if (refState.editing) return;
                 refState.editing = true;
                 rename.disabled = true;
                 toggle.disabled = true;
+                if (saveZone) saveZone.disabled = true;
                 try {
                     const payload = { action, version: Number(item.version) };
                     if (action === 'rename') payload.name = field.value;
+                    if (action === 'set_time_zone' && timezone) payload.time_zone = timezone.value;
                     await request('/references/' + referenceKind.value + '/' + item.id + '/change', payload);
                     notify('Справочник обновлён.');
                     await loadReferenceList(true);
@@ -255,11 +267,16 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
                     refState.editing = false;
                     rename.disabled = false;
                     toggle.disabled = false;
+                    if (saveZone) saveZone.disabled = false;
                 }
             };
             pageScope.listen(rename, 'click', () => void change('rename'));
             pageScope.listen(toggle, 'click', () => void change(Number(item.is_archived) ? 'restore' : 'archive'));
             line.append(heading, field, rename, toggle);
+            if (saveZone) {
+                pageScope.listen(saveZone, 'click', () => void change('set_time_zone'));
+                line.append(timezone, saveZone);
+            }
             return line;
         };
 
@@ -293,6 +310,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
                     const payload = Object.fromEntries(new FormData(referenceForm));
                     const kind = payload.kind;
                     if (kind === 'organizations') delete payload.organization_id;
+                    else delete payload.time_zone;
                     if (kind !== 'employees') {
                         delete payload.department_id;
                         delete payload.electrical_group;
