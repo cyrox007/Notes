@@ -31,6 +31,10 @@ ob_start();
             <label>Объект / подстанция
                 <select name="facility_id" data-wp-facility required><option value="">Выберите объект</option></select>
             </label>
+            <div class="wp-journal__template-picker wp-journal__wide" data-wp-job-picker="new">
+                <label>Шаблон задания <select data-wp-job-choice><option value="">Выберите организацию</option></select></label>
+                <button type="button" data-wp-apply-job>Подставить задание</button>
+            </div>
             <label class="wp-journal__wide">Задание на производство работ
                 <textarea name="work_description" maxlength="10000" rows="4" required></textarea>
             </label>
@@ -46,7 +50,15 @@ ob_start();
             <label>Организация <select name="organization_id" data-wp-edit-org required><option value="">Выберите организацию</option></select></label>
             <label>Подразделение <select name="department_id" data-wp-edit-dept><option value="">Не выбрано</option></select></label>
             <label>Объект <select name="facility_id" data-wp-edit-facility required><option value="">Выберите объект</option></select></label>
+            <div class="wp-journal__template-picker wp-journal__wide" data-wp-job-picker="edit">
+                <label>Шаблон задания <select data-wp-job-choice><option value="">Выберите организацию</option></select></label>
+                <button type="button" data-wp-apply-job>Подставить задание</button>
+            </div>
             <label class="wp-journal__wide">Задание <textarea name="work_description" maxlength="10000" rows="4" required></textarea></label>
+            <div class="wp-journal__template-picker wp-journal__wide" data-wp-crew-picker>
+                <label>Шаблон бригады <select data-wp-crew-choice><option value="">Выберите организацию</option></select></label>
+                <button type="button" data-wp-apply-crew>Подставить состав бригады</button>
+            </div>
             <fieldset class="wp-journal__wide wp-journal__crew">
                 <legend>Состав бригады</legend>
                 <p>Сотрудник может выполнять несколько ролей. Допускающий по умолчанию — оперативный персонал; наблюдающий — не назначается.</p>
@@ -97,6 +109,32 @@ ob_start();
         <label><input type="checkbox" data-wp-show-archive> Показать архивные записи</label>
         <div data-wp-reference-list aria-live="polite"></div>
         <button type="button" data-wp-reference-more hidden>Показать ещё</button>
+    </details>
+    <?php endif; ?>
+    <?php if (!empty($can_manage_references)): ?>
+    <details class="calendar-shell wp-journal__registry" data-wp-template-admin>
+        <summary>Управление шаблонами заданий и бригад</summary>
+        <p>Шаблон сохраняется отдельно. При выборе его содержание копируется в форму и остаётся редактируемым. Создание шаблона бригады использует назначения в открытом редакторе черновика.</p>
+        <form data-wp-template-form>
+            <label>Организация
+                <select name="organization_id" data-wp-template-org required><option value="">Выберите организацию</option></select>
+            </label>
+            <label>Вид шаблона
+                <select name="kind" data-wp-template-kind>
+                    <option value="job">Задание</option>
+                    <option value="crew">Бригада</option>
+                </select>
+            </label>
+            <label>Название шаблона <input name="name" maxlength="160" required></label>
+            <label data-wp-template-description>Содержание задания
+                <textarea name="work_description" maxlength="10000" rows="3"></textarea>
+            </label>
+            <p data-wp-template-crew-hint hidden>Для шаблона бригады сначала откройте собственный черновик, назначьте сотрудников и выберите ту же организацию.</p>
+            <button type="submit">Сохранить новый шаблон</button>
+        </form>
+        <label><input type="checkbox" data-wp-template-archived> Показывать также архивные шаблоны</label>
+        <div data-wp-template-list aria-live="polite"></div>
+        <button type="button" data-wp-template-more hidden>Показать ещё</button>
     </details>
     <?php endif; ?>
     <section class="calendar-shell wp-journal__registry" aria-labelledby="wp-registry-title">
