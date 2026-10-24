@@ -221,7 +221,7 @@ try {
     const conditions = issue.locator('[data-wp-issue-template=conditions]');
     await conditions.locator('select').selectOption('1');
     await conditions.locator('button').click();
-    assert.match(await issue.locator('textarea[name=work_conditions]').inputValue(), /ограждение/);
+    await page.waitForFunction(() => document.querySelector('[data-wp-issue-form] textarea[name=work_conditions]')?.value.includes('ограждение'));
     await issue.locator('textarea[name=special_instructions]').fill('Особые указания');
     for (const [name, value] of Object.entries({
         equipment: 'КРУН', isolation: 'Отключить', remaining_live: 'Смежная ячейка',
