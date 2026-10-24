@@ -141,18 +141,53 @@ final class WorkPermitDraftService
         ];
     }
 
+    /**
+     * Журнал всех документов доступен только через HTTP-маршрут с
+     * разрешением work_permits.manage. Состояние фильтруется по списку.
+     *
+     * @return array{items:list<array<string,mixed>>,next_cursor:?int}
+     */
+    public function managementList(int $limit = 20, int $beforeId = 0, string $state = 'draft'): array
+    {
+        if ($limit < 1 || $limit > 50 || $beforeId < 0
+            || !in_array($state, ['draft', 'issued', 'closed'], true)) {
+            throw new InvalidArgumentException('Некорректный фильтр управленческого журнала');
+        }
+        $params = [':state' => $state];
+        $cursor = '';
+        if ($beforeId > 0) {
+            $cursor = ' AND id<:cursor';
+            $params[':cursor'] = $beforeId;
+        }
+        $rows = $this->db->fetchAll(
+            'SELECT id,kind,state,organization,facility,work_description,version,
+                    created_by_user_id,created_at
+             FROM work_permit_documents
+             WHERE state=:state' . $cursor . ' ORDER BY id DESC LIMIT ' . ($limit + 1),
+            $params
+        );
+        $more = count($rows) > $limit;
+        $rows = array_slice($rows, 0, $limit);
+        return [
+            'items' => $rows,
+            'next_cursor' => $more ? (int) $rows[array_key_last($rows)]['id'] : null,
+        ];
+    }
+
     /** @return array<string,mixed>|null */
-    public function detail(int $documentId, int $userId): ?array
+    public function detail(int $documentId, int $userId, bool $canManage = false): ?array
     {
         if ($documentId < 1 || $userId < 1) {
             return null;
         }
+        $where = $canManage ? 'id=:id' : 'id=:id AND created_by_user_id=:user';
+        $params = $canManage ? [':id' => $documentId] : [':id' => $documentId, ':user' => $userId];
         $document = $this->db->fetchOne(
             'SELECT id,kind,state,organization,subdivision,facility,organization_id,department_id,facility_id,
                     work_description,version,created_at,updated_at
              FROM work_permit_documents
-             WHERE id=:id AND created_by_user_id=:user LIMIT 1',
-            [':id' => $documentId, ':user' => $userId]
+             WHERE ' . $where . ' LIMIT 1',
+            $params
         );
         if ($document === null) {
             return null;
