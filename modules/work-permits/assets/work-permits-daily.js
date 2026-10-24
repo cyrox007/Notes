@@ -37,11 +37,6 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-daily.js',
             crypto.getRandomValues(bytes);
             return [...bytes].map(value => value.toString(16).padStart(2, '0')).join('');
         };
-        const utc = value => {
-            const date = new Date(value);
-            if (!value || Number.isNaN(date.getTime())) throw new Error('Укажите правильную дату и время');
-            return date.toISOString().slice(0, 19).replace('T', ' ');
-        };
         const line = (parent, label) => {
             const node = document.createElement('p');
             node.textContent = label;
@@ -79,11 +74,12 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-daily.js',
                     + (period.start_kind === 'first' ? ' — первый допуск'
                         : period.start_kind === 'resume' ? ' — после перерыва' : ' — дневной допуск');
                 item.append(title);
-                line(item, 'Начало (UTC): ' + period.started_at + ' · допускающий: ' + period.admitter_name);
+                line(item, 'Начало: ' + window.WorkPermitTime.display(period.started_at, detail)
+                    + ' · допускающий: ' + period.admitter_name);
                 line(item, 'Инструктаж провёл: ' + period.instructor_name
                     + ' · получил: ' + period.recipient_name);
                 line(item, period.ended_at
-                    ? 'Остановка (UTC): ' + period.ended_at
+                    ? 'Остановка: ' + window.WorkPermitTime.display(period.ended_at, detail)
                         + ' · ' + (period.end_kind === 'break' ? 'перерыв' : 'конец рабочего дня')
                     : 'Работы продолжаются');
                 if (period.end_note) line(item, 'Примечание: ' + period.end_note);
@@ -127,6 +123,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-daily.js',
                     throw new Error('Дневные допуски доступны только для выданного наряда');
                 }
                 state.document = detail;
+                window.WorkPermitTime.context(panel, detail);
                 state.command = null;
                 startForm.reset();
                 stopForm.reset();
@@ -168,11 +165,11 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-daily.js',
                 let route = action;
                 if (action === 'stop') {
                     route = input.end_kind;
-                    payload.ended_at = utc(input.ended_at);
+                    payload.ended_at = window.WorkPermitTime.toUtc(stopForm.elements.namedItem('ended_at'), state.document);
                     payload.note = input.note;
                     payload.work_stopped = input.work_stopped === 'on';
                 } else {
-                    payload.started_at = utc(input.started_at);
+                    payload.started_at = window.WorkPermitTime.toUtc(startForm.elements.namedItem('started_at'), state.document);
                     payload.admitted_employee_id = input.admitted_employee_id;
                     payload.briefed_by_employee_id = input.briefed_by_employee_id;
                     payload.briefing_recipient_id = input.briefing_recipient_id;
