@@ -15,6 +15,7 @@ use Modules\WorkPermits\Services\WorkPermitDraftService;
 use Modules\WorkPermits\Services\WorkPermitDraftEditService;
 use Modules\WorkPermits\Services\WorkPermitIssuanceService;
 use Modules\WorkPermits\Services\WorkPermitDailyService;
+use Modules\WorkPermits\Services\WorkPermitChangeService;
 use Throwable;
 
 /**
@@ -153,6 +154,34 @@ final class WorkPermitController extends Controller
                     'http', 'success', 200, ['document_id' => $id, 'version' => $result['version']]);
             }
             return ['document' => $result];
+        });
+    }
+
+    /** Изменение состава без изменения выдавшего и производителя работ. */
+    public function changeCrew(Request $request, int $id): void
+    {
+        $this->changeIssuedPermit($request, $id, 'crew_change');
+    }
+
+    public function extend(Request $request, int $id): void
+    {
+        $this->changeIssuedPermit($request, $id, 'extension');
+    }
+
+    private function changeIssuedPermit(Request $request, int $id, string $action): void
+    {
+        $this->handle($request, function (int $actor) use ($request, $id, $action): array {
+            (new PermissionService())->requirePermission($actor, 'work_permits.manage');
+            $service = new WorkPermitChangeService(DatabaseManager::getInstance());
+            $input = $this->json($request);
+            $changed = $action === 'crew_change'
+                ? $service->changeCrew($id, $actor, $input)
+                : $service->extend($id, $actor, $input);
+            if (!$changed['replayed']) {
+                UserActionLog::emit($actor, 'work_permits.' . $action, 'work-permits',
+                    'http', 'success', 200, ['document_id' => $id, 'version' => $changed['version']]);
+            }
+            return ['document' => $changed];
         });
     }
 
