@@ -33,7 +33,7 @@ final class WorkPermitCrewService
         }
         $roles = $payload['roles'] ?? null;
         $members = $payload['member_ids'] ?? null;
-        if (!is_array($roles) || array_is_list($roles)
+        if (!is_array($roles) || ($roles !== [] && array_is_list($roles))
             || !is_array($members) || !array_is_list($members)) {
             throw new InvalidArgumentException('Укажите роли и список членов бригады');
         }
