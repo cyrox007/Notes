@@ -59,7 +59,7 @@ jobs:
             database/file_storage_quota_schema.sql database/file_spaces_schema.sql \
             database/user_fields_schema.sql database/tasks_schema.sql \
             database/calendar_schema.sql database/notifications_schema.sql \
-            database/work_permits_schema.sql; do
+            database/work_permits_schema.sql database/migrations/20261017_mutation_commands.sql; do
             mysql -h 127.0.0.1 -uroot -proot work_permits_browser < "$file"
           done
       - name: Подготовить роли и временную лицензию
@@ -122,6 +122,10 @@ jobs:
             if curl -fsS http://127.0.0.1:18095/workspace/auth/login/ >/dev/null; then exit 0; fi
             sleep .3
           done
+          echo 'Состояние обязательных таблиц:' >&2
+          php -r 'require_once "core/CliRuntime.php"; \Core\CliRuntime::loadEnvironment(getcwd()); require_once "core/RuntimeAutoloader.php"; \Core\RuntimeAutoloader::register(getcwd()); echo json_encode(\Core\SchemaReadiness::inspect(getcwd()), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), PHP_EOL;' >&2 || true
+          curl -sS -i http://127.0.0.1:18095/workspace/auth/login/ | head -c 3500 >&2 || true
+          cat /tmp/notes-work-permits-live/logs/app.log >&2 || true
           cat /tmp/work-permits-live-http.log >&2
           exit 1
       - name: Проверить два браузера и весь цикл
