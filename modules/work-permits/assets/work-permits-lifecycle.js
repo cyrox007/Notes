@@ -87,6 +87,18 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                         ));
                         row.append(button);
                     }
+                    if (item.state === 'issued') {
+                        const finishButton = document.createElement('button');
+                        finishButton.type = 'button';
+                        const stage = item.kind === 'order' ? 'close_order'
+                            : Number(item.has_completion) ? 'close_permit' : 'complete';
+                        finishButton.textContent = stage === 'complete'
+                            ? 'Окончание работ' : 'Закрыть документ';
+                        pageScope.listen(finishButton, 'click', () => root.dispatchEvent(
+                            new CustomEvent('wp:closure-open', { detail: { id: Number(item.id) } })
+                        ));
+                        row.append(finishButton);
+                    }
                     managerList.append(row);
                 }
                 managerCursor = result.next_cursor || null;
