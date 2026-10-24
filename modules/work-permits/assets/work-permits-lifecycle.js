@@ -57,7 +57,8 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                     const author = document.createElement('small');
                     author.textContent = 'Создатель №' + item.created_by_user_id + ' · версия ' + item.version;
                     const action = item.state === 'draft' ? 'issue'
-                        : item.state === 'issued' && item.kind === 'permit' ? 'admit' : null;
+                        : item.state === 'issued' && item.kind === 'permit'
+                            && !Number(item.has_first_admission) ? 'admit' : null;
                     row.append(title, author);
                     if (action) {
                         const button = document.createElement('button');
@@ -67,6 +68,15 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                             id: Number(item.id), action,
                         }));
                         row.append(button);
+                    }
+                    if (item.state === 'issued' && item.kind === 'permit') {
+                        const periods = document.createElement('button');
+                        periods.type = 'button';
+                        periods.textContent = 'Рабочие смены и перерывы';
+                        pageScope.listen(periods, 'click', () => root.dispatchEvent(
+                            new CustomEvent('wp:daily-open', { detail: { id: Number(item.id) } })
+                        ));
+                        row.append(periods);
                     }
                     managerList.append(row);
                 }
