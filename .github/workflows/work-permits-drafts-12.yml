@@ -63,6 +63,7 @@ jobs:
           set -euo pipefail
           for file in $(find modules/work-permits -name '*.php' -type f); do php -l "$file"; done
           node --check modules/work-permits/assets/work-permits.js
+          node --check modules/work-permits/assets/work-permits-templates.js
           php tests/integration/module_registry_contract.php
           php tests/integration/module_schema_ownership_contract_12.php
       - name: Проверить создание, повтор и запрет чужого журнала
