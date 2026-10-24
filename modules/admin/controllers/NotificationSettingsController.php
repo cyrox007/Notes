@@ -47,21 +47,34 @@ final class NotificationSettingsController extends Controller
                 $inspection = ['status' => 'unavailable'];
             }
         }
+        $attentionPage = $this->reviewPage($request, 'attention_page');
+        $unverifiedPage = $this->reviewPage($request, 'unverified_page');
         $this->render_template('@admin/notifications', [
             'user' => $user,
             'notification_settings' => (new NotificationChannelAdministration())->overview(),
             'external_channels' => (new NotificationExternalChannelAdministration())->overview(),
             'reminder_scheduler' => $this->reminderSchedulerStatus(),
             'receipt_inspection' => $inspection,
-            'receipt_review' => $this->receiptReview(),
+            'receipt_review' => $this->receiptReview($attentionPage, $unverifiedPage),
         ]);
     }
 
+    private function reviewPage(Request $request, string $name): int
+    {
+        $value = $request->get($name, '1');
+        if (!is_string($value) || !ctype_digit($value) || strlen($value) > 4) {
+            return 1;
+        }
+        $page = (int) $value;
+        return $page >= 1 && $page <= 1000 ? $page : 1;
+    }
+
     /** @return array<string,mixed> */
-    private function receiptReview(): array
+    private function receiptReview(int $attentionPage, int $unverifiedPage): array
     {
         try {
-            return (new NotificationDeliveryReviewQueue(DatabaseManager::getInstance()))->overview();
+            return (new NotificationDeliveryReviewQueue(DatabaseManager::getInstance()))
+                ->overview($attentionPage, $unverifiedPage);
         } catch (Throwable $error) {
             error_log('Список проверки доставки недоступен: ' . $error::class);
             return [
