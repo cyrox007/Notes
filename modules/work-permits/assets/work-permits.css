@@ -67,3 +67,13 @@
  .wp-journal .wp-journal__reference{grid-template-columns:minmax(0,1fr)}
  .wp-journal .wp-journal__template-picker{grid-template-columns:minmax(0,1fr)}
 }
+
+/* В некоторых обёртках модуля отступ рабочего содержимого от боковой панели
+   оставался 204px на телефонах, несмотря на общие мобильные правила. */
+@media(max-width:900px){
+ body:has(.wp-journal) .wrapper__content,
+ body.sidebar-is-collapsed:has(.wp-journal) .wrapper__content{
+  margin-left:0!important;width:100%;max-width:100%;min-width:0;
+ }
+ body:has(.wp-journal) .navbar{min-width:0;max-width:100%;box-sizing:border-box}
+}
