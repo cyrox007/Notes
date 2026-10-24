@@ -39,12 +39,6 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-amendments
             crypto.getRandomValues(bytes);
             return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
         };
-        const utc = (value) => {
-            if (!value) throw new Error('Укажите дату и время');
-            const date = new Date(value);
-            if (Number.isNaN(date.getTime())) throw new Error('Указана неверная дата');
-            return date.toISOString().slice(0, 19).replace('T', ' ');
-        };
         const text = (parent, content) => {
             const paragraph = document.createElement('p');
             paragraph.textContent = content;
@@ -67,15 +61,18 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-amendments
             const records = doc.lifecycle || {};
             history.replaceChildren();
             const issuance = records.issuance;
-            text(history, 'Текущий срок: ' + issuance.planned_start + ' — ' + issuance.planned_finish
-                + ' UTC · выдавший: ' + issuance.issuer_name);
+            text(history, 'Текущий срок: ' + window.WorkPermitTime.display(issuance.planned_start, doc)
+                + ' — ' + window.WorkPermitTime.display(issuance.planned_finish, doc)
+                + ' · выдавший: ' + issuance.issuer_name);
             for (const entry of records.extensions || []) {
-                text(history, 'Продление: ' + entry.previous_finish + ' → ' + entry.new_finish
-                    + ' UTC; ' + entry.reason + '; выдал: ' + entry.issuer_name);
+                text(history, 'Продление: ' + window.WorkPermitTime.display(entry.previous_finish, doc)
+                    + ' → ' + window.WorkPermitTime.display(entry.new_finish, doc)
+                    + '; ' + entry.reason + '; выдал: ' + entry.issuer_name);
             }
             for (const entry of records.crew_revisions || []) {
                 const members = (entry.members || []).filter(person => person.role === 'member');
-                text(history, 'Изменение бригады: ' + entry.changed_at + ' UTC; ' + entry.reason
+                text(history, 'Изменение бригады: ' + window.WorkPermitTime.display(entry.changed_at, doc)
+                    + '; ' + entry.reason
                     + ' · члены: ' + members.map(person => person.employee_name).join(', '));
             }
             const periods = records.periods || [];
@@ -127,6 +124,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-amendments
                 }
                 if (sequence !== state.sequence) return;
                 state.document = doc;
+                window.WorkPermitTime.context(panel, doc);
                 state.command = null;
                 crewForm.reset();
                 extensionForm.reset();
@@ -168,11 +166,11 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-amendments
                     reason: input.get('reason'),
                 };
                 if (kind === 'crew') {
-                    payload.changed_at = utc(input.get('changed_at'));
+                    payload.changed_at = window.WorkPermitTime.toUtc(crewForm.elements.namedItem('changed_at'), state.document);
                     payload.member_ids = input.getAll('member_ids');
                 } else {
-                    payload.extended_at = utc(input.get('extended_at'));
-                    payload.new_finish = utc(input.get('new_finish'));
+                    payload.extended_at = window.WorkPermitTime.toUtc(extensionForm.elements.namedItem('extended_at'), state.document);
+                    payload.new_finish = window.WorkPermitTime.toUtc(extensionForm.elements.namedItem('new_finish'), state.document);
                     payload.issuer_employee_id = input.get('issuer_employee_id');
                 }
                 const id = Number(state.document.id);
