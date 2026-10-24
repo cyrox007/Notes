@@ -72,8 +72,11 @@ $editService->save($draft['id'], $userA, [
     'roles' => ['issuer' => $person['id'], 'producer' => $person['id']],
     'member_ids' => [$person['id']],
 ]);
+wpAssert($draftService->detail($draft['id'], $userA)['organization_time_zone']
+    === 'Europe/Amsterdam', 'Черновик получает актуальный пояс организации');
 $issued = [
     'version' => 2,
+    'time_zone' => 'Europe/Amsterdam',
     'command_id' => sprintf('%032x', 25003),
     'planned_start' => '2026-11-01 20:00:00',
     'planned_finish' => '2026-11-03 12:00:00',
@@ -84,6 +87,17 @@ $issued = [
         'remaining_live' => 'Соседние ячейки под напряжением',
     ]],
 ];
+try {
+    $issueService->issue($draft['id'], $userB, [
+        ...$issued, 'command_id' => sprintf('%032x', 25013), 'time_zone' => 'UTC',
+    ]);
+    throw new RuntimeException('Выдача со старым часовым поясом разрешена');
+} catch (DomainException $error) {
+    wpAssert($error->getCode() === 409,
+        'Пояс, изменившийся с момента открытия формы, вызывает конфликт');
+}
+wpAssert($draftService->detail($draft['id'], $userA)['state'] === 'draft',
+    'Конфликт пояса не создаёт выдачу');
 wpAssert($issueService->issue($draft['id'], $userB, $issued)['version'] === 3,
     'Документ выдан с часовым поясом организации');
 $issueDetails = $draftService->detail($draft['id'], $userA)['lifecycle']['issuance'];
@@ -134,6 +148,8 @@ $changed = $references->changeTimeZone($orgId, $changed['version'], $userB, 'Ame
 wpAssert($changed['time_zone'] === 'America/New_York', 'Настройка организации изменена');
 wpAssert($draftService->detail($draft['id'], $userA)['lifecycle']['issuance']['time_zone']
     === 'Europe/Amsterdam', 'Настройка не изменяет уже выданный наряд');
+wpAssert($draftService->detail($draft['id'], $userA)['organization_time_zone']
+    === 'America/New_York', 'Текущая настройка и снимок выдачи различаются');
 wpAssert($dailyService->finish($draft['id'], $userB, 'day_end', [
     'version' => 6, 'command_id' => sprintf('%032x', 25008),
     'ended_at' => '2026-11-02 10:00:00', 'work_stopped' => true,
@@ -164,6 +180,7 @@ $orderIssue = [
     ...$issued, 'version' => 2, 'command_id' => sprintf('%032x', 25012),
     'planned_start' => '2026-11-02 23:00:00',
     'planned_finish' => '2026-11-03 00:00:00',
+    'time_zone' => 'America/New_York',
 ];
 wpAssert($issueService->issue($order['id'], $userB, $orderIssue)['version'] === 3,
     'Распоряжение через UTC-полночь разрешено, когда местные сутки не изменились');
