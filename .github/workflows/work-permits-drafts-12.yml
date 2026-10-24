@@ -14,6 +14,7 @@ on:
       - 'tests/integration/work_permits_issue_admission_mysql_12.php'
       - 'tests/integration/work_permits_crew_extensions_mysql_12.php'
       - 'tests/integration/work_permits_completion_closure_mysql_12.php'
+      - 'tests/integration/work_permits_pdf_mysql_12.php'
       - 'database/migrations/20261024_work_permits_completion_closure.sql'
       - 'database/migrations/20261024_work_permits_crew_extensions.sql'
       - 'database/migrations/20261024_work_permits_issue_admission.sql'
@@ -70,6 +71,10 @@ jobs:
           php-version: '8.3'
           extensions: mysqli, pdo_mysql, mbstring
           coverage: none
+      - name: Подготовить шрифты и проверку PDF
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-dejavu-core poppler-utils
       - name: Проверить синтаксис и платформу модулей
         run: |
           set -euo pipefail
@@ -90,4 +95,4 @@ jobs:
           TEST_DB_NAME: workspace_test
           TEST_DB_USER: root
           TEST_DB_PASS: root
-        run: php tests/integration/work_permits_completion_closure_mysql_12.php
+        run: php tests/integration/work_permits_pdf_mysql_12.php

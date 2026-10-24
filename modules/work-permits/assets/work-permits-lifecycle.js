@@ -99,6 +99,13 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                         ));
                         row.append(finishButton);
                     }
+                    if (item.kind === 'permit' && item.state !== 'draft') {
+                        const link = document.createElement('a');
+                        link.textContent = 'Скачать PDF';
+                        link.href = api + '/' + Number(item.id) + '/pdf';
+                        link.setAttribute('download', 'naryad-' + Number(item.id) + '.pdf');
+                        row.append(link);
+                    }
                     managerList.append(row);
                 }
                 managerCursor = result.next_cursor || null;

@@ -10,7 +10,7 @@ ob_start();
     <?= $csrf_input ?? '' ?>
     <header class="module-page-header">
         <h1>Наряды и допуски</h1>
-        <p>Регистрация черновиков нарядов-допусков и распоряжений. Выдача и закрытие будут подключены отдельным этапом.</p>
+        <p>Журнал нарядов и распоряжений: выдача, допуски, перерывы, продления, закрытие и печать наряда в PDF.</p>
     </header>
     <p data-wp-feedback role="status" aria-live="polite" hidden></p>
     <section class="calendar-shell wp-journal__editor" aria-labelledby="wp-form-title">

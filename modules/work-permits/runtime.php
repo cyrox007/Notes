@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 foreach ([
+    'services/WorkPermitPdfFont.php',
+    'services/WorkPermitPdfDocument.php',
+    'services/WorkPermitPdfRenderer.php',
     'services/WorkPermitReferenceService.php',
     'services/WorkPermitCrewService.php',
     'services/WorkPermitTemplateService.php',
