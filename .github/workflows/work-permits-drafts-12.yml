@@ -64,6 +64,6 @@ jobs:
           TEST_DB_HOST: 127.0.0.1
           TEST_DB_PORT: 3306
           TEST_DB_NAME: workspace_test
-          TEST_DB_USER: workspace
-          TEST_DB_PASS: workspace
+          TEST_DB_USER: root
+          TEST_DB_PASS: root
         run: php tests/integration/work_permits_draft_mysql_12.php
