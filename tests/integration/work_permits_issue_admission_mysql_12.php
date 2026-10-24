@@ -33,6 +33,11 @@ $issue = [
         ],
     ],
 ];
+$management = $drafts->managementList(20, 0, 'draft');
+wpAssert(count($management['items']) > 0 && $drafts->detail($filled['id'], $userB) === null,
+    'Управленческий список не изменяет права обычного чтения');
+wpAssert($drafts->detail($filled['id'], $userB, true) !== null,
+    'Управляющий может открыть черновик другого автора');
 wpAssert((int) $drafts->detail($filled['id'], $userA)['version'] === 2,
     'До выдачи сохраняется отредактированный черновик');
 try {
