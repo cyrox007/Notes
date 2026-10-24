@@ -51,6 +51,7 @@ on:
       - 'database/notifications_schema.sql'
       - 'tests/integration/calendar_reminders_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
+      - 'tests/integration/notification_smtp_auth_methods_12.php'
       - '.github/workflows/notifications-foundation.yml'
   pull_request:
     branches: ['1.1', '1.2']
@@ -102,6 +103,7 @@ on:
       - 'database/notifications_schema.sql'
       - 'tests/integration/calendar_reminders_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
+      - 'tests/integration/notification_smtp_auth_methods_12.php'
       - '.github/workflows/notifications-foundation.yml'
   workflow_dispatch:
 
@@ -242,6 +244,8 @@ jobs:
           php -l modules/admin/views/notifications.php
           node --check modules/admin/assets/notification-settings.js
           php tests/integration/smtp_socket_transport_contract.php
+          php tests/integration/notification_smtp_auth_methods_12.php
+          php -l app/services/notifications/SocketSmtpTransport.php
           php tests/integration/notification_worker_cli_contract.php
           php tests/integration/notification_cli_worker_health_12.php
           php -l app/services/notifications/NotificationWorkerScheduleHealth.php
