@@ -37,6 +37,7 @@ on:
       - 'database/migrations/*notifications*.sql'
       - 'database/migrations/*calendar*.sql'
       - 'tests/integration/notification_*contract.php'
+      - 'tests/integration/notification_cli_worker_health_12.php'
       - 'tests/integration/notification_admin_smtp_12.php'
       - 'tests/integration/notification_external_channels_12.php'
       - 'tests/integration/notification_sms_gateway_12.php'
@@ -83,6 +84,7 @@ on:
       - 'database/migrations/*notifications*.sql'
       - 'database/migrations/*calendar*.sql'
       - 'tests/integration/notification_*contract.php'
+      - 'tests/integration/notification_cli_worker_health_12.php'
       - 'tests/integration/notification_admin_smtp_12.php'
       - 'tests/integration/notification_external_channels_12.php'
       - 'tests/integration/notification_sms_gateway_12.php'
@@ -226,6 +228,8 @@ jobs:
           node --check modules/admin/assets/notification-settings.js
           php tests/integration/smtp_socket_transport_contract.php
           php tests/integration/notification_worker_cli_contract.php
+          php tests/integration/notification_cli_worker_health_12.php
+          php -l app/services/notifications/NotificationWorkerScheduleHealth.php
           php tests/integration/notification_http_fallback_contract.php
           php tests/integration/notification_center_contract.php
           php tests/integration/notification_preferences_contract.php
