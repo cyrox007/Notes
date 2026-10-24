@@ -59,11 +59,24 @@ final class WorkPermitController extends Controller
     public function show(Request $request, int $id): void
     {
         $this->handle($request, function (int $actor) use ($id): array {
-            $document = $this->drafts()->detail($id, $actor);
+            $canManage = (new PermissionService())->hasPermission($actor, 'work_permits.manage');
+            $document = $this->drafts()->detail($id, $actor, $canManage);
             if ($document === null) {
                 throw new DomainException('Документ не найден или недоступен', 404);
             }
             return ['document' => $document];
+        });
+    }
+
+    public function managementList(Request $request): void
+    {
+        $this->handle($request, function (int $actor) use ($request): array {
+            (new PermissionService())->requirePermission($actor, 'work_permits.manage');
+            return $this->drafts()->managementList(
+                $this->number($request->get('limit', 20), 'limit'),
+                $this->number($request->get('before_id', 0), 'before_id'),
+                (string) $request->get('state', 'draft')
+            );
         });
     }
 
