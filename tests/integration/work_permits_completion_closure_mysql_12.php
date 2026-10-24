@@ -169,7 +169,7 @@ wpAssert($detail['state'] === 'closed' && $detail['lifecycle']['closure']['close
     'Автор видит историю и факт закрытия в своей карточке');
 wpAssert($detail['lifecycle']['completion']['producer_employee_id'] === $person['id'],
     'История окончания доступна и после закрытия');
-wpAssert(count($detail['lifecycle']['periods']) === 3
+wpAssert(count($detail['lifecycle']['periods']) === 4
     && count($detail['lifecycle']['extensions']) === 1
     && count($detail['lifecycle']['crew_revisions']) === 1,
     'Закрытие не удалило допуски, продления и исторические составы');
