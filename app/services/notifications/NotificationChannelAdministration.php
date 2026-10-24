@@ -10,6 +10,7 @@ require_once __DIR__ . '/NotificationEvent.php';
 require_once __DIR__ . '/DatabaseNotificationPreferences.php';
 require_once __DIR__ . '/NotificationDeliveryRuntime.php';
 require_once __DIR__ . '/PushSubscriptionService.php';
+require_once __DIR__ . '/SmtpDeliveryGuidance.php';
 
 use Core\DatabaseManager;
 use DomainException;
@@ -46,6 +47,19 @@ final class NotificationChannelAdministration
              INNER JOIN notification_delivery_jobs j ON j.id = a.job_id
              ORDER BY a.id DESC LIMIT 40'
         );
+        foreach ($jobs as &$job) {
+            if (($job['channel'] ?? '') === 'email') {
+                $job['guidance'] = SmtpDeliveryGuidance::forCode($job['last_result_code'] ?? null);
+            }
+        }
+        unset($job);
+        foreach ($attempts as &$attempt) {
+            if (($attempt['channel'] ?? '') === 'email') {
+                $attempt['guidance'] = SmtpDeliveryGuidance::forCode($attempt['result_code'] ?? null);
+            }
+        }
+        unset($attempt);
+
         $count = $this->db->fetchAll(
             'SELECT channel,state,COUNT(*) AS total FROM notification_delivery_jobs
              GROUP BY channel,state ORDER BY channel,state'

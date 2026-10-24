@@ -543,3 +543,8 @@
 .admin-storage-capacity__metrics>div{padding:12px;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface-soft);min-width:0}
 .admin-storage-capacity__metrics dt{color:var(--ui-muted)}
 .admin-storage-capacity__metrics dd{margin:5px 0 0;font-size:17px;font-weight:700;overflow-wrap:anywhere}
+
+.admin-notification-settings [data-notification-feedback]{margin:0;padding:12px 14px;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface-soft);font-size:12px;line-height:1.55;overflow-wrap:anywhere}
+.admin-notification-settings [data-notification-feedback][data-state="success"]{background:var(--ui-success-soft);color:var(--ui-success)}
+.admin-notification-settings [data-notification-feedback][data-state="warning"]{background:var(--ui-warning-soft);color:var(--ui-warning)}
+.admin-notification-settings [data-notification-feedback][data-state="error"]{background:var(--ui-danger-soft);color:var(--ui-danger)}

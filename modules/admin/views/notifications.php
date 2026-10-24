@@ -348,7 +348,11 @@ ob_start();
                         <td><?= $view->e($job['channel'] ?? '') ?></td>
                         <td><?= $view->e($job['state'] ?? '') ?></td>
                         <td><?= (int) ($job['attempts'] ?? 0) ?></td>
-                        <td><?= $view->e($job['last_result_code'] ?? '—') ?></td>
+                        <td><?= $view->e($job['last_result_code'] ?? '—') ?>
+                            <?php if (!empty($job['guidance'])): ?>
+                                <small><?= $view->e($job['guidance']) ?></small>
+                            <?php endif; ?>
+                        </td>
                     </tr>
                     <?php endforeach; ?>
                     <?php if ($jobs === []): ?><tr><td colspan="5">Пока нет попыток внешней доставки.</td></tr><?php endif; ?>
@@ -367,7 +371,11 @@ ob_start();
                         <td><?= $view->e($attempt['channel'] ?? '—') ?></td>
                         <td><?= (int) ($attempt['attempt_no'] ?? 0) ?></td>
                         <td><?= $view->e($attempt['result_state'] ?? '—') ?></td>
-                        <td><code><?= $view->e($attempt['result_code'] ?? '—') ?></code></td>
+                        <td><code><?= $view->e($attempt['result_code'] ?? '—') ?></code>
+                            <?php if (!empty($attempt['guidance'])): ?>
+                                <small><?= $view->e($attempt['guidance']) ?></small>
+                            <?php endif; ?>
+                        </td>
                         <td><?= $view->e($attempt['attempted_at'] ?? '—') ?></td>
                     </tr>
                     <?php endforeach; ?>
