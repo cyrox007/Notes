@@ -77,6 +77,19 @@ ob_start();
     </section>
 
     <?php if (!empty($can_manage_references)): ?>
+    <section class="calendar-shell wp-journal__registry" data-wp-management>
+        <h2>Журнал на выдачу и первичный допуск</h2>
+        <p>Показываются документы разных авторов. Операции требуют разрешения на управление модулем.</p>
+        <label>Состояние
+            <select data-wp-management-state>
+                <option value="draft">Черновики для выдачи</option>
+                <option value="issued">Выданные документы</option>
+                <option value="closed">Закрытые</option>
+            </select>
+        </label>
+        <div data-wp-management-list aria-live="polite"></div>
+        <button type="button" data-wp-management-more hidden>Показать ещё</button>
+    </section>
     <section class="calendar-shell wp-journal__editor" data-wp-lifecycle hidden aria-label="Выдача и первичный допуск">
         <h2 data-wp-lifecycle-title>Выдача документа</h2>
         <p>Операция фиксирует действие пользователя системы. Электронной подписью работника она не является. Фактическую подготовку места и инструктаж подтверждайте только после их выполнения.</p>
