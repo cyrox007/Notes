@@ -161,7 +161,9 @@ final class WorkPermitDraftService
         }
         $rows = $this->db->fetchAll(
             'SELECT id,kind,state,organization,facility,work_description,version,
-                    created_by_user_id,created_at
+                    created_by_user_id,created_at,
+                    (SELECT COUNT(*) FROM work_permit_first_admissions fa
+                     WHERE fa.document_id=work_permit_documents.id) AS has_first_admission
              FROM work_permit_documents
              WHERE state=:state' . $cursor . ' ORDER BY id DESC LIMIT ' . ($limit + 1),
             $params

@@ -14,6 +14,7 @@ use InvalidArgumentException;
 use Modules\WorkPermits\Services\WorkPermitDraftService;
 use Modules\WorkPermits\Services\WorkPermitDraftEditService;
 use Modules\WorkPermits\Services\WorkPermitIssuanceService;
+use Modules\WorkPermits\Services\WorkPermitDailyService;
 use Throwable;
 
 /**
@@ -131,6 +132,24 @@ final class WorkPermitController extends Controller
                 ->firstAdmission($id, $actor, $this->json($request));
             if (!$result['replayed']) {
                 UserActionLog::emit($actor, 'work_permits.first_admission', 'work-permits',
+                    'http', 'success', 200, ['document_id' => $id, 'version' => $result['version']]);
+            }
+            return ['document' => $result];
+        });
+    }
+
+    /** Допуск и остановка работ: отдельное право управления и CSRF. */
+    public function workPeriod(Request $request, int $id, string $action): void
+    {
+        $this->handle($request, function (int $actor) use ($request, $id, $action): array {
+            (new PermissionService())->requirePermission($actor, 'work_permits.manage');
+            $service = new WorkPermitDailyService(DatabaseManager::getInstance());
+            $input = $this->json($request);
+            $result = in_array($action, ['daily_admission', 'resume'], true)
+                ? $service->start($id, $actor, $action, $input)
+                : $service->finish($id, $actor, $action, $input);
+            if (!$result['replayed']) {
+                UserActionLog::emit($actor, 'work_permits.' . $action, 'work-permits',
                     'http', 'success', 200, ['document_id' => $id, 'version' => $result['version']]);
             }
             return ['document' => $result];
