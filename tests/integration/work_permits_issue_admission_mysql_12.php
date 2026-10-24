@@ -151,7 +151,7 @@ $order = $drafts->create($userA, [
     'department_id' => $dept['id'],
     'facility_id' => $facility['id'],
     'work_description' => 'Проверка панели по распоряжению',
-    'command_id' => str_repeat('a', 32),
+    'command_id' => str_repeat('0', 32),
 ]);
 $editor->save($order['id'], $userA, [
     'version' => 1, 'command_id' => str_repeat('b', 32),
