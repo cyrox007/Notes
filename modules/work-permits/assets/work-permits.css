@@ -56,3 +56,14 @@
  .wp-journal__actions{align-items:stretch}
  .wp-journal__actions button{width:100%}
 }
+
+/* На экранах 320–390px раскрытые формы и легенды не выходят за пределы viewport. */
+@media(max-width:480px){
+ .wp-journal{width:100%;max-width:100%;box-sizing:border-box;min-width:0}
+ .wp-journal .wp-journal__registry,.wp-journal .wp-journal__editor,
+ .wp-journal .wp-journal__row,.wp-journal fieldset{min-width:0;max-width:100%;box-sizing:border-box}
+ .wp-journal .wp-journal__row>*,.wp-journal label,.wp-journal legend{min-width:0;max-width:100%;overflow-wrap:anywhere}
+ .wp-journal select,.wp-journal input,.wp-journal textarea,.wp-journal button{max-width:100%;min-width:0;box-sizing:border-box}
+ .wp-journal .wp-journal__reference{grid-template-columns:minmax(0,1fr)}
+ .wp-journal .wp-journal__template-picker{grid-template-columns:minmax(0,1fr)}
+}
