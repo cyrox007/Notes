@@ -184,12 +184,15 @@ final class WorkPermitDraftService
         if ($documentId < 1 || $userId < 1) {
             return null;
         }
-        $where = $canManage ? 'id=:id' : 'id=:id AND created_by_user_id=:user';
+        $where = $canManage ? 'd.id=:id' : 'd.id=:id AND d.created_by_user_id=:user';
         $params = $canManage ? [':id' => $documentId] : [':id' => $documentId, ':user' => $userId];
         $document = $this->db->fetchOne(
-            'SELECT id,kind,state,organization,subdivision,facility,organization_id,department_id,facility_id,
-                    work_description,version,created_at,updated_at
-             FROM work_permit_documents
+            'SELECT d.id,d.kind,d.state,d.organization,d.subdivision,d.facility,
+                    d.organization_id,d.department_id,d.facility_id,
+                    d.work_description,d.version,d.created_at,d.updated_at,
+                    COALESCE(o.time_zone,\'UTC\') AS organization_time_zone
+             FROM work_permit_documents d
+             LEFT JOIN work_permit_organizations o ON o.id=d.organization_id
              WHERE ' . $where . ' LIMIT 1',
             $params
         );

@@ -13,6 +13,9 @@
 .wp-journal__row p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
 .wp-journal [data-wp-feedback]{padding:12px;border:1px solid var(--ui-border);border-radius:8px}
 .wp-journal [data-wp-feedback][data-state=error]{color:var(--ui-danger);background:var(--ui-danger-soft)}
+/* Явное указание часового пояса и выбор повторного часа в день перевода. */
+.wp-journal [data-wp-time-context]{grid-column:1/-1;margin:2px 0 12px;color:var(--ui-muted);font-size:13px;overflow-wrap:anywhere}
+.wp-journal [data-wp-time-choice]{border-style:dashed;max-width:100%;margin-top:4px}
 @media(max-width:640px){.wp-journal{padding:10px}.wp-journal__editor form{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.wp-journal *{scroll-behavior:auto!important}}
 

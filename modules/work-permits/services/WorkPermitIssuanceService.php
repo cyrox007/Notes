@@ -75,6 +75,10 @@ final class WorkPermitIssuanceService
                 throw new DomainException('Организация наряда не найдена', 409);
             }
             $timeZone = WorkPermitLocalDay::validate($zone['time_zone']);
+            // При смене пояса между открытием формы и выдачей нельзя молча сдвинуть время.
+            if (array_key_exists('time_zone', $data) && $data['time_zone'] !== $timeZone) {
+                throw new DomainException('Часовой пояс организации изменился. Откройте документ повторно', 409);
+            }
             if ($document['kind'] === 'order' && !WorkPermitLocalDay::sameDay($start, $finish, $timeZone)) {
                 throw new DomainException('Распоряжение должно завершаться в те же местные сутки', 409);
             }

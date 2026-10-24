@@ -92,6 +92,7 @@ ob_start();
     </section>
     <section class="calendar-shell wp-journal__editor" data-wp-lifecycle hidden aria-label="Выдача и первичный допуск">
         <h2 data-wp-lifecycle-title>Выдача документа</h2>
+        <p>Время вводится по часовому поясу объекта, указанному над формой, а не по часам вашего устройства.</p>
         <p>Операция фиксирует действие пользователя системы. Электронной подписью работника она не является. Фактическую подготовку места и инструктаж подтверждайте только после их выполнения.</p>
         <form data-wp-issue-form hidden>
             <label>Плановое начало (местное время)
@@ -373,6 +374,7 @@ echo $view->layout('core/base', [
     'user' => $user ?? [],
     'module_styles' => [$view->moduleAsset('work-permits', 'work-permits.css')],
     'module_scripts' => [
+        $view->moduleAsset('work-permits', 'work-permits-time.js'),
         $view->moduleAsset('work-permits', 'work-permits.js'),
         $view->moduleAsset('work-permits', 'work-permits-templates.js'),
         $view->moduleAsset('work-permits', 'work-permits-lifecycle.js'),

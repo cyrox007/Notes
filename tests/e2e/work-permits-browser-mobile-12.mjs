@@ -8,7 +8,7 @@ const html = execFileSync('php', ['tests/e2e/work-permits-view-fixture.php', 'ma
 const regularHtml = execFileSync('php', ['tests/e2e/work-permits-view-fixture.php', 'regular'], { encoding: 'utf8' });
 const styles = await readFile('modules/work-permits/assets/work-permits.css', 'utf8');
 const scripts = await Promise.all([
-    'work-permits.js', 'work-permits-templates.js', 'work-permits-lifecycle.js',
+    'work-permits-time.js', 'work-permits.js', 'work-permits-templates.js', 'work-permits-lifecycle.js',
     'work-permits-daily.js', 'work-permits-amendments.js', 'work-permits-closure.js',
 ].map(name => readFile('modules/work-permits/assets/' + name, 'utf8')));
 const people = [
@@ -16,7 +16,7 @@ const people = [
     { id: 22, name: 'Петров Пётр Петрович', electrical_group: 'V', organization_id: 1 },
 ];
 const refs = {
-    organizations: [{ id: 1, name: 'Электросети' }],
+    organizations: [{ id: 1, name: 'Электросети', time_zone: 'Europe/Moscow' }],
     departments: [{ id: 11, name: 'РЭС', organization_id: 1 }],
     facilities: [{ id: 12, name: 'ПС Болдыревка', organization_id: 1 }],
     employees: people,
@@ -31,6 +31,7 @@ const initial = {
     id: 100, number: 100, kind: 'permit', state: 'draft', version: 1,
     organization: 'Электросети', subdivision: 'РЭС', facility: 'ПС Болдыревка',
     organization_id: 1, department_id: 11, facility_id: 12,
+    organization_time_zone: 'Europe/Moscow',
     work_description: 'Проверка РЗА', created_at: '2026-10-24 08:00:00', crew: [],
     lifecycle: { issuance: null, first_admission: null, measures: [], periods: [],
         extensions: [], crew_revisions: [], completion: null, closure: null },
@@ -142,7 +143,8 @@ const failures = [];
 const pages = [];
 async function launch(width, manager = true) {
     const context = await browser.newContext({ viewport: { width, height: 900 },
-        isMobile: width <= 390, deviceScaleFactor: 1 });
+        isMobile: width <= 390, deviceScaleFactor: 1,
+        timezoneId: 'America/Los_Angeles' });
     const page = await context.newPage();
     pages.push(page);
     page.on('pageerror', e => failures.push(e.message));
@@ -203,6 +205,34 @@ async function layout(page, name) {
 try {
     const { page } = await launch(1280);
     await layout(page, 'Компьютер');
+    // Проверяем настоящий элемент выбора двух одинаковых часов осеннего перевода.
+    const ambiguous = await page.evaluate(() => {
+        const label = document.createElement('label');
+        const input = document.createElement('input');
+        input.type = 'datetime-local';
+        input.name = 'started_at';
+        input.value = '2026-10-25T02:30';
+        label.append(input);
+        document.querySelector('[data-work-permits]').append(label);
+        const timezone = { lifecycle: { issuance: { time_zone: 'Europe/Amsterdam' } } };
+        let message = '';
+        try { window.WorkPermitTime.toUtc(input, timezone); }
+        catch (error) { message = error.message; }
+        const choice = label.querySelector('[data-wp-time-choice]');
+        const options = [...choice.options].slice(1).map(item => item.textContent);
+        choice.selectedIndex = 2;
+        const second = window.WorkPermitTime.toUtc(input, timezone);
+        input.value = '2026-03-29T02:30';
+        let gap = '';
+        try { window.WorkPermitTime.toUtc(input, timezone); }
+        catch (error) { gap = error.message; }
+        label.remove();
+        return { message, options, second, gap };
+    });
+    assert.match(ambiguous.message, /повторяется/);
+    assert.deepEqual(ambiguous.options, ['Первый раз — UTC+02:00', 'Второй раз — UTC+01:00']);
+    assert.equal(ambiguous.second, '2026-10-25 01:30:00');
+    assert.match(ambiguous.gap, /не существует/);
     await page.locator('[data-wp-list]').getByText('Наряд-допуск №100').waitFor();
     await page.locator('[data-wp-list]').getByRole('button', { name: 'Открыть и изменить' }).click();
     await page.locator('[data-wp-editor]').waitFor({ state: 'visible' });
@@ -232,6 +262,10 @@ try {
     assert.equal(await issue.locator('button[type=submit]').isDisabled(), false);
     await issue.locator('button[type=submit]').click();
     await issue.waitFor({ state: 'hidden' });
+    const issued = state.calls.find(x => x.path === '100/issue' && x.data.time_zone);
+    assert.equal(issued.data.planned_start, '2026-10-30 05:00:00',
+        'Время выдачи не должно зависеть от пояса браузера');
+    assert.equal(issued.data.time_zone, 'Europe/Moscow');
 
     await page.locator('[data-wp-management-state]').selectOption('issued');
     await page.locator('[data-wp-management-list]').getByRole('button', { name: 'Оформить первый допуск' }).click();
@@ -245,6 +279,8 @@ try {
     await admit.locator('input[name=briefing_confirmed]').check();
     await admit.locator('button[type=submit]').click();
     await admit.waitFor({ state: 'hidden' });
+    assert.equal(state.calls.find(x => x.path === '100/first-admission').data.started_at,
+        '2026-10-30 06:00:00', 'Допуск тоже использует пояс выдачи');
 
     const managerList = page.locator('[data-wp-management-list]');
     await managerList.getByRole('button', { name: 'Рабочие смены и перерывы' }).click();
