@@ -33,6 +33,64 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
             }
             return result;
         };
+        const manager = root.querySelector('[data-wp-management]');
+        const managerList = manager?.querySelector('[data-wp-management-list]');
+        const managerState = manager?.querySelector('[data-wp-management-state]');
+        const managerMore = manager?.querySelector('[data-wp-management-more]');
+        let managerCursor = null;
+        let managerLoading = false;
+        const loadManager = async (reset = false) => {
+            if (!manager || managerLoading) return;
+            managerLoading = true;
+            managerMore.disabled = true;
+            try {
+                const query = new URLSearchParams({ state: managerState.value, limit: '20' });
+                if (!reset && managerCursor) query.set('before_id', String(managerCursor));
+                const result = await request('/management?' + query);
+                if (reset) managerList.replaceChildren();
+                for (const item of result.items || []) {
+                    const row = document.createElement('article');
+                    row.className = 'wp-journal__row';
+                    const title = document.createElement('strong');
+                    title.textContent = (item.kind === 'permit' ? 'Наряд №' : 'Распоряжение №')
+                        + item.id + ' — ' + item.facility;
+                    const author = document.createElement('small');
+                    author.textContent = 'Создатель №' + item.created_by_user_id + ' · версия ' + item.version;
+                    const action = item.state === 'draft' ? 'issue'
+                        : item.state === 'issued' && item.kind === 'permit' ? 'admit' : null;
+                    row.append(title, author);
+                    if (action) {
+                        const button = document.createElement('button');
+                        button.type = 'button';
+                        button.textContent = action === 'issue' ? 'Выдать' : 'Оформить первый допуск';
+                        pageScope.listen(button, 'click', () => void open({
+                            id: Number(item.id), action,
+                        }));
+                        row.append(button);
+                    }
+                    managerList.append(row);
+                }
+                managerCursor = result.next_cursor || null;
+                managerMore.hidden = !managerCursor;
+                if (!managerList.children.length) {
+                    const empty = document.createElement('p');
+                    empty.textContent = 'Документов в выбранном состоянии нет.';
+                    managerList.append(empty);
+                }
+            } catch (error) {
+                alert(error.message, true);
+            } finally {
+                managerLoading = false;
+                managerMore.disabled = false;
+            }
+        };
+        if (manager) {
+            pageScope.listen(managerState, 'change', () => void loadManager(true));
+            pageScope.listen(managerMore, 'click', () => void loadManager(false));
+            pageScope.listen(root, 'wp:lifecycle-recorded', () => void loadManager(true));
+            void loadManager(true);
+        }
+
         const command = () => {
             const bytes = new Uint8Array(16);
             crypto.getRandomValues(bytes);
