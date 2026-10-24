@@ -81,6 +81,16 @@ async function layout(page, width) {
             })),
         shownHidden: [...root.querySelectorAll('[hidden]')].filter(node =>
             getComputedStyle(node).display !== 'none').length,
+        layoutOverflow: [...document.querySelectorAll('body *')].filter(element => {
+            if (!element.getClientRects().length) return false;
+            const box = element.getBoundingClientRect();
+            return box.right > innerWidth + 4 || box.left < -4 || element.scrollWidth > element.clientWidth + 12;
+        }).slice(0, 18).map(element => ({
+            tag: element.tagName, className: String(element.className).slice(0, 85),
+            width: element.clientWidth, scroll: element.scrollWidth,
+            left: Math.round(element.getBoundingClientRect().left),
+            right: Math.round(element.getBoundingClientRect().right),
+        })),
         outOfBounds: [...root.querySelectorAll('input,select,textarea,button')]
             .filter(node => {
                 if (!node.getClientRects().length) return false;
