@@ -80,7 +80,7 @@ async function layout(page, width) {
             .filter(node => {
                 if (!node.getClientRects().length) return false;
                 const rect = node.getBoundingClientRect();
-                return rect.right > innerWidth + 3 || rect.left < -3;
+                return rect.right > document.documentElement.clientWidth + 2;
             }).slice(0, 18).map(node => ({
                 tag: node.tagName.toLowerCase(), css: String(node.className).slice(0, 100),
                 text: node.textContent?.trim().slice(0, 30),
