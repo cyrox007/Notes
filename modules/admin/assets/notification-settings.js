@@ -30,8 +30,17 @@ window.wspace.page.register('modules/admin/assets/notification-settings.js', (pa
                         feedback.textContent += ' Номер задания: ' + result.job_id
                             + '; состояние: ' + result.state
                             + '; код: ' + (result.last_result_code || 'пока нет') + '.';
+                        if (typeof result.guidance === 'string' && result.guidance !== '') {
+                            feedback.textContent += ' ' + result.guidance;
+                        }
                     }
-                    feedback.dataset.state = 'success';
+                    // HTTP 200 подтверждает запись пробного события, но не
+                    // означает успешную передачу письма внешнему серверу.
+                    feedback.dataset.state = result.job_id && result.state === 'failed'
+                        ? 'error'
+                        : result.job_id && result.state !== 'sent'
+                            ? 'warning'
+                            : 'success';
                     const password = form.querySelector('[name="current_password"]');
                     if (password) password.value = '';
                 } catch (error) {
