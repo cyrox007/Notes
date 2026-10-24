@@ -32,10 +32,14 @@ final class WorkPermitIssuanceService
             throw new InvalidArgumentException('Дата окончания должна быть позже начала');
         }
         $instructions = $this->string($data['special_instructions'] ?? '', 4000, false);
+        $conditions = $this->string($data['work_conditions'] ?? '', 6000, false);
         $measures = $this->measures($data['measures'] ?? null);
-        $hash = $this->fingerprint($documentId, $actor, 'issue', [
-            $version, $start, $finish, $instructions, $measures,
-        ]);
+        // Для старых команд без условий сохраняется исходный отпечаток.
+        $fingerprintParts = [$version, $start, $finish, $instructions, $measures];
+        if ($conditions !== '') {
+            $fingerprintParts[] = $conditions;
+        }
+        $hash = $this->fingerprint($documentId, $actor, 'issue', $fingerprintParts);
         $old = $this->replay($command, $documentId, $actor, 'issue', $hash);
         if ($old !== null) {
             return $old;
@@ -70,14 +74,14 @@ final class WorkPermitIssuanceService
             $this->db->execute(
                 'INSERT INTO work_permit_issuances
                     (document_id,issuer_employee_id,issuer_name,producer_employee_id,producer_name,
-                     planned_start,planned_finish,special_instructions,issued_by_user_id)
-                 VALUES (:doc,:issuer,:issuer_name,:producer,:producer_name,:start,:finish,:instructions,:actor)',
+                     planned_start,planned_finish,special_instructions,work_conditions,issued_by_user_id)
+                 VALUES (:doc,:issuer,:issuer_name,:producer,:producer_name,:start,:finish,:instructions,:conditions,:actor)',
                 [
                     ':doc' => $documentId,
                     ':issuer' => $issuer['employee_id'], ':issuer_name' => $issuer['employee_name'],
                     ':producer' => $producer['employee_id'], ':producer_name' => $producer['employee_name'],
                     ':start' => $start, ':finish' => $finish,
-                    ':instructions' => $instructions, ':actor' => $actor,
+                    ':instructions' => $instructions, ':conditions' => $conditions, ':actor' => $actor,
                 ]
             );
             foreach ($measures as $index => $measure) {
@@ -191,7 +195,7 @@ final class WorkPermitIssuanceService
         return [
             'issuance' => $this->db->fetchOne(
                 'SELECT issuer_employee_id,issuer_name,producer_employee_id,producer_name,
-                        planned_start,planned_finish,special_instructions,issued_at
+                        planned_start,planned_finish,special_instructions,work_conditions,issued_at
                  FROM work_permit_issuances WHERE document_id=:id LIMIT 1',
                 [':id' => $documentId]
             ),
