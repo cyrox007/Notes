@@ -61,7 +61,8 @@ jobs:
             database/calendar_schema.sql database/notifications_schema.sql \
             database/defects_schema.sql database/work_permits_schema.sql \
             database/migrations/20261017_mutation_commands.sql \
-            database/migrations/20261019_defects_foundation.sql; do
+            database/migrations/20261019_defects_foundation.sql \
+            database/migrations/20261021_notification_action_tokens.sql; do
             mysql -h 127.0.0.1 -uroot -proot work_permits_browser < "$file"
           done
       - name: Подготовить роли и временную лицензию
