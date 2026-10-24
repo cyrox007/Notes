@@ -258,10 +258,26 @@ try {
 
     // Мобильные испытания выполняются на заново загруженном сайте,
     // а не подменой размера уже открытой настольной сессии.
+    const authenticatedSession = await firstContext.storageState();
     for (const width of [320, 360, 390, 768, 1440]) {
-        const { page: mobilePage, context: mobileContext } = await login('E2E_MANAGER_ONE', width);
-        await layout(mobilePage, width);
-        await mobileContext.close();
+        // Cookie из уже проверенного входа, но новый профиль и первичная загрузка
+        // именно в заданной ширине: не расходуем ограничение повторных авторизаций.
+        const mobileContext = await browser.newContext({
+            viewport: { width, height: 860 },
+            isMobile: width <= 390, hasTouch: width <= 390,
+            storageState: authenticatedSession,
+        });
+        try {
+            const mobilePage = await mobileContext.newPage();
+            const loaded = await mobilePage.goto(base + '/work-permits/', {
+                waitUntil: 'domcontentloaded',
+            });
+            assert.equal(loaded?.status(), 200, 'Наряд не открылся при ширине ' + width);
+            await mobilePage.locator('[data-work-permits]').waitFor({ state: 'visible' });
+            await layout(mobilePage, width);
+        } finally {
+            await mobileContext.close();
+        }
     }
     await layout(worker, 390);
     assert.deepEqual(browserErrors, [], 'Ошибки браузера');
