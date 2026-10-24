@@ -158,6 +158,7 @@ final class WorkPermitDraftService
             return null;
         }
         $document['crew'] = (new WorkPermitCrewService($this->db))->forDocument($documentId);
+        $document['lifecycle'] = (new WorkPermitIssuanceService($this->db))->details($documentId);
         return $document;
     }
 
