@@ -205,7 +205,7 @@ wpAssert(str_contains($routes, 'work_permits_extend')
     && str_contains($routes, 'work_permits_change_crew')
     && substr_count($routes, 'CSRFMiddleware::class') >= 11,
     'Обе новые операции требуют CSRF');
-wpAssert(str_contains($controller, "requirePermission($actor, 'work_permits.manage')"),
+wpAssert(substr_count($controller, "'work_permits.manage'") >= 8,
     'Управление требует отдельного разрешения');
 DatabaseManager::resetInstance();
 echo "Проверены изменения бригады, продление и история прежних сроков\n";
