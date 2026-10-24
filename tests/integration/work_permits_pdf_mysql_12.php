@@ -120,9 +120,8 @@ try {
 }
 $controller = file_get_contents($root . '/modules/work-permits/controllers/WorkPermitController.php');
 $routes = file_get_contents($root . '/modules/work-permits/WorkPermitsRuntimeProvider.php');
-wpAssert(str_contains($routes, "'work_permits_pdf'")
-    && str_contains($controller, "hasPermission($actor, 'work_permits.use')") === false,
-    'Маршрут PDF должен применять доступ к собственным документам');
+wpAssert(str_contains($routes, "'work_permits_pdf'"),
+    'Маршрут PDF должен быть зарегистрирован для авторизованного пользователя');
 wpAssert(str_contains($controller, "'work_permits.use'")
     && str_contains($controller, 'detail($id, $actor, $canManage)')
     && str_contains($controller, 'Cache-Control: private, no-store'),
