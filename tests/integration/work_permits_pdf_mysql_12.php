@@ -50,6 +50,18 @@ function checkPdfWithPoppler(string $bytes, array $expected, int $minimumPages):
         wpAssert($imageStatus === 0 && is_file($preview . '.png')
             && filesize($preview . '.png') > 1000, 'Первая страница должна рисоваться без ошибки');
         unlink($preview . '.png');
+        // Проверяем также последнюю страницу: длинные журналы и продолжения таблиц.
+        preg_match('/Pages:\\s*(\\d+)/', $infoText, $totalPages);
+        $lastPage = (int) ($totalPages[1] ?? 0);
+        wpAssert($lastPage >= 1, 'Не найден номер последней страницы');
+        $lastPreview = substr($pdfFile, 0, -4) . '-last';
+        exec('pdftoppm -f ' . $lastPage . ' -l ' . $lastPage
+            . ' -scale-to 1000 -singlefile -png ' . $escaped . ' '
+            . escapeshellarg($lastPreview) . ' 2>&1', $lastImageInfo, $lastStatus);
+        wpAssert($lastStatus === 0 && is_file($lastPreview . '.png')
+            && filesize($lastPreview . '.png') > 1000,
+            'Последняя страница многостраничного наряда должна отрисовываться');
+        unlink($lastPreview . '.png');
     } finally {
         if (is_file($pdfFile)) unlink($pdfFile);
     }
