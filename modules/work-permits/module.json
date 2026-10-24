@@ -45,7 +45,9 @@
       "work_permit_work_periods",
       "work_permit_crew_revisions",
       "work_permit_crew_revision_members",
-      "work_permit_extensions"
+      "work_permit_extensions",
+      "work_permit_completions",
+      "work_permit_closures"
     ],
     "schemas": [
       "database/work_permits_schema.sql"
@@ -57,7 +59,8 @@
       "database/migrations/20261024_work_permits_templates.sql",
       "database/migrations/20261024_work_permits_issue_admission.sql",
       "database/migrations/20261024_work_permits_daily_periods.sql",
-      "database/migrations/20261024_work_permits_crew_extensions.sql"
+      "database/migrations/20261024_work_permits_crew_extensions.sql",
+      "database/migrations/20261024_work_permits_completion_closure.sql"
     ]
   },
   "background": {
