@@ -72,4 +72,4 @@ jobs:
           TEST_DB_NAME: workspace_test
           TEST_DB_USER: root
           TEST_DB_PASS: root
-        run: php tests/integration/work_permits_edit_crew_mysql_12.php
+        run: php tests/integration/work_permits_templates_mysql_12.php
