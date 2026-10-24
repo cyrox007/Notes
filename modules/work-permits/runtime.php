@@ -6,6 +6,7 @@ foreach ([
     'services/WorkPermitPdfFont.php',
     'services/WorkPermitPdfDocument.php',
     'services/WorkPermitPdfRenderer.php',
+    'services/WorkPermitLocalDay.php',
     'services/WorkPermitReferenceService.php',
     'services/WorkPermitCrewService.php',
     'services/WorkPermitTemplateService.php',
