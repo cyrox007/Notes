@@ -48,6 +48,35 @@ wpAssert((int) $crewDetail['roles']['issuer'] === $person['id']
     'Сотрудник совмещает должности и членство в бригаде');
 wpAssert(count($templates->listing($org1['id'], 'crew')['items']) === 1,
     'Список бригад отделён от списка заданий');
+// Реальное применение двух шаблонов: сохраняется отдельный черновик.
+$filled = $drafts->create($userA, [
+    'kind' => 'permit',
+    'organization_id' => $org1['id'],
+    'department_id' => $dept['id'],
+    'facility_id' => $facility['id'],
+    'work_description' => $detail['work_description'],
+    'command_id' => str_repeat('4', 32),
+]);
+$filledEdit = $editor->save($filled['id'], $userA, [
+    'version' => 1,
+    'command_id' => str_repeat('5', 32),
+    'organization_id' => $org1['id'],
+    'department_id' => $dept['id'],
+    'facility_id' => $facility['id'],
+    'work_description' => $detail['work_description'] . ' Уточнить проверку цепей.',
+    'roles' => $crewDetail['roles'],
+    'member_ids' => $crewDetail['member_ids'],
+]);
+wpAssert($filledEdit['version'] === 2, 'Шаблоны применены в обычном редакторе черновика');
+$filledDetail = $drafts->detail($filled['id'], $userA);
+wpAssert(str_contains((string) $filledDetail['work_description'], 'Уточнить проверку цепей.'),
+    'Подставленное задание остаётся редактируемым');
+wpAssert(count($filledDetail['crew']) === 3, 'Состав бригады подставлен в документ');
+wpAssert($templates->detail($job['id'], $org1['id'])['work_description'] === $detail['work_description'],
+    'Редактирование документа не изменило исходный шаблон задания');
+wpAssert(count($templates->detail($crew['id'], $org1['id'])['member_ids']) === 1,
+    'Редактирование документа не изменило исходный шаблон бригады');
+
 $renamed = $templates->change($userB, $job['id'], [
     'action' => 'rename', 'version' => 1, 'name' => 'РЗА и автоматика',
 ]);
