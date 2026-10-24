@@ -40,3 +40,19 @@
 .wp-journal [data-wp-template-description],.wp-journal [data-wp-template-crew-hint]{grid-column:1/-1}
 .wp-journal__template-row .wp-journal__actions button{font-size:12px}
 @media(max-width:650px){.wp-journal [data-wp-template-admin] form{grid-template-columns:1fr}}
+
+/* Скрытые этапы не должны проявляться из-за сетки форм. */
+.wp-journal [hidden]{display:none!important}
+/* На телефоне поля, длинные ФИО и операции не растягивают экран. */
+.wp-journal,.wp-journal *{min-width:0}
+.wp-journal .wp-journal__row,.wp-journal .wp-journal__actions{overflow-wrap:anywhere}
+.wp-journal__measure{max-width:100%;box-sizing:border-box}
+.wp-journal__editor form>*,.wp-journal [data-wp-template-admin] form>*{max-width:100%}
+.wp-journal__actions button{max-width:100%;white-space:normal;text-align:left}
+@media(max-width:480px){
+ .wp-journal__editor,.wp-journal__registry{padding:12px}
+ .wp-journal__template-picker{display:grid;grid-template-columns:minmax(0,1fr)}
+ .wp-journal__template-picker label{min-width:0}
+ .wp-journal__actions{align-items:stretch}
+ .wp-journal__actions button{width:100%}
+}

@@ -1,0 +1,61 @@
+name: Наряды 1.2 — браузер и мобильные экраны
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/work-permits/**'
+      - 'tests/e2e/work-permits-view-fixture.php'
+      - 'tests/e2e/work-permits-browser-mobile-12.mjs'
+      - '.github/workflows/work-permits-browser-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'modules/work-permits/**'
+      - 'tests/e2e/work-permits-view-fixture.php'
+      - 'tests/e2e/work-permits-browser-mobile-12.mjs'
+      - '.github/workflows/work-permits-browser-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  work-permits-browser:
+    name: Наряды — Chromium 320–1440
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring
+          coverage: none
+      - name: Установить Chromium
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Проверить синтаксис и форму
+        run: |
+          set -euo pipefail
+          php -l tests/e2e/work-permits-view-fixture.php
+          node --check tests/e2e/work-permits-browser-mobile-12.mjs
+          for source in modules/work-permits/assets/*.js; do node --check "$source"; done
+      - name: Проверить пользовательский интерфейс и мобильные ширины
+        run: |
+          set -euo pipefail
+          node tests/e2e/work-permits-browser-mobile-12.mjs
+      - name: Сохранить сведения об ошибке
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: work-permits-browser-error
+          path: |
+            /tmp/work-permits-browser-error.json
+            /tmp/work-permits-browser-*.png
+          if-no-files-found: ignore
+          retention-days: 5
