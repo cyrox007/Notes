@@ -110,6 +110,9 @@ jobs:
             tests/integration/defects_http_sql_profile_12.py \
             tests/integration/notes_staged_http_capacity_12.py
           php tests/integration/defects_http_seed_12.php > /tmp/defects-http-fixture.json
+          # Общая готовность схемы требует таблиц автономных модулей.
+          mysql -h 127.0.0.1 -uroot defects_http_load < database/work_permits_schema.sql
+          mysql -h 127.0.0.1 -uroot defects_http_load < database/migrations/20261021_notification_action_tokens.sql
           mysql -h 127.0.0.1 -uroot defects_http_load < database/migrations/20261019_defects_foundation.sql
           php tests/support/ci_license_fixture.php
           # В тестовом runner сервер работает только на loopback от владельца рабочей копии.
