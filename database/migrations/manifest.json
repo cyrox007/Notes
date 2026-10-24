@@ -65,6 +65,7 @@
     "20261024_work_permits_issue_admission.sql",
     "20261024_work_permits_daily_periods.sql",
     "20261024_work_permits_crew_extensions.sql",
-    "20261024_work_permits_completion_closure.sql"
+    "20261024_work_permits_completion_closure.sql",
+    "20261024_work_permits_conditions_templates.sql"
   ]
 }
