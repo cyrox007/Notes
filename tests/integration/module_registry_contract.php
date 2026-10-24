@@ -90,7 +90,7 @@ function removeFixtureTree(string $path): void
 }
 
 $registry = ModuleRegistry::discover($root . '/modules', Version::VERSION);
-$expected = ['admin', 'calendar', 'defects', 'files', 'messenger', 'notes', 'profile', 'tasks'];
+$expected = ['admin', 'calendar', 'defects', 'files', 'messenger', 'notes', 'profile', 'tasks', 'work-permits'];
 $defaultModules = ['admin', 'calendar', 'files', 'messenger', 'notes', 'profile', 'tasks'];
 $isolated = $expected;
 

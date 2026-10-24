@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "id": "work-permits",
+  "name": "Наряды и допуски",
+  "version": "1.2.0",
+  "core": {
+    "min": "0.13.0-alpha",
+    "max_exclusive": "2.0.0"
+  },
+  "dependencies": [],
+  "capabilities": [
+    "workspace.work-permits"
+  ],
+  "package": {
+    "bundled": true,
+    "default_enabled": false,
+    "required": false
+  },
+  "license": {
+    "feature": "workspace.work-permits"
+  },
+  "runtime": {
+    "mode": "isolated",
+    "entrypoint": "runtime.php"
+  },
+  "storage_namespaces": [],
+  "database": {
+    "tables": [
+      "work_permit_documents",
+      "work_permit_history"
+    ],
+    "schemas": [
+      "database/work_permits_schema.sql"
+    ],
+    "migrations": [
+      "database/migrations/20261024_work_permits_drafts.sql"
+    ]
+  },
+  "background": {
+    "account_purge_guard": "none",
+    "retention_cleanup": "none"
+  }
+}

@@ -1,0 +1,69 @@
+name: Наряды и допуски — черновики 1.2
+
+on:
+  push:
+    branches: ['1.2']
+    paths:
+      - 'modules/work-permits/**'
+      - 'database/work_permits_schema.sql'
+      - 'database/migrations/20261024_work_permits_drafts.sql'
+      - 'database/migrations/manifest.json'
+      - 'tests/integration/work_permits_draft_mysql_12.php'
+      - 'tests/integration/module_registry_contract.php'
+      - '.github/workflows/work-permits-drafts-12.yml'
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/work-permits/**'
+      - 'database/work_permits_schema.sql'
+      - 'database/migrations/20261024_work_permits_drafts.sql'
+      - 'database/migrations/manifest.json'
+      - 'tests/integration/work_permits_draft_mysql_12.php'
+      - 'tests/integration/module_registry_contract.php'
+      - '.github/workflows/work-permits-drafts-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  work-permits-draft-mysql:
+    name: Черновики нарядов (MySQL 8.4)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: workspace_test
+          MYSQL_USER: workspace
+          MYSQL_PASSWORD: workspace
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring
+          coverage: none
+      - name: Проверить синтаксис и платформу модулей
+        run: |
+          set -euo pipefail
+          for file in $(find modules/work-permits -name '*.php' -type f); do php -l "$file"; done
+          node --check modules/work-permits/assets/work-permits.js
+          php tests/integration/module_registry_contract.php
+          php tests/integration/module_schema_ownership_contract_12.php
+      - name: Проверить создание, повтор и запрет чужого журнала
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: 3306
+          TEST_DB_NAME: workspace_test
+          TEST_DB_USER: root
+          TEST_DB_PASS: root
+        run: php tests/integration/work_permits_draft_mysql_12.php

@@ -39,7 +39,7 @@ function runtimeCompositionAssert(bool $condition, string $message): void
     }
 }
 
-$expected = ['admin', 'calendar', 'defects', 'files', 'messenger', 'notes', 'profile', 'tasks'];
+$expected = ['admin', 'calendar', 'defects', 'files', 'messenger', 'notes', 'profile', 'tasks', 'work-permits'];
 $providerClasses = [
     'calendar' => 'Modules\\Calendar\\CalendarRuntimeProvider',
     'defects' => 'Modules\\Defects\\DefectsRuntimeProvider',
@@ -49,6 +49,7 @@ $providerClasses = [
     'notes' => 'Modules\\Notes\\NotesRuntimeProvider',
     'profile' => 'Modules\\Profile\\ProfileRuntimeProvider',
     'tasks' => 'Modules\\Tasks\\TasksRuntimeProvider',
+    'work-permits' => 'Modules\\WorkPermits\\WorkPermitsRuntimeProvider',
 ];
 $routeControllerClasses = [
     'calendar' => 'Modules\\Calendar\\Controllers\\CalendarController',
@@ -59,6 +60,7 @@ $routeControllerClasses = [
     'notes' => 'App\\Controllers\\NoteController',
     'profile' => 'App\\Controllers\\ProfileController',
     'tasks' => 'App\\Controllers\\TaskController',
+    'work-permits' => 'Modules\\WorkPermits\\Controllers\\WorkPermitController',
 ];
 
 $coreSource = (string) file_get_contents($root . '/core.php');
