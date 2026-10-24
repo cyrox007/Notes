@@ -3,6 +3,22 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
         const root = document.querySelector('[data-work-permits]');
         if (!root) return;
 
+        // В некоторых старых оболочках боковая панель удерживает отступ
+        // даже после перехода на узкую ширину. Сбрасываем только для модуля.
+        const container = root.closest('.wrapper__content');
+        const syncMobileContent = () => {
+            if (!container) return;
+            if (window.matchMedia('(max-width:900px)').matches) {
+                container.style.setProperty('margin-left', '0', 'important');
+                container.style.setProperty('width', '100%', 'important');
+                return;
+            }
+            container.style.removeProperty('margin-left');
+            container.style.removeProperty('width');
+        };
+        syncMobileContent();
+        pageScope.listen(window, 'resize', syncMobileContent);
+
         const api = (root.dataset.baseUrl || '') + '/api/work-permits';
         const form = root.querySelector('[data-wp-form]');
         const feedback = root.querySelector('[data-wp-feedback]');
