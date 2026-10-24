@@ -185,12 +185,6 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
             crypto.getRandomValues(bytes);
             return [...bytes].map(byte => byte.toString(16).padStart(2, '0')).join('');
         };
-        const utc = (value) => {
-            if (!value) throw new Error('Укажите дату и время');
-            const date = new Date(value);
-            if (Number.isNaN(date.getTime())) throw new Error('Некорректная дата');
-            return date.toISOString().slice(0, 19).replace('T', ' ');
-        };
         const addMeasure = () => {
             if (list.children.length >= 20) {
                 alert('Не более двадцати мероприятий', true);
@@ -256,6 +250,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                     throw new Error('Первый допуск недоступен для этого документа');
                 }
                 state.document = document;
+                window.WorkPermitTime.context(panel, document);
                 state.action = action;
                 state.command = null;
                 issueForm.reset();
@@ -316,15 +311,16 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                     command_id: state.command,
                 };
                 if (action === 'issue') {
-                    payload.planned_start = utc(data.planned_start);
-                    payload.planned_finish = utc(data.planned_finish);
+                    payload.planned_start = window.WorkPermitTime.toUtc(issueForm.elements.namedItem('planned_start'), state.document);
+                    payload.planned_finish = window.WorkPermitTime.toUtc(issueForm.elements.namedItem('planned_finish'), state.document);
                     payload.special_instructions = data.special_instructions;
                     payload.work_conditions = data.work_conditions;
+                    payload.time_zone = window.WorkPermitTime.zoneFor(state.document);
                     payload.measures = [...list.children].map(row => Object.fromEntries(
                         [...row.querySelectorAll('textarea')].map(field => [field.name, field.value])
                     ));
                 } else {
-                    payload.started_at = utc(data.started_at);
+                    payload.started_at = window.WorkPermitTime.toUtc(admitForm.elements.namedItem('started_at'), state.document);
                     payload.admitted_employee_id = data.admitted_employee_id;
                     payload.briefed_by_employee_id = data.briefed_by_employee_id;
                     payload.briefing_recipient_id = data.briefing_recipient_id;
