@@ -16,6 +16,12 @@ foreach ([
     'inspect_job=',
     'name="job_id"',
     'readonly',
+    'attention_page',
+    'unverified_page',
+    'Предыдущая страница',
+    'Следующая страница',
+    'has_previous',
+    'has_next',
     "receipt_review",
 ] as $part) {
     if (!str_contains($view, $part) && !str_contains($controller, $part)) {
