@@ -42,10 +42,11 @@ $editService = new WorkPermitDraftEditService($db);
 $issueService = new WorkPermitIssuanceService($db);
 $dailyService = new WorkPermitDailyService($db);
 $orgId = (int) $org1['id'];
-$org = array_values(array_filter(
-    $references->listing('organizations')['items'],
-    static fn (array $r): bool => (int) $r['id'] === $orgId
-))[0];
+$org = $db->fetchOne(
+    'SELECT id,time_zone,version FROM work_permit_organizations WHERE id=:id',
+    [':id' => $orgId]
+);
+wpAssert($org !== null, 'Проверяемая организация должна существовать');
 wpAssert($org['time_zone'] === 'UTC', 'У старых организаций остаётся UTC');
 $changed = $references->changeTimeZone($orgId, (int) $org['version'], $userB, 'Europe/Amsterdam');
 wpAssert($changed['version'] === (int) $org['version'] + 1,
