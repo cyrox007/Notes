@@ -169,6 +169,10 @@ final class WorkPermitIssuanceService
                     ':start' => $start, ':actor' => $actor,
                 ]
             );
+            (new WorkPermitDailyService($this->db))->firstPeriod(
+                $documentId, $actor, $start, $admitter, $admitterName,
+                $instructor, $instructorName, $recipient, $recipientName
+            );
             $next = $this->advance($documentId, $version, 'issued', 'first_admission', $actor);
             $this->recordCommand($command, $documentId, $actor, 'first_admission', $hash, $next);
             $this->db->endTransaction();
@@ -203,6 +207,7 @@ final class WorkPermitIssuanceService
                  FROM work_permit_first_admissions WHERE document_id=:id LIMIT 1',
                 [':id' => $documentId]
             ),
+            'periods' => (new WorkPermitDailyService($this->db))->periods($documentId),
         ];
     }
 
