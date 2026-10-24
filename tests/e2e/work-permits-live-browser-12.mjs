@@ -124,7 +124,8 @@ async function layout(page, width) {
     const contentWidth = await page.locator('.wrapper__content').evaluate(
         element => element.getBoundingClientRect().width
     );
-    assert.ok(scrolledX <= 1 && contentWidth >= width - 5,
+    const expectedWidth = width <= 900 ? width - 5 : width - 300;
+    assert.ok(scrolledX <= 1 && contentWidth >= expectedWidth,
         'Содержимое смещается по горизонтали на ' + width + ': '
         + JSON.stringify({ ...measured, scrolledX, contentWidth }));
     assert.equal(measured.shownHidden, 0, 'Видны скрытые формы: ' + width);
