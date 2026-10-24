@@ -114,6 +114,9 @@ final class WorkPermitController extends Controller
             $payload = $this->json($request);
             $action = $payload['action'] ?? null;
             $name = $action === 'rename' ? ($payload['name'] ?? null) : null;
+            if ($action === 'rename' && !is_string($name)) {
+                throw new InvalidArgumentException('Название должно быть строкой');
+            }
             $archived = match ($action) {
                 'archive' => true,
                 'restore' => false,
