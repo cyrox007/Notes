@@ -94,10 +94,10 @@ ob_start();
         <h2 data-wp-lifecycle-title>Выдача документа</h2>
         <p>Операция фиксирует действие пользователя системы. Электронной подписью работника она не является. Фактическую подготовку места и инструктаж подтверждайте только после их выполнения.</p>
         <form data-wp-issue-form hidden>
-            <label>Плановое начало (UTC)
+            <label>Плановое начало (местное время)
                 <input type="datetime-local" name="planned_start" required>
             </label>
-            <label>Плановое окончание (UTC)
+            <label>Плановое окончание (местное время)
                 <input type="datetime-local" name="planned_finish" required>
             </label>
             <label class="wp-journal__wide">Отдельные указания
@@ -115,7 +115,7 @@ ob_start();
             </div>
         </form>
         <form data-wp-admission-form hidden>
-            <label>Фактическое начало работ (UTC)
+            <label>Фактическое начало работ (местное время)
                 <input type="datetime-local" name="started_at" required>
             </label>
             <label>Допускающий
