@@ -58,10 +58,6 @@ final class WorkPermitIssuanceService
                 || trim((string) $document['work_description']) === '') {
                 throw new DomainException('Заполните организацию, объект и задание до выдачи', 409);
             }
-            if ($document['kind'] === 'order' && substr($start, 0, 10) !== substr($finish, 0, 10)) {
-                throw new DomainException('Распоряжение действует только в пределах одной смены', 409);
-            }
-
             $crew = (new WorkPermitCrewService($this->db))->forDocument($documentId);
             $issuer = $this->crewRole($crew, 'issuer');
             $producer = $this->crewRole($crew, 'producer');
@@ -79,6 +75,9 @@ final class WorkPermitIssuanceService
                 throw new DomainException('Организация наряда не найдена', 409);
             }
             $timeZone = WorkPermitLocalDay::validate($zone['time_zone']);
+            if ($document['kind'] === 'order' && !WorkPermitLocalDay::sameDay($start, $finish, $timeZone)) {
+                throw new DomainException('Распоряжение должно завершаться в те же местные сутки', 409);
+            }
             $this->db->execute(
                 'INSERT INTO work_permit_issuances
                     (document_id,issuer_employee_id,issuer_name,producer_employee_id,producer_name,
