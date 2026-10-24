@@ -11,6 +11,8 @@ on:
       - 'tests/integration/work_permits_draft_mysql_12.php'
       - 'tests/integration/work_permits_references_mysql_12.php'
       - 'tests/integration/work_permits_edit_crew_mysql_12.php'
+      - 'tests/integration/work_permits_issue_admission_mysql_12.php'
+      - 'database/migrations/20261024_work_permits_issue_admission.sql'
       - 'database/migrations/20261024_work_permits_edit_crew.sql'
       - 'tests/integration/module_registry_contract.php'
       - '.github/workflows/work-permits-drafts-12.yml'
@@ -24,6 +26,8 @@ on:
       - 'tests/integration/work_permits_draft_mysql_12.php'
       - 'tests/integration/work_permits_references_mysql_12.php'
       - 'tests/integration/work_permits_edit_crew_mysql_12.php'
+      - 'tests/integration/work_permits_issue_admission_mysql_12.php'
+      - 'database/migrations/20261024_work_permits_issue_admission.sql'
       - 'database/migrations/20261024_work_permits_edit_crew.sql'
       - 'tests/integration/module_registry_contract.php'
       - '.github/workflows/work-permits-drafts-12.yml'
@@ -64,6 +68,7 @@ jobs:
           for file in $(find modules/work-permits -name '*.php' -type f); do php -l "$file"; done
           node --check modules/work-permits/assets/work-permits.js
           node --check modules/work-permits/assets/work-permits-templates.js
+          node --check modules/work-permits/assets/work-permits-lifecycle.js
           php tests/integration/module_registry_contract.php
           php tests/integration/module_schema_ownership_contract_12.php
       - name: Проверить создание, повтор и запрет чужого журнала
@@ -73,4 +78,4 @@ jobs:
           TEST_DB_NAME: workspace_test
           TEST_DB_USER: root
           TEST_DB_PASS: root
-        run: php tests/integration/work_permits_templates_mysql_12.php
+        run: php tests/integration/work_permits_issue_admission_mysql_12.php
