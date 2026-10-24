@@ -39,6 +39,8 @@ on:
       - 'tests/integration/notification_*contract.php'
       - 'tests/integration/notification_cli_worker_health_12.php'
       - 'tests/integration/notification_admin_smtp_12.php'
+      - 'tests/integration/notification_smtp_guidance_12.php'
+      - 'tests/integration/notification_smtp_feedback_12.mjs'
       - 'tests/integration/notification_external_channels_12.php'
       - 'tests/integration/notification_sms_gateway_12.php'
       - 'tests/integration/notification_web_push_*_12.php'
@@ -87,6 +89,8 @@ on:
       - 'tests/integration/notification_*contract.php'
       - 'tests/integration/notification_cli_worker_health_12.php'
       - 'tests/integration/notification_admin_smtp_12.php'
+      - 'tests/integration/notification_smtp_guidance_12.php'
+      - 'tests/integration/notification_smtp_feedback_12.mjs'
       - 'tests/integration/notification_external_channels_12.php'
       - 'tests/integration/notification_sms_gateway_12.php'
       - 'tests/integration/notification_web_push_*_12.php'
@@ -202,6 +206,11 @@ jobs:
           set -euo pipefail
           php tests/integration/notification_smtp_contract.php
           php tests/integration/notification_admin_smtp_12.php
+          php tests/integration/notification_smtp_guidance_12.php
+          node tests/integration/notification_smtp_feedback_12.mjs
+          php -l app/services/notifications/SmtpDeliveryGuidance.php
+          php -l modules/admin/controllers/NotificationSettingsController.php
+          node --check modules/admin/assets/notification-settings.js
           php tests/integration/notification_external_channels_12.php
           php tests/integration/notification_channel_owner_isolation_contract.php
           php tests/integration/notification_channel_diagnostics_contract.php
