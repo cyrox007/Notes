@@ -29,15 +29,22 @@ final class SocketSmtpTransport implements SmtpTransport
         $stream = $this->connect($host, $port, $encryption, $timeout);
         try {
             $this->expect($stream, [220], 'smtp_greeting');
-            $this->ehlo($stream, $clientName);
+            $methods = $this->ehlo($stream, $clientName);
 
             if ($encryption === 'tls') {
                 $this->startTls($stream, $host);
-                $this->ehlo($stream, $clientName);
+                $methods = $this->ehlo($stream, $clientName);
             }
 
             if ($username !== '') {
-                $this->authenticate($stream, $username, $password);
+                if ($encryption === 'none') {
+                    throw new SmtpTransportException(
+                        'SMTP-авторизация без защищённого соединения запрещена',
+                        'smtp_auth_insecure',
+                        false
+                    );
+                }
+                $this->authenticate($stream, $username, $password, $methods);
             }
 
             $fromEmail = (string) ($settings['from_email'] ?? '');
@@ -114,10 +121,40 @@ final class SocketSmtpTransport implements SmtpTransport
         return $stream;
     }
 
-    /** @param resource $stream */
-    private function ehlo($stream, string $clientName): void
+    /**
+     * После STARTTLS сервер может изменить возможности: EHLO повторяется.
+     *
+     * @param resource $stream
+     * @return list<string>
+     */
+    private function ehlo($stream, string $clientName): array
     {
-        $this->command($stream, 'EHLO ' . $clientName, [250], 'smtp_ehlo');
+        $this->writeAll($stream, 'EHLO ' . $clientName . "\r\n");
+        $replyLines = [];
+        $this->expect($stream, [250], 'smtp_ehlo', $replyLines);
+        return self::authenticationMethods($replyLines);
+    }
+
+    /**
+     * Сырые ответы сервера используются только внутри SMTP-соединения.
+     *
+     * @param list<string> $replyLines
+     * @return list<string>
+     */
+    public static function authenticationMethods(array $replyLines): array
+    {
+        $methods = [];
+        foreach ($replyLines as $line) {
+            if (preg_match('/^250[ -]AUTH(?:=|\\s+)(.*)$/i', rtrim($line, "\r\n"), $match) !== 1) {
+                continue;
+            }
+            foreach (preg_split('/\\s+/', strtoupper(trim($match[1]))) ?: [] as $method) {
+                if (in_array($method, ['PLAIN', 'LOGIN'], true)) {
+                    $methods[$method] = true;
+                }
+            }
+        }
+        return array_keys($methods);
     }
 
     /** @param resource $stream */
@@ -144,9 +181,19 @@ final class SocketSmtpTransport implements SmtpTransport
         }
     }
 
-    /** @param resource $stream */
-    private function authenticate($stream, string $username, #[\SensitiveParameter] ?string $password): void
-    {
+    /**
+     * Не пробуем следующий способ после отказа сервера: повторная
+     * авторизация расходует попытки входа и может блокировать учётную запись.
+     *
+     * @param resource $stream
+     * @param list<string> $methods
+     */
+    private function authenticate(
+        $stream,
+        string $username,
+        #[\SensitiveParameter] ?string $password,
+        array $methods
+    ): void {
         if ($password === null || $password === '') {
             throw new SmtpTransportException(
                 'Для SMTP-авторизации не задан секрет',
@@ -155,9 +202,24 @@ final class SocketSmtpTransport implements SmtpTransport
             );
         }
 
-        $this->command($stream, 'AUTH LOGIN', [334], 'smtp_auth');
-        $this->command($stream, base64_encode($username), [334], 'smtp_auth');
-        $this->command($stream, base64_encode($password), [235], 'smtp_auth');
+        if (in_array('LOGIN', $methods, true)) {
+            $this->command($stream, 'AUTH LOGIN', [334], 'smtp_auth');
+            $this->command($stream, base64_encode($username), [334], 'smtp_auth');
+            $this->command($stream, base64_encode($password), [235], 'smtp_auth');
+            return;
+        }
+
+        if (in_array('PLAIN', $methods, true)) {
+            $response = base64_encode("\0" . $username . "\0" . $password);
+            $this->command($stream, 'AUTH PLAIN ' . $response, [235], 'smtp_auth');
+            return;
+        }
+
+        throw new SmtpTransportException(
+            'SMTP-сервер не объявил поддерживаемый способ авторизации после TLS',
+            'smtp_auth_unavailable',
+            false
+        );
     }
 
     /**
@@ -178,9 +240,9 @@ final class SocketSmtpTransport implements SmtpTransport
      * @param resource $stream
      * @param list<int> $expectedCodes
      */
-    private function expect($stream, array $expectedCodes, string $resultCode): void
+    private function expect($stream, array $expectedCodes, string $resultCode, ?array &$replyLines = null): void
     {
-        $code = $this->readReplyCode($stream);
+        $code = $this->readReplyCode($stream, $replyLines);
         if (in_array($code, $expectedCodes, true)) {
             return;
         }
@@ -195,7 +257,7 @@ final class SocketSmtpTransport implements SmtpTransport
     }
 
     /** @param resource $stream */
-    private function readReplyCode($stream): int
+    private function readReplyCode($stream, ?array &$replyLines = null): int
     {
         $code = null;
         for ($lineNo = 0; $lineNo < 100; ++$lineNo) {
@@ -222,6 +284,10 @@ final class SocketSmtpTransport implements SmtpTransport
                     'smtp_protocol_error',
                     false
                 );
+            }
+
+            if ($replyLines !== null) {
+                $replyLines[] = $line;
             }
 
             $currentCode = (int) $matches[1];
