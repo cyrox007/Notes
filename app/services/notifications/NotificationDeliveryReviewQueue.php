@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Notifications;
 
 use Core\DatabaseManager;
+use InvalidArgumentException;
 
 /**
  * Два ограниченных списка для ручной приёмки: проблемы — первыми,
@@ -14,14 +15,17 @@ use Core\DatabaseManager;
 final class NotificationDeliveryReviewQueue
 {
     private const PAGE_SIZE = 20;
+    private const MAX_PAGE = 1000;
 
     public function __construct(private readonly DatabaseManager $db)
     {
     }
 
-    /** @return array{attention:list<array<string,mixed>>,unverified:list<array<string,mixed>>} */
-    public function overview(): array
+    /** @return array<string,mixed> */
+    public function overview(int $attentionPage = 1, int $unverifiedPage = 1): array
     {
+        $this->validatePage($attentionPage);
+        $this->validatePage($unverifiedPage);
         $fields = 'SELECT j.id,j.channel,j.state,j.attempts,j.last_result_code,
                           j.updated_at,r.receipt_state
                    FROM notification_delivery_jobs j
@@ -29,21 +33,55 @@ final class NotificationDeliveryReviewQueue
 
         // Окончательная ошибка или отметка «не получено» требуют разбирательства.
         // Повторяемые задания не объявляем окончательно не доставленными.
-        $attention = $this->db->fetchAll(
-            $fields . " WHERE j.state='failed' OR r.receipt_state='not_received'
-                        ORDER BY j.updated_at DESC,j.id DESC LIMIT " . self::PAGE_SIZE
+        $attention = $this->page(
+            $fields,
+            " WHERE j.state='failed' OR r.receipt_state='not_received'",
+            $attentionPage
         );
 
-        // Этот список не подтверждает получение: он лишь напоминает оператору
-        // проверить контролируемый адрес или устройство.
-        $unverified = $this->db->fetchAll(
-            $fields . " WHERE j.state='sent' AND r.job_id IS NULL
-                        ORDER BY j.updated_at DESC,j.id DESC LIMIT " . self::PAGE_SIZE
+        // Подтверждение транспортом само по себе не доказывает получение.
+        $unverified = $this->page(
+            $fields,
+            " WHERE j.state='sent' AND r.job_id IS NULL",
+            $unverifiedPage
         );
 
         return [
-            'attention' => $this->normalize($attention),
-            'unverified' => $this->normalize($unverified),
+            'attention' => $attention['items'],
+            'unverified' => $unverified['items'],
+            'pagination' => [
+                'attention' => $attention['paging'],
+                'unverified' => $unverified['paging'],
+            ],
+        ];
+    }
+
+    private function validatePage(int $page): void
+    {
+        if ($page < 1 || $page > self::MAX_PAGE) {
+            throw new InvalidArgumentException('Номер страницы должен быть от 1 до 1000');
+        }
+    }
+
+    /** @return array{items:list<array<string,mixed>>,paging:array<string,int|bool>} */
+    private function page(string $fields, string $where, int $page): array
+    {
+        $offset = ($page - 1) * self::PAGE_SIZE;
+        // Читаем на одну строку больше, чтобы узнать, есть ли следующая
+        // страница, не выполняя тяжёлый COUNT по всей очереди.
+        $rows = $this->db->fetchAll(
+            $fields . $where . ' ORDER BY j.updated_at DESC,j.id DESC LIMIT '
+            . (self::PAGE_SIZE + 1) . ' OFFSET ' . $offset
+        );
+        $hasNext = count($rows) > self::PAGE_SIZE;
+
+        return [
+            'items' => $this->normalize(array_slice($rows, 0, self::PAGE_SIZE)),
+            'paging' => [
+                'page' => $page,
+                'has_previous' => $page > 1,
+                'has_next' => $hasNext,
+            ],
         ];
     }
 

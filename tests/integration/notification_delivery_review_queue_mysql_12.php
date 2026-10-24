@@ -82,7 +82,41 @@ try {
         && $limited['unverified'][19]['id'] === 18,
         'порядок при совпадающих датах нестабилен');
 
-    $output = json_encode($limited, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+    reviewAssert(($limited['pagination']['unverified']['has_next'] ?? null) === true
+        && ($limited['pagination']['unverified']['has_previous'] ?? null) === false,
+        'не определено наличие следующей страницы');
+
+    $second = $queue->overview(1, 2);
+    reviewAssert(array_column($second['attention'], 'id') === [4, 3],
+        'переключение второй очереди изменило первую');
+    reviewAssert($second['unverified'][0]['id'] === 17
+        && end($second['unverified'])['id'] === 1
+        && count($second['unverified']) === 12,
+        'неверная вторая страница неподтверждённых сообщений');
+    reviewAssert($second['pagination']['unverified']['has_previous']
+        && !$second['pagination']['unverified']['has_next'],
+        'неверная навигация на последней странице');
+
+    for ($id = 38; $id <= 65; ++$id) {
+        $insert($id, 'failed', '2026-10-23 16:00:00', 'smtp_permanent');
+    }
+    $both = $queue->overview(2, 2);
+    reviewAssert($both['attention'][0]['id'] === 45
+        && end($both['attention'])['id'] === 3,
+        'вторая страница ошибок должна сохранять старые обращения');
+    reviewAssert($both['unverified'][0]['id'] === 17,
+        'раздельная навигация смешала категории');
+    reviewAssert($both['pagination']['attention']['has_previous']
+        && !$both['pagination']['attention']['has_next'],
+        'неверная навигация по окончательным ошибкам');
+    foreach ([0, 1001] as $invalidPage) {
+        $rejected = false;
+        try { $queue->overview($invalidPage, 1); }
+        catch (InvalidArgumentException) { $rejected = true; }
+        reviewAssert($rejected, 'неверный номер страницы принят');
+    }
+
+    $output = json_encode($both, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
     foreach (['personal-address', 'SECRET_REF', 'Тайный текст', 'message_body', 'recipient_ref'] as $fragment) {
         reviewAssert(!str_contains($output, $fragment),
             'список раскрыл приватные данные: ' . $fragment);

@@ -181,6 +181,9 @@ ob_start();
         <?php if (!empty($review['unavailable'])): ?>
             <p role="status">Список заданий временно недоступен. Проверьте миграции уведомлений.</p>
         <?php else: ?>
+            <?php $reviewPages = is_array($review['pagination'] ?? null) ? $review['pagination'] : []; ?>
+            <?php $attentionPage = max(1, (int) ($reviewPages['attention']['page'] ?? 1)); ?>
+            <?php $unverifiedPage = max(1, (int) ($reviewPages['unverified']['page'] ?? 1)); ?>
             <?php foreach ([
                 'attention' => ['title' => 'Требуют внимания', 'empty' => 'Ошибок и сообщений, не найденных адресатами, нет.'],
                 'unverified' => ['title' => 'Ожидают подтверждения', 'empty' => 'Проверок получения пока не требуется.'],
@@ -203,17 +206,30 @@ ob_start();
                                             : ($item['state'] === 'sent' ? 'Принято каналом' : 'Ошибка доставки')) ?></td>
                                         <td><?= (int) $item['attempts'] ?></td>
                                         <td><?= $view->e($item['updated_utc']) ?></td>
-                                        <td><a href="<?= $view->e($view->route('admin_notifications')) ?>?inspect_job=<?= (int) $item['id'] ?>">История и проверка</a></td>
+                                        <td><a href="<?= $view->e($view->route('admin_notifications')) ?>?inspect_job=<?= (int) $item['id'] ?>&amp;attention_page=<?= $attentionPage ?>&amp;unverified_page=<?= $unverifiedPage ?>">История и проверка</a></td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
                     </div>
                 <?php endif; ?>
+                <?php $paging = is_array($reviewPages[$group] ?? null) ? $reviewPages[$group] : []; ?>
+                <?php $pageNo = max(1, (int) ($paging['page'] ?? 1)); ?>
+                <nav aria-label="<?= $view->e($labels['title']) ?> — страницы">
+                    <span>Страница <?= $pageNo ?></span>
+                    <?php if (!empty($paging['has_previous'])): ?>
+                        <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('admin_notifications')) ?>?attention_page=<?= $group === 'attention' ? $pageNo - 1 : $attentionPage ?>&amp;unverified_page=<?= $group === 'unverified' ? $pageNo - 1 : $unverifiedPage ?>">Предыдущая страница</a>
+                    <?php endif; ?>
+                    <?php if (!empty($paging['has_next'])): ?>
+                        <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('admin_notifications')) ?>?attention_page=<?= $group === 'attention' ? $pageNo + 1 : $attentionPage ?>&amp;unverified_page=<?= $group === 'unverified' ? $pageNo + 1 : $unverifiedPage ?>">Следующая страница</a>
+                    <?php endif; ?>
+                </nav>
             <?php endforeach; ?>
-            <p>Показано не более 20 заданий каждой категории. В списки не попадают имена, адреса и содержимое уведомлений.</p>
+            <p>На каждой странице не более 20 заданий. В списки не попадают имена, адреса и содержимое уведомлений.</p>
         <?php endif; ?>
         <form method="get" action="<?= $view->e($view->route('admin_notifications')) ?>" class="custom-fields-form">
+            <input type="hidden" name="attention_page" value="<?= (int) ($review['pagination']['attention']['page'] ?? 1) ?>">
+            <input type="hidden" name="unverified_page" value="<?= (int) ($review['pagination']['unverified']['page'] ?? 1) ?>">
             <label class="custom-field__control">Номер задания для безопасного просмотра
                 <input type="number" name="inspect_job" min="1" step="1" required
                        value="<?= $view->e((string) ($_GET['inspect_job'] ?? '')) ?>">
