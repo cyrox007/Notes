@@ -147,13 +147,18 @@ final class WorkPermitDraftService
         if ($documentId < 1 || $userId < 1) {
             return null;
         }
-        return $this->db->fetchOne(
+        $document = $this->db->fetchOne(
             'SELECT id,kind,state,organization,subdivision,facility,organization_id,department_id,facility_id,
                     work_description,version,created_at,updated_at
              FROM work_permit_documents
              WHERE id=:id AND created_by_user_id=:user LIMIT 1',
             [':id' => $documentId, ':user' => $userId]
         );
+        if ($document === null) {
+            return null;
+        }
+        $document['crew'] = (new WorkPermitCrewService($this->db))->forDocument($documentId);
+        return $document;
     }
 
     /** @return array{id:int,number:int,replayed:bool,state:string}|null */

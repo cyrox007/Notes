@@ -39,6 +39,31 @@ ob_start();
         <p>Номер присваивается сервером. Черновик ещё не является выданным нарядом или распоряжением.</p>
     </section>
 
+    <section class="calendar-shell wp-journal__editor" data-wp-editor hidden aria-labelledby="wp-edit-title">
+        <h2 id="wp-edit-title" data-wp-edit-title>Изменить черновик</h2>
+        <p>Карточка и состав бригады сохраняются вместе. При изменении в другой вкладке загрузите актуальную версию.</p>
+        <form data-wp-edit-form>
+            <label>Организация <select name="organization_id" data-wp-edit-org required><option value="">Выберите организацию</option></select></label>
+            <label>Подразделение <select name="department_id" data-wp-edit-dept><option value="">Не выбрано</option></select></label>
+            <label>Объект <select name="facility_id" data-wp-edit-facility required><option value="">Выберите объект</option></select></label>
+            <label class="wp-journal__wide">Задание <textarea name="work_description" maxlength="10000" rows="4" required></textarea></label>
+            <fieldset class="wp-journal__wide wp-journal__crew">
+                <legend>Состав бригады</legend>
+                <p>Сотрудник может выполнять несколько ролей. Допускающий по умолчанию — оперативный персонал; наблюдающий — не назначается.</p>
+                <label>Выдавший документ <select name="role_issuer" data-wp-role><option value="">Не выбран</option></select></label>
+                <label>Ответственный руководитель <select name="role_responsible_manager" data-wp-role><option value="">Не назначен</option></select></label>
+                <label>Допускающий <select name="role_admitter" data-wp-role><option value="">Оперативный персонал</option></select></label>
+                <label>Производитель работ <select name="role_producer" data-wp-role><option value="">Не выбран</option></select></label>
+                <label>Наблюдающий <select name="role_observer" data-wp-role><option value="">Не назначается</option></select></label>
+                <label>Члены бригады (множественный выбор) <select name="member_ids" data-wp-members multiple size="6"></select></label>
+            </fieldset>
+            <div class="wp-journal__actions wp-journal__wide">
+                <button type="submit" data-wp-edit-submit>Сохранить изменения</button>
+                <button type="button" data-wp-edit-cancel>Отменить</button>
+            </div>
+        </form>
+    </section>
+
     <?php if (!empty($can_manage_references)): ?>
     <details class="calendar-shell wp-journal__registry" data-wp-admin>
         <summary>Управление справочниками</summary>

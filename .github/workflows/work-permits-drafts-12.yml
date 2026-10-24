@@ -10,6 +10,8 @@ on:
       - 'database/migrations/manifest.json'
       - 'tests/integration/work_permits_draft_mysql_12.php'
       - 'tests/integration/work_permits_references_mysql_12.php'
+      - 'tests/integration/work_permits_edit_crew_mysql_12.php'
+      - 'database/migrations/20261024_work_permits_edit_crew.sql'
       - 'tests/integration/module_registry_contract.php'
       - '.github/workflows/work-permits-drafts-12.yml'
   pull_request:
@@ -21,6 +23,8 @@ on:
       - 'database/migrations/manifest.json'
       - 'tests/integration/work_permits_draft_mysql_12.php'
       - 'tests/integration/work_permits_references_mysql_12.php'
+      - 'tests/integration/work_permits_edit_crew_mysql_12.php'
+      - 'database/migrations/20261024_work_permits_edit_crew.sql'
       - 'tests/integration/module_registry_contract.php'
       - '.github/workflows/work-permits-drafts-12.yml'
   workflow_dispatch:
@@ -68,4 +72,4 @@ jobs:
           TEST_DB_NAME: workspace_test
           TEST_DB_USER: root
           TEST_DB_PASS: root
-        run: php tests/integration/work_permits_references_mysql_12.php
+        run: php tests/integration/work_permits_edit_crew_mysql_12.php
