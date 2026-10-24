@@ -81,6 +81,7 @@ final class WorkPermitPdfRenderer
 
         $pdf->section('5. Сроки, выдача и отдельные указания');
         $pdf->table(['Сведение', 'Значение'], [
+            ['Часовой пояс рабочих суток', $this->text($issue['time_zone'] ?? 'UTC')],
             ['Начало (UTC)', $this->text($issue['planned_start'] ?? null)],
             ['Окончание (UTC)', $this->text($issue['planned_finish'] ?? null)],
             ['Наряд выдал', $this->text($issue['issuer_name'] ?? null)],
