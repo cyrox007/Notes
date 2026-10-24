@@ -29,17 +29,27 @@ final class WorkPermitDraftService
             throw new InvalidArgumentException('Укажите пользователя');
         }
         $kind = $this->kind($input['kind'] ?? null);
-        $organization = $this->field($input, 'organization', 160);
-        $subdivision = $this->field($input, 'subdivision', 160, false);
-        $facility = $this->field($input, 'facility', 180);
+        $usesReferences = array_key_exists('organization_id', $input)
+            || array_key_exists('facility_id', $input);
+        $organization = $usesReferences ? '' : $this->field($input, 'organization', 160);
+        $subdivision = $usesReferences ? '' : $this->field($input, 'subdivision', 160, false);
+        $facility = $usesReferences ? '' : $this->field($input, 'facility', 180);
         $description = $this->field($input, 'work_description', 10000);
         $command = $this->field($input, 'command_id', 96);
         if (preg_match('/^[a-f0-9]{32}$/D', $command) !== 1) {
             throw new InvalidArgumentException('Для записи нужен новый идентификатор команды');
         }
 
+        // Повтор команды не зависит от переименования справочника.
+        $referenceIds = $usesReferences ? [
+            $input['organization_id'] ?? null,
+            $input['department_id'] ?? null,
+            $input['facility_id'] ?? null,
+        ] : null;
         $fingerprint = hash('sha256', json_encode([
-            $userId, $kind, $organization, $subdivision, $facility, $description,
+            $userId, $kind,
+            $usesReferences ? $referenceIds : [$organization, $subdivision, $facility],
+            $description,
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
 
         $existing = $this->existing($command, $userId, $fingerprint);
@@ -49,16 +59,27 @@ final class WorkPermitDraftService
 
         $this->db->beginTransaction();
         try {
+            $references = $usesReferences
+                ? (new WorkPermitReferenceService($this->db))->resolveDraft($input)
+                : [
+                    'organization' => $organization, 'subdivision' => $subdivision,
+                    'facility' => $facility, 'organization_id' => null,
+                    'department_id' => null, 'facility_id' => null,
+                ];
             $this->db->execute(
                 'INSERT INTO work_permit_documents
-                 (kind,state,organization,subdivision,facility,work_description,
-                  created_by_user_id,creation_command_id,creation_request_hash)
-                 VALUES (:kind,\'draft\',:org,:unit,:facility,:description,:user,:command,:hash)',
+                 (kind,state,organization,subdivision,facility,organization_id,department_id,facility_id,
+                  work_description,created_by_user_id,creation_command_id,creation_request_hash)
+                 VALUES (:kind,\'draft\',:org,:unit,:facility,:org_id,:dept_id,:facility_id,
+                         :description,:user,:command,:hash)',
                 [
                     ':kind' => $kind,
-                    ':org' => $organization,
-                    ':unit' => $subdivision,
-                    ':facility' => $facility,
+                    ':org' => $references['organization'],
+                    ':unit' => $references['subdivision'],
+                    ':facility' => $references['facility'],
+                    ':org_id' => $references['organization_id'],
+                    ':dept_id' => $references['department_id'],
+                    ':facility_id' => $references['facility_id'],
                     ':description' => $description,
                     ':user' => $userId,
                     ':command' => $command,
@@ -104,7 +125,7 @@ final class WorkPermitDraftService
             $params[':cursor'] = $beforeId;
         }
         $rows = $this->db->fetchAll(
-            'SELECT id,kind,state,organization,subdivision,facility,
+            'SELECT id,kind,state,organization,subdivision,facility,organization_id,department_id,facility_id,
                     work_description,version,created_at
              FROM work_permit_documents
              WHERE created_by_user_id = :user AND created_at >= UTC_TIMESTAMP() - INTERVAL 1 MONTH'
@@ -126,7 +147,7 @@ final class WorkPermitDraftService
             return null;
         }
         return $this->db->fetchOne(
-            'SELECT id,kind,state,organization,subdivision,facility,
+            'SELECT id,kind,state,organization,subdivision,facility,organization_id,department_id,facility_id,
                     work_description,version,created_at,updated_at
              FROM work_permit_documents
              WHERE id=:id AND created_by_user_id=:user LIMIT 1',
