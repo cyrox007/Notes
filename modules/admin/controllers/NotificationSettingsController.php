@@ -15,6 +15,7 @@ use App\Services\Notifications\NotificationExternalChannelAdministration;
 use App\Services\Notifications\TaskReminderScheduleHealth;
 use App\Services\Notifications\NotificationReceiptAttestation;
 use App\Services\Notifications\NotificationLiveAcceptanceReport;
+use App\Services\Notifications\NotificationDeliveryReviewQueue;
 use Core\DatabaseManager;
 use Core\ModuleRuntimeLoader;
 use Core\Controller;
@@ -52,7 +53,23 @@ final class NotificationSettingsController extends Controller
             'external_channels' => (new NotificationExternalChannelAdministration())->overview(),
             'reminder_scheduler' => $this->reminderSchedulerStatus(),
             'receipt_inspection' => $inspection,
+            'receipt_review' => $this->receiptReview(),
         ]);
+    }
+
+    /** @return array<string,mixed> */
+    private function receiptReview(): array
+    {
+        try {
+            return (new NotificationDeliveryReviewQueue(DatabaseManager::getInstance()))->overview();
+        } catch (Throwable $error) {
+            error_log('Список проверки доставки недоступен: ' . $error::class);
+            return [
+                'attention' => [],
+                'unverified' => [],
+                'unavailable' => true,
+            ];
+        }
     }
 
     /** @return array<string,mixed> */

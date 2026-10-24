@@ -177,6 +177,42 @@ ob_start();
                 <p>Для контролируемого адресата. Запись делает администратор после личной проверки почтового ящика или устройства; статус внешнего канала сам по себе не доказывает получение.</p>
             </div>
         </div>
+        <?php $review = is_array($receipt_review ?? null) ? $receipt_review : []; ?>
+        <?php if (!empty($review['unavailable'])): ?>
+            <p role="status">Список заданий временно недоступен. Проверьте миграции уведомлений.</p>
+        <?php else: ?>
+            <?php foreach ([
+                'attention' => ['title' => 'Требуют внимания', 'empty' => 'Ошибок и сообщений, не найденных адресатами, нет.'],
+                'unverified' => ['title' => 'Ожидают подтверждения', 'empty' => 'Проверок получения пока не требуется.'],
+            ] as $group => $labels): ?>
+                <h3><?= $view->e($labels['title']) ?></h3>
+                <?php $items = is_array($review[$group] ?? null) ? $review[$group] : []; ?>
+                <?php if ($items === []): ?>
+                    <p><?= $view->e($labels['empty']) ?></p>
+                <?php else: ?>
+                    <div class="admin-users-table-wrap">
+                        <table class="admin-users-table">
+                            <thead><tr><th>Задание</th><th>Канал</th><th>Состояние</th><th>Попыток</th><th>Обновлено (UTC)</th><th>Действие</th></tr></thead>
+                            <tbody>
+                                <?php foreach ($items as $item): ?>
+                                    <tr>
+                                        <td>№<?= (int) $item['id'] ?></td>
+                                        <td><?= $view->e($item['channel']) ?></td>
+                                        <td><?= $view->e($item['receipt_state'] === 'not_received'
+                                            ? 'Не найдено адресатом'
+                                            : ($item['state'] === 'sent' ? 'Принято каналом' : 'Ошибка доставки')) ?></td>
+                                        <td><?= (int) $item['attempts'] ?></td>
+                                        <td><?= $view->e($item['updated_utc']) ?></td>
+                                        <td><a href="<?= $view->e($view->route('admin_notifications')) ?>?inspect_job=<?= (int) $item['id'] ?>">История и проверка</a></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php endif; ?>
+            <?php endforeach; ?>
+            <p>Показано не более 20 заданий каждой категории. В списки не попадают имена, адреса и содержимое уведомлений.</p>
+        <?php endif; ?>
         <form method="get" action="<?= $view->e($view->route('admin_notifications')) ?>" class="custom-fields-form">
             <label class="custom-field__control">Номер задания для безопасного просмотра
                 <input type="number" name="inspect_job" min="1" step="1" required
@@ -220,12 +256,14 @@ ob_start();
                 <p role="status">Задание не найдено или журнал недоступен. Проверьте номер и миграции.</p>
             <?php endif; ?>
         <?php endif; ?>
+        <?php if ($inspected !== null && ($inspected['status'] ?? '') === 'ok'): ?>
         <form action="<?= $view->e($view->route('admin_notifications_receipt')) ?>" method="post"
               data-notification-ajax-form class="custom-fields-form">
             <?= $view->csrfInput() ?>
             <div class="admin-notification-fields">
                 <label class="custom-field__control">Номер задания доставки
-                    <input type="number" name="job_id" min="1" step="1" required>
+                    <input type="number" name="job_id" min="1" step="1" required readonly
+                           value="<?= (int) $inspected['job_id'] ?>">
                 </label>
                 <label class="custom-field__control">Результат личной проверки
                     <select name="receipt" required>
@@ -239,6 +277,9 @@ ob_start();
             </div>
             <button class="admin-action admin-action--secondary" type="submit">Сохранить результат приёмки</button>
         </form>
+        <?php else: ?>
+            <p>Сначала выберите задание в одном из списков или введите его номер для просмотра истории.</p>
+        <?php endif; ?>
         <p>Свидетельство оператора может быть исправлено повторной проверкой. Адрес, содержание уведомления и секреты в отчёт не включаются.</p>
     </section>
 
