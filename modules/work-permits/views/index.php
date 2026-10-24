@@ -150,5 +150,8 @@ echo $view->layout('core/base', [
     'title' => 'Наряды и допуски',
     'user' => $user ?? [],
     'module_styles' => [$view->moduleAsset('work-permits', 'work-permits.css')],
-    'module_scripts' => [$view->moduleAsset('work-permits', 'work-permits.js')],
+    'module_scripts' => [
+        $view->moduleAsset('work-permits', 'work-permits.js'),
+        $view->moduleAsset('work-permits', 'work-permits-templates.js'),
+    ],
 ], $content);
