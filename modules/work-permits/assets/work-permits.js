@@ -46,7 +46,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
             const kind = item.kind === 'permit' ? 'Наряд-допуск' : 'Распоряжение';
             const number = node('strong', kind + ' №' + item.id);
             const facility = node('span', item.facility);
-            const state = node('small', 'Черновик · ' + item.created_at);
+            const state = node('small', (item.state === 'draft' ? 'Черновик' : item.state === 'issued' ? 'Выдан' : 'Закрыт') + ' · ' + item.created_at);
             const work = node('p', item.work_description);
             section.append(number, facility, state, work);
             if (item.state === 'draft') {
@@ -54,6 +54,17 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
                 edit.type = 'button';
                 edit.addEventListener('click', () => void openDraft(item.id));
                 section.append(edit);
+            }
+            if (root.dataset.wpCanManage === '1') {
+                const action = item.state === 'draft' ? 'issue' : item.state === 'issued' && item.kind === 'permit' ? 'admit' : null;
+                if (action) {
+                    const button = node('button', action === 'issue' ? 'Выдать документ' : 'Оформить первый допуск');
+                    button.type = 'button';
+                    button.addEventListener('click', () => root.dispatchEvent(new CustomEvent(
+                        'wp:lifecycle-open', { detail: { id: Number(item.id), action } }
+                    )));
+                    section.append(button);
+                }
             }
             return section;
         };
@@ -439,6 +450,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
             }
         });
 
+        pageScope.listen(root, 'wp:lifecycle-recorded', () => void load(true));
         void load(true);
     });
 });
