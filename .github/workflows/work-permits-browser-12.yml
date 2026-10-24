@@ -7,6 +7,7 @@ on:
       - 'modules/work-permits/**'
       - 'tests/e2e/work-permits-view-fixture.php'
       - 'tests/e2e/work-permits-browser-mobile-12.mjs'
+      - 'tests/e2e/work-permits-time-12.mjs'
       - '.github/workflows/work-permits-browser-12.yml'
   push:
     branches: ['1.2']
@@ -44,7 +45,12 @@ jobs:
           set -euo pipefail
           php -l tests/e2e/work-permits-view-fixture.php
           node --check tests/e2e/work-permits-browser-mobile-12.mjs
+          node --check tests/e2e/work-permits-time-12.mjs
+          php -l modules/work-permits/services/WorkPermitDraftService.php
+          php -l modules/work-permits/services/WorkPermitIssuanceService.php
           for source in modules/work-permits/assets/*.js; do node --check "$source"; done
+      - name: Проверить часовые пояса и переходы времени
+        run: node tests/e2e/work-permits-time-12.mjs
       - name: Проверить пользовательский интерфейс и мобильные ширины
         run: |
           set -euo pipefail
