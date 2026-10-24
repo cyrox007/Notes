@@ -60,7 +60,8 @@
       "database/migrations/20261024_work_permits_issue_admission.sql",
       "database/migrations/20261024_work_permits_daily_periods.sql",
       "database/migrations/20261024_work_permits_crew_extensions.sql",
-      "database/migrations/20261024_work_permits_completion_closure.sql"
+      "database/migrations/20261024_work_permits_completion_closure.sql",
+      "database/migrations/20261024_work_permits_conditions_templates.sql"
     ]
   },
   "background": {

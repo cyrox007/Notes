@@ -155,6 +155,8 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-templates.
         const more = admin.querySelector('[data-wp-template-more]');
         const descriptionField = admin.querySelector('[data-wp-template-description]');
         const crewHint = admin.querySelector('[data-wp-template-crew-hint]');
+        const issuePanel = root.querySelector('[data-wp-lifecycle]');
+        const issueForm = issuePanel?.querySelector('[data-wp-issue-form]');
         let cursor = null;
         let editing = false;
         let generation = 0;
@@ -163,6 +165,15 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-templates.
             const crew = kind.value === 'crew';
             descriptionField.hidden = crew;
             crewHint.hidden = !crew;
+            const label = descriptionField.querySelector('[data-wp-template-text-label]');
+            label.textContent = {
+                job: 'Содержание задания',
+                conditions: 'Условия производства работ',
+                instructions: 'Отдельные указания',
+            }[kind.value] || 'Текст шаблона';
+            const text = descriptionField.querySelector('textarea');
+            text.maxLength = kind.value === 'conditions' ? 6000
+                : kind.value === 'instructions' ? 4000 : 10000;
         };
 
         const bodyFor = () => {
@@ -209,6 +220,9 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-templates.
                         if (action === 'rename') payload.name = input.value;
                         if (action === 'replace') {
                             const data = bodyFor();
+                            if (data.kind !== item.kind) {
+                                throw new Error('Выберите соответствующий вид шаблона');
+                            }
                             Object.assign(payload, data);
                         }
                         await request('/templates/' + item.id + '/change', payload);
@@ -277,9 +291,14 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-templates.
         pageScope.listen(admin.querySelector('[data-wp-copy-job]'), 'click', () => {
             const source = !editPanel.hidden && editOrg.value === adminOrg.value
                 ? editForm : newForm;
-            const text = source.elements.namedItem('work_description')?.value || '';
+            let text = source.elements.namedItem('work_description')?.value || '';
+            if (kind.value === 'conditions' || kind.value === 'instructions') {
+                const field = kind.value === 'conditions' ? 'work_conditions' : 'special_instructions';
+                text = issueForm && !issuePanel.hidden
+                    ? issueForm.elements.namedItem(field)?.value || '' : '';
+            }
             form.elements.namedItem('work_description').value = text;
-            notify(text ? 'Текст скопирован в новый шаблон.' : 'В открытой форме нет задания.', !text);
+            notify(text ? 'Текст скопирован в новый шаблон.' : 'В открытой форме нет нужного текста.', !text);
         });
         pageScope.listen(form, 'submit', async event => {
             event.preventDefault();

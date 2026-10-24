@@ -15,6 +15,8 @@ on:
       - 'tests/integration/work_permits_crew_extensions_mysql_12.php'
       - 'tests/integration/work_permits_completion_closure_mysql_12.php'
       - 'tests/integration/work_permits_pdf_mysql_12.php'
+      - 'tests/integration/work_permits_condition_templates_mysql_12.php'
+      - 'database/migrations/20261024_work_permits_conditions_templates.sql'
       - 'database/migrations/20261024_work_permits_completion_closure.sql'
       - 'database/migrations/20261024_work_permits_crew_extensions.sql'
       - 'database/migrations/20261024_work_permits_issue_admission.sql'
@@ -95,4 +97,4 @@ jobs:
           TEST_DB_NAME: workspace_test
           TEST_DB_USER: root
           TEST_DB_PASS: root
-        run: php tests/integration/work_permits_pdf_mysql_12.php
+        run: php tests/integration/work_permits_condition_templates_mysql_12.php

@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS `work_permit_edit_commands` (
 CREATE TABLE IF NOT EXISTS `work_permit_templates` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   `organization_id` BIGINT UNSIGNED NOT NULL,
-  `kind` ENUM('job','crew') NOT NULL,
+  `kind` ENUM('job','crew','conditions','instructions') NOT NULL,
   `name` VARCHAR(160) NOT NULL,
   `work_description` TEXT DEFAULT NULL,
   `is_archived` TINYINT(1) NOT NULL DEFAULT 0,
@@ -199,6 +199,7 @@ CREATE TABLE IF NOT EXISTS work_permit_issuances (
  planned_start DATETIME NOT NULL,
  planned_finish DATETIME NOT NULL,
  special_instructions TEXT NOT NULL,
+ work_conditions TEXT NULL,
  issued_by_user_id INT DEFAULT NULL,
  issued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  CONSTRAINT fk_wpi_doc FOREIGN KEY (document_id) REFERENCES work_permit_documents(id) ON DELETE RESTRICT,

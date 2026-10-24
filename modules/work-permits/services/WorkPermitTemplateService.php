@@ -68,7 +68,7 @@ final class WorkPermitTemplateService
         if ($row === null || (!$includeArchived && (int) $row['is_archived'] !== 0)) {
             throw new DomainException('Шаблон не найден или недоступен', 404);
         }
-        if ($row['kind'] === 'job') {
+        if ($row['kind'] !== 'crew') {
             return $row;
         }
         $rows = $this->db->fetchAll(
@@ -217,10 +217,15 @@ final class WorkPermitTemplateService
             return [null, $crew];
         }
         $value = $data['work_description'] ?? null;
+        $max = match ($kind) {
+            'conditions' => 6000,
+            'instructions' => 4000,
+            default => 10000,
+        };
         if (!is_string($value) || trim($value) === ''
-            || mb_strlen(trim($value)) > 10000
+            || mb_strlen(trim($value)) > $max
             || preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', $value) === 1) {
-            throw new InvalidArgumentException('Задание шаблона должно содержать от 1 до 10000 символов');
+            throw new InvalidArgumentException('Текст шаблона должен содержать от 1 до ' . $max . ' символов');
         }
         return [trim($value), []];
     }
@@ -270,8 +275,8 @@ final class WorkPermitTemplateService
 
     private function kind(mixed $kind): string
     {
-        if (!in_array($kind, ['job', 'crew'], true)) {
-            throw new InvalidArgumentException('Укажите шаблон задания или бригады');
+        if (!in_array($kind, ['job', 'crew', 'conditions', 'instructions'], true)) {
+            throw new InvalidArgumentException('Недопустимый вид шаблона');
         }
         return $kind;
     }

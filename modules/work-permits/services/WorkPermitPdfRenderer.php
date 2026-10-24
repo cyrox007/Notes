@@ -87,6 +87,7 @@ final class WorkPermitPdfRenderer
             ['Производитель работ', $this->text($issue['producer_name'] ?? null)],
             ['Зарегистрирован (UTC)', $this->text($issue['issued_at'] ?? null)],
         ], [1.3, 2.7]);
+        $pdf->paragraph('Условия производства работ', $this->text($issue['work_conditions'] ?? null));
         $pdf->paragraph('Отдельные указания', $this->text($issue['special_instructions'] ?? null));
 
         $pdf->section('6. Первичный допуск и целевой инструктаж');

@@ -100,6 +100,21 @@ ob_start();
             <label>Плановое окончание (местное время)
                 <input type="datetime-local" name="planned_finish" required>
             </label>
+            <div class="wp-journal__template-picker wp-journal__wide" data-wp-issue-template="conditions">
+                <label>Шаблон условий производства работ
+                    <select data-wp-issue-choice><option value="">Выберите организацию</option></select>
+                </label>
+                <button type="button" data-wp-issue-apply>Подставить условия</button>
+            </div>
+            <label class="wp-journal__wide">Условия производства работ
+                <textarea name="work_conditions" maxlength="6000" rows="4"></textarea>
+            </label>
+            <div class="wp-journal__template-picker wp-journal__wide" data-wp-issue-template="instructions">
+                <label>Шаблон отдельных указаний
+                    <select data-wp-issue-choice><option value="">Выберите организацию</option></select>
+                </label>
+                <button type="button" data-wp-issue-apply>Подставить указания</button>
+            </div>
             <label class="wp-journal__wide">Отдельные указания
                 <textarea name="special_instructions" maxlength="4000" rows="3"></textarea>
             </label>
@@ -314,7 +329,7 @@ ob_start();
     <?php endif; ?>
     <?php if (!empty($can_manage_references)): ?>
     <details class="calendar-shell wp-journal__registry" data-wp-template-admin>
-        <summary>Управление шаблонами заданий и бригад</summary>
+        <summary>Управление шаблонами заданий, бригад, условий и указаний</summary>
         <p>Шаблон сохраняется отдельно. При выборе его содержание копируется в форму и остаётся редактируемым. Создание шаблона бригады использует назначения в открытом редакторе черновика.</p>
         <form data-wp-template-form>
             <label>Организация
@@ -324,10 +339,12 @@ ob_start();
                 <select name="kind" data-wp-template-kind>
                     <option value="job">Задание</option>
                     <option value="crew">Бригада</option>
+                    <option value="conditions">Условия производства работ</option>
+                    <option value="instructions">Отдельные указания</option>
                 </select>
             </label>
             <label>Название шаблона <input name="name" maxlength="160" required></label>
-            <label data-wp-template-description>Содержание задания
+            <label data-wp-template-description><span data-wp-template-text-label>Содержание задания</span>
                 <textarea name="work_description" maxlength="10000" rows="3"></textarea>
                 <button type="button" data-wp-copy-job>Взять задание из открытой формы</button>
             </label>
