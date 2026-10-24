@@ -59,6 +59,28 @@ checkPdfWithPoppler($pdf, [
     'НАРЯД-ДОПУСК', 'Организация', 'Подготовка рабочего места',
     'Продления наряда', 'Изменения состава бригады', 'целевой инструктаж',
     'Окончательное закрытие', 'Полное окончание работ',
+    'Время объекта',
+], 2);
+
+// Печатная копия обязана показывать местное время из снимка выдачи,
+// даже если текущий пояс организации изменён. Осенние часы различаются смещением.
+wpAssert(\Modules\WorkPermits\Services\WorkPermitLocalDay::forPrint(
+    '2026-10-25 00:30:00', 'Europe/Amsterdam'
+) === '25.10.2026 02:30 (UTC+02:00)', 'Первый осенний час печатается с верным смещением');
+wpAssert(\Modules\WorkPermits\Services\WorkPermitLocalDay::forPrint(
+    '2026-10-25 01:30:00', 'Europe/Amsterdam'
+) === '25.10.2026 02:30 (UTC+01:00)', 'Повторный осенний час нельзя спутать с первым');
+wpAssert(\Modules\WorkPermits\Services\WorkPermitLocalDay::forPrint(
+    '2026-03-29 01:30:00', 'Europe/Amsterdam'
+) === '29.03.2026 03:30 (UTC+02:00)', 'Весенний переход сохраняет реальное время');
+
+$localCopy = $issued;
+$localCopy['lifecycle']['issuance']['time_zone'] = 'Europe/Amsterdam';
+$localCopy['lifecycle']['issuance']['planned_start'] = '2026-10-25 00:30:00';
+$localCopy['lifecycle']['issuance']['planned_finish'] = '2026-10-25 01:30:00';
+checkPdfWithPoppler($renderer->render($localCopy), [
+    'Europe/Amsterdam', '25.10.2026', 'UTC+02:00', 'UTC+01:00',
+    'Время объекта',
 ], 2);
 
 $boldyrevo = $issued;
