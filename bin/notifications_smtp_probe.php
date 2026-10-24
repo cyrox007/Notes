@@ -11,6 +11,7 @@ use App\Services\Notifications\DatabaseNotificationEmailRecipientResolver;
 use App\Services\Notifications\EnvironmentNotificationSecretResolver;
 use App\Services\Notifications\SmtpNotificationChannel;
 use App\Services\Notifications\SocketSmtpTransport;
+use App\Services\Notifications\SmtpDeliveryGuidance;
 use Core\CliRuntime;
 use Core\DatabaseManager;
 
@@ -82,6 +83,7 @@ try {
         $result['sent'] = $delivery->success;
         $result['code'] = $delivery->code;
         $result['retryable'] = $delivery->retryable;
+        $result['guidance'] = SmtpDeliveryGuidance::forCode($delivery->code);
         $result['message'] = $delivery->success
             ? 'SMTP-сервер принял пробное письмо. Получение адресатом ещё не подтверждено.'
             : 'Передача завершилась ошибкой. Диагностический код не содержит учётных данных.';
@@ -92,6 +94,9 @@ try {
     } else {
         echo $result['message'] . PHP_EOL;
         echo 'Код: ' . ($result['code'] ?? 'preflight_ok') . PHP_EOL;
+        if (isset($result['guidance'])) {
+            echo 'Действие: ' . $result['guidance'] . PHP_EOL;
+        }
     }
 
     DatabaseManager::resetInstance();
