@@ -205,6 +205,34 @@ async function layout(page, name) {
 try {
     const { page } = await launch(1280);
     await layout(page, 'Компьютер');
+    // Проверяем настоящий элемент выбора двух одинаковых часов осеннего перевода.
+    const ambiguous = await page.evaluate(() => {
+        const label = document.createElement('label');
+        const input = document.createElement('input');
+        input.type = 'datetime-local';
+        input.name = 'started_at';
+        input.value = '2026-10-25T02:30';
+        label.append(input);
+        document.querySelector('[data-work-permits]').append(label);
+        const timezone = { lifecycle: { issuance: { time_zone: 'Europe/Amsterdam' } } };
+        let message = '';
+        try { window.WorkPermitTime.toUtc(input, timezone); }
+        catch (error) { message = error.message; }
+        const choice = label.querySelector('[data-wp-time-choice]');
+        const options = [...choice.options].slice(1).map(item => item.textContent);
+        choice.selectedIndex = 2;
+        const second = window.WorkPermitTime.toUtc(input, timezone);
+        input.value = '2026-03-29T02:30';
+        let gap = '';
+        try { window.WorkPermitTime.toUtc(input, timezone); }
+        catch (error) { gap = error.message; }
+        label.remove();
+        return { message, options, second, gap };
+    });
+    assert.match(ambiguous.message, /повторяется/);
+    assert.deepEqual(ambiguous.options, ['Первый раз — UTC+02:00', 'Второй раз — UTC+01:00']);
+    assert.equal(ambiguous.second, '2026-10-25 01:30:00');
+    assert.match(ambiguous.gap, /не существует/);
     await page.locator('[data-wp-list]').getByText('Наряд-допуск №100').waitFor();
     await page.locator('[data-wp-list]').getByRole('button', { name: 'Открыть и изменить' }).click();
     await page.locator('[data-wp-editor]').waitFor({ state: 'visible' });
