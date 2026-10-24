@@ -41,11 +41,11 @@ foreach ($users as $index => [$username, $email, $first, $last, $role, $legacyRo
     ]);
     $id = (int) $pdo->lastInsertId();
     $link = $pdo->prepare(
-        'INSERT INTO user_roles (user_id,role_id)
+        'INSERT IGNORE INTO user_roles (user_id,role_id)
          SELECT :user_id,id FROM roles WHERE code=:role LIMIT 1'
     );
     $link->execute([':user_id' => $id, ':role' => $role]);
-    if ($link->rowCount() !== 1) {
+    if ($pdo->query('SELECT COUNT(*) FROM user_roles WHERE user_id=' . $id)->fetchColumn() < 1) {
         throw new RuntimeException('Роль не зарегистрирована: ' . $role);
     }
 }
