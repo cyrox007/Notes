@@ -183,6 +183,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-daily.js',
                 const id = Number(state.document.id);
                 state.command = null;
                 state.document = null;
+                state.busy = false;
                 root.dispatchEvent(new CustomEvent('wp:lifecycle-recorded'));
                 await open(id);
                 feedback('Событие рабочей смены сохранено.');
