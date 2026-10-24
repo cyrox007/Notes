@@ -37,7 +37,11 @@
       "work_permit_edit_commands",
       "work_permit_templates",
       "work_permit_template_crew",
-      "work_permit_template_history"
+      "work_permit_template_history",
+      "work_permit_issuances",
+      "work_permit_safety_measures",
+      "work_permit_first_admissions",
+      "work_permit_lifecycle_commands"
     ],
     "schemas": [
       "database/work_permits_schema.sql"
@@ -46,7 +50,8 @@
       "database/migrations/20261024_work_permits_drafts.sql",
       "database/migrations/20261024_work_permits_references.sql",
       "database/migrations/20261024_work_permits_edit_crew.sql",
-      "database/migrations/20261024_work_permits_templates.sql"
+      "database/migrations/20261024_work_permits_templates.sql",
+      "database/migrations/20261024_work_permits_issue_admission.sql"
     ]
   },
   "background": {
