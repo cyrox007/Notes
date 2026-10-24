@@ -71,6 +71,10 @@ async function layout(page, width) {
         innerWidth: window.innerWidth,
         mobileMediaMatched: matchMedia('(max-width: 900px)').matches,
         contentMargin: getComputedStyle(document.querySelector('.wrapper__content')).marginLeft,
+        contentInlineStyle: document.querySelector('.wrapper__content')?.getAttribute('style'),
+        bodyHasModule: document.body.matches(':has(.wp-journal)'),
+        moduleDisplay: getComputedStyle(root).display,
+        stylesheets: [...document.styleSheets].map(x => x.href).filter(Boolean).slice(-12),
         viewportMeta: document.querySelector('meta[name="viewport"]')?.content,
         overflowing: [...document.querySelectorAll('body *')]
             .filter(node => {
@@ -252,7 +256,13 @@ try {
         && pdf.size > 10000, 'Сервер вернул некорректный PDF');
     check(await http(second, 'GET', '/management?state=closed'), 'Журнал закрытых');
 
-    for (const width of [320, 360, 390, 768, 1440]) await layout(first, width);
+    // Мобильные испытания выполняются на заново загруженном сайте,
+    // а не подменой размера уже открытой настольной сессии.
+    for (const width of [320, 360, 390, 768, 1440]) {
+        const { page: mobilePage, context: mobileContext } = await login('E2E_MANAGER_ONE', width);
+        await layout(mobilePage, width);
+        await mobileContext.close();
+    }
     await layout(worker, 390);
     assert.deepEqual(browserErrors, [], 'Ошибки браузера');
     console.log('Реальный HTTP/MySQL: две сессии, конкурентная выдача/допуск,'
