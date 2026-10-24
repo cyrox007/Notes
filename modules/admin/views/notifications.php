@@ -17,6 +17,7 @@ foreach ($externalChannels as $row) {
 }
 $counts = is_array($details['counts'] ?? null) ? $details['counts'] : [];
 $scheduler = is_array($reminder_scheduler ?? null) ? $reminder_scheduler : [];
+$deliveryWorker = is_array($notification_worker ?? null) ? $notification_worker : [];
 $schedulerStates = [
     'healthy' => 'Работает',
     'running' => 'Выполняется',
@@ -121,6 +122,30 @@ ob_start();
             <button class="admin-action admin-action--secondary" type="submit">Отправить пробное письмо</button>
         </form>
         <p><strong>Важно:</strong> статус «отправлено» означает, что SMTP-сервер принял письмо, а не что оно прочитано получателем. Проверьте входящие и спам. При состоянии «ожидание» нужен действующий обработчик очереди.</p>
+    </section>
+
+    <section class="admin-panel-card" aria-labelledby="delivery-worker-title">
+        <div class="admin-panel-card__header">
+            <div>
+                <span class="admin-panel-card__kicker">Внешняя доставка</span>
+                <h2 id="delivery-worker-title">Состояние отдельного обработчика уведомлений</h2>
+                <p>Последний завершённый проход команды обработки очереди. Это не проверка установки cron или получения сообщений.</p>
+            </div>
+        </div>
+        <p role="status">
+            <strong>Состояние: <?= $view->e($schedulerStates[(string) ($deliveryWorker['state'] ?? 'unknown')] ?? 'Неизвестно') ?>.</strong>
+            <?= $view->e($deliveryWorker['message'] ?? 'Нет сведений.') ?>
+        </p>
+        <?php if (!empty($deliveryWorker['last_success_utc'])): ?>
+            <p>Последний успешный проход (UTC):
+                <strong><?= $view->e($deliveryWorker['last_success_utc']) ?></strong>.
+                <?php if (isset($deliveryWorker['minutes_since_success'])): ?>
+                    Давность: <?= (int) $deliveryWorker['minutes_since_success'] ?> мин.
+                <?php endif; ?>
+            </p>
+        <?php endif; ?>
+        <p>При расписании раз в 15 минут отсутствие успешного прохода более 45 минут требует проверки
+            системного задания, пути PHP и журнала сервера. Резервный HTTP-проход не заменяет этот показатель.</p>
     </section>
 
     <section class="admin-panel-card" aria-labelledby="tasks-scheduler-title">
