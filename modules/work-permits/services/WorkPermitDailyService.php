@@ -81,8 +81,8 @@ final class WorkPermitDailyService
             if ($last === null || $last['ended_at'] === null) {
                 throw new DomainException('Сначала завершите действующий рабочий период', 409);
             }
-            $this->requireSequence($last, $action, $started);
             $issue = $this->issuance($documentId);
+            $this->requireSequence($last, $action, $started, $issue['time_zone']);
             if ($started < $issue['planned_start'] || $started > $issue['planned_finish']) {
                 throw new DomainException('Допуск находится за пределами срока выданного наряда', 409);
             }
@@ -148,10 +148,12 @@ final class WorkPermitDailyService
             if ($last === null || $last['ended_at'] !== null) {
                 throw new DomainException('Нет активного рабочего периода для остановки', 409);
             }
-            if ($ended <= $last['started_at'] || substr($ended, 0, 10) !== substr($last['started_at'], 0, 10)) {
-                throw new DomainException('Остановка должна быть позже допуска, в пределах одного дня UTC', 409);
-            }
             $issue = $this->issuance($documentId);
+            if ($ended <= $last['started_at'] || !WorkPermitLocalDay::sameDay(
+                $ended, $last['started_at'], $issue['time_zone']
+            )) {
+                throw new DomainException('Остановка должна быть позже допуска, в пределах местных суток объекта', 409);
+            }
             if ($ended > $issue['planned_finish']) {
                 throw new DomainException('Остановка выходит за срок действия наряда', 409);
             }
@@ -187,14 +189,14 @@ final class WorkPermitDailyService
     }
 
     /** @param array<string,mixed> $last */
-    private function requireSequence(array $last, string $action, string $started): void
+    private function requireSequence(array $last, string $action, string $started, string $zone): void
     {
         if ($started <= $last['ended_at']) {
             throw new DomainException('Новый допуск должен быть позже завершения предыдущего периода', 409);
         }
-        $sameDay = substr($started, 0, 10) === substr($last['ended_at'], 0, 10);
+        $sameDay = WorkPermitLocalDay::sameDay($started, $last['ended_at'], $zone);
         if ($action === 'resume' && ($last['end_kind'] !== 'break' || !$sameDay)) {
-            throw new DomainException('Возобновление возможно только после перерыва в тот же день UTC', 409);
+            throw new DomainException('Возобновление возможно только после перерыва в те же местные сутки', 409);
         }
         if ($action === 'daily_admission'
             && ($last['end_kind'] !== 'day_end' || $sameDay)) {
@@ -236,7 +238,7 @@ final class WorkPermitDailyService
     private function issuance(int $documentId): array
     {
         $row = $this->db->fetchOne(
-            'SELECT planned_start,planned_finish,producer_employee_id
+            'SELECT planned_start,planned_finish,producer_employee_id,time_zone
              FROM work_permit_issuances WHERE document_id=:id LIMIT 1',
             [':id' => $documentId]
         );
