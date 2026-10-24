@@ -180,7 +180,7 @@ async function launch(width, manager = true) {
     });
     for (const script of scripts) await page.addScriptTag({ content: script });
     await page.locator('[data-wp-organization] option').filter({ hasText: 'Электросети' })
-        .waitFor({ timeout: 10000 });
+        .waitFor({ state: 'attached', timeout: 10000 });
     return { page, context };
 }
 async function layout(page, name) {
