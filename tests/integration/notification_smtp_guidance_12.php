@@ -50,6 +50,7 @@ $service = (string) file_get_contents($root . '/app/services/notifications/Notif
 $controller = (string) file_get_contents($root . '/modules/admin/controllers/NotificationSettingsController.php');
 $view = (string) file_get_contents($root . '/modules/admin/views/notifications.php');
 $script = (string) file_get_contents($root . '/modules/admin/assets/notification-settings.js');
+$probe = (string) file_get_contents($root . '/bin/notifications_smtp_probe.php');
 
 smtpGuidanceAssert(str_contains($service, 'SmtpDeliveryGuidance::forCode')
     && str_contains($service, 'ORDER BY a.id DESC LIMIT 40'),
@@ -61,6 +62,8 @@ smtpGuidanceAssert(str_contains($controller, "'failed' => 'Пробная дос
 smtpGuidanceAssert(str_contains($view, '$view->e($job[\'guidance\'])')
     && str_contains($view, '$view->e($attempt[\'guidance\'])'),
     'Административная страница должна безопасно выводить рекомендации');
+smtpGuidanceAssert(str_contains($probe, 'SmtpDeliveryGuidance::forCode($delivery->code)'),
+    'Консольная SMTP-проверка должна выводить безопасную причину отказа');
 smtpGuidanceAssert(str_contains($script, "result.state === 'failed'")
     && str_contains($script, "result.state !== 'sent'"),
     'Браузер обязан различать неуспешную и успешную SMTP-передачу');
