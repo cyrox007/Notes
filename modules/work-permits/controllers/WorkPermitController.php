@@ -94,6 +94,69 @@ final class WorkPermitController extends Controller
         });
     }
 
+    /** Выбор действующих шаблонов: только внутри организации. */
+    public function templates(Request $request): void
+    {
+        $this->handle($request, function (int $actor) use ($request): array {
+            $archived = (string) $request->get('archived', '0') === '1';
+            if ($archived) {
+                (new PermissionService())->requirePermission($actor, 'work_permits.manage');
+            }
+            return $this->templatesService()->listing(
+                $this->number($request->get('organization_id', 0), 'organization_id'),
+                (string) $request->get('kind', ''),
+                $archived,
+                $this->number($request->get('limit', 50), 'limit'),
+                $this->number($request->get('before_id', 0), 'before_id')
+            );
+        });
+    }
+
+    public function template(Request $request, int $id): void
+    {
+        $this->handle($request, function (int $actor) use ($request, $id): array {
+            $archived = (string) $request->get('archived', '0') === '1';
+            if ($archived) {
+                (new PermissionService())->requirePermission($actor, 'work_permits.manage');
+            }
+            return ['template' => $this->templatesService()->detail(
+                $id,
+                $this->number($request->get('organization_id', 0), 'organization_id'),
+                $archived
+            )];
+        });
+    }
+
+    public function createTemplate(Request $request): void
+    {
+        $this->handle($request, function (int $actor) use ($request): array {
+            (new PermissionService())->requirePermission($actor, 'work_permits.manage');
+            $created = $this->templatesService()->create($actor, $this->json($request));
+            UserActionLog::emit($actor, 'work_permits.template_created', 'work-permits',
+                'http', 'success', 201, ['template_id' => $created['id']]);
+            return ['template' => $created];
+        }, 201);
+    }
+
+    public function changeTemplate(Request $request, int $id): void
+    {
+        $this->handle($request, function (int $actor) use ($request, $id): array {
+            (new PermissionService())->requirePermission($actor, 'work_permits.manage');
+            $input = $this->json($request);
+            $changed = $this->templatesService()->change($actor, $id, $input);
+            UserActionLog::emit($actor, 'work_permits.template_changed', 'work-permits',
+                'http', 'success', 200, [
+                    'template_id' => $id, 'action' => $input['action'] ?? '',
+                ]);
+            return ['template' => $changed];
+        });
+    }
+
+    private function templatesService(): \Modules\WorkPermits\Services\WorkPermitTemplateService
+    {
+        return new \Modules\WorkPermits\Services\WorkPermitTemplateService(DatabaseManager::getInstance());
+    }
+
     /** Ограниченный список для формы; архив виден только управляющему. */
     public function references(Request $request, string $kind): void
     {
