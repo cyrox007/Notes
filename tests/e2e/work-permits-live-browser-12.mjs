@@ -68,6 +68,17 @@ async function layout(page, width) {
     const measured = await page.locator('[data-work-permits]').evaluate(root => ({
         pageWidth: document.documentElement.scrollWidth,
         viewport: document.documentElement.clientWidth,
+        overflowing: [...document.querySelectorAll('body *')]
+            .filter(node => {
+                if (!node.getClientRects().length) return false;
+                const rect = node.getBoundingClientRect();
+                return rect.right > innerWidth + 3 || rect.left < -3;
+            }).slice(0, 18).map(node => ({
+                tag: node.tagName.toLowerCase(), css: String(node.className).slice(0, 100),
+                text: node.textContent?.trim().slice(0, 30),
+                left: Math.round(node.getBoundingClientRect().left),
+                right: Math.round(node.getBoundingClientRect().right),
+            })),
         shownHidden: [...root.querySelectorAll('[hidden]')].filter(node =>
             getComputedStyle(node).display !== 'none').length,
         outOfBounds: [...root.querySelectorAll('input,select,textarea,button')]
