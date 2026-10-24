@@ -1,0 +1,156 @@
+name: Наряды 1.2 — реальный HTTP, MySQL и две сессии
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/work-permits/**'
+      - 'tests/e2e/work-permits-live-*'
+      - 'tests/support/ci_license_fixture.php'
+      - '.github/workflows/work-permits-live-browser-12.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  live:
+    name: Наряды — HTTP/MySQL и конкурентность
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: work_permits_browser
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+      - name: Установить браузер и шрифт
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y -qq fonts-dejavu-core
+      - name: Проверить синтаксис
+        run: |
+          set -euo pipefail
+          php -l tests/e2e/work-permits-live-seed.php
+          php -l tests/e2e/router.php
+          node --check tests/e2e/work-permits-live-browser-12.mjs
+          find modules/work-permits -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Развернуть настоящую MySQL
+        run: |
+          set -euo pipefail
+          for file in database/core_identity_schema.sql database/access_control_schema.sql \
+            database/audit_schema.sql database/core_settings_schema.sql \
+            database/module_lifecycle_schema.sql database/messenger_module_schema.sql \
+            database/notes_schema.sql database/file_manager_module_schema.sql \
+            database/file_storage_quota_schema.sql database/file_spaces_schema.sql \
+            database/user_fields_schema.sql database/tasks_schema.sql \
+            database/calendar_schema.sql database/notifications_schema.sql \
+            database/work_permits_schema.sql; do
+            mysql -h 127.0.0.1 -uroot -proot work_permits_browser < "$file"
+          done
+      - name: Подготовить роли и временную лицензию
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: '3306'
+          DBUSER: root
+          DBPASS: root
+          DBNAME: work_permits_browser
+          E2E_ENABLE_WORK_PERMITS: '1'
+        run: |
+          set -euo pipefail
+          E2E_PASSWORD="$(php -r 'echo bin2hex(random_bytes(20));')"
+          APP_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          MSG_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          TICKET_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          echo "::add-mask::$E2E_PASSWORD"
+          echo "::add-mask::$APP_KEY"
+          echo "::add-mask::$MSG_KEY"
+          echo "::add-mask::$TICKET_KEY"
+          export E2E_PASSWORD
+          mkdir -p /tmp/notes-work-permits-live/logs compile cache
+          chmod 700 /tmp/notes-work-permits-live/logs
+          cat > .env <<ENV
+          DBDRIVER=mysql
+          DBHOST=127.0.0.1
+          DBPORT=3306
+          DBUSER=root
+          DBPASS=root
+          DBNAME=work_permits_browser
+          UNIQUE_KEY=$APP_KEY
+          MSG_SECRET_KEY=$MSG_KEY
+          WS_TICKET_SECRET=$TICKET_KEY
+          PRIVATE_STORAGE_PATH=/tmp/notes-work-permits-live
+          SITEURL=http://127.0.0.1:18095
+          BASE_PATH=/workspace/
+          WS_HOST=127.0.0.1
+          WS_PORT=27809
+          WS_PUBLIC_URL=ws://127.0.0.1:27809/workspace/ws
+          WS_ALLOWED_ORIGINS=http://127.0.0.1:18095
+          AUTH_RATE_LIMIT_ATTEMPTS=50
+          AUTH_RATE_LIMIT_WINDOW_SECONDS=60
+          LOG_LEVEL=INFO
+          LOG_FILE=/tmp/notes-work-permits-live/logs/app.log
+          CSRF_ENABLED=true
+          ENV
+          chmod 600 .env
+          php tests/e2e/work-permits-live-seed.php
+          php tests/support/ci_license_fixture.php
+          echo "E2E_PASSWORD=$E2E_PASSWORD" >> "$GITHUB_ENV"
+          echo "E2E_MANAGER_ONE=wp-manager-one" >> "$GITHUB_ENV"
+          echo "E2E_MANAGER_TWO=wp-manager-two" >> "$GITHUB_ENV"
+          echo "E2E_WORKER=wp-worker" >> "$GITHUB_ENV"
+      - name: Запустить реальный сайт в подкаталоге
+        run: |
+          set -euo pipefail
+          PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:18095 tests/e2e/router.php >/tmp/work-permits-live-http.log 2>&1 &
+          echo $! > /tmp/work-permits-live-http.pid
+          for i in {1..75}; do
+            if curl -fsS http://127.0.0.1:18095/workspace/auth/login/ >/dev/null; then exit 0; fi
+            sleep .3
+          done
+          cat /tmp/work-permits-live-http.log >&2
+          exit 1
+      - name: Проверить два браузера и весь цикл
+        env:
+          E2E_ORIGIN: http://127.0.0.1:18095
+          E2E_BASE_PATH: /workspace
+        run: node tests/e2e/work-permits-live-browser-12.mjs
+      - name: Проверить реальные записи в базе
+        run: |
+          set -euo pipefail
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot work_permits_browser -e "SELECT COUNT(*) FROM work_permit_documents WHERE state='closed'")" -ge 1
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot work_permits_browser -e "SELECT COUNT(*) FROM work_permit_work_periods WHERE end_kind='day_end'")" -ge 1
+      - name: Сохранить диагностические данные
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: work-permits-live-http-diagnostics
+          path: |
+            /tmp/work-permits-live-error.json
+            /tmp/work-permits-live-*.png
+            /tmp/work-permits-live-http.log
+            /tmp/notes-work-permits-live/logs/app.log
+          if-no-files-found: ignore
+          retention-days: 5
+      - name: Остановить HTTP-сервер
+        if: always()
+        run: |
+          if [[ -f /tmp/work-permits-live-http.pid ]]; then
+            PID="$(cat /tmp/work-permits-live-http.pid)"
+            pkill -TERM -P "$PID" >/dev/null 2>&1 || true
+            kill "$PID" >/dev/null 2>&1 || true
+          fi
