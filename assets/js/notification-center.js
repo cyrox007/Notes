@@ -70,10 +70,20 @@
             preferences: null,
             update: null,
             loadingList: false,
-            loadingPreferences: false
+            loadingPreferences: false,
+            pendingPreferencesRefresh: false
         };
 
         bindShell(refs, state);
+        // Устройство регистрируется отдельным PWA-скриптом. После привязки
+        // перечитываем разрешённые каналы, не теряя выбранные категории.
+        document.addEventListener('wspace:push-device-updated', () => {
+            if (state.loadingPreferences) {
+                state.pendingPreferencesRefresh = true;
+                return;
+            }
+            void loadPreferences(refs, state, state.mode === 'settings');
+        });
         void refreshCount(refs, state);
         window.setInterval(() => {
             if (document.visibilityState === 'visible') {
@@ -506,6 +516,10 @@
             }
         } finally {
             state.loadingPreferences = false;
+            if (state.pendingPreferencesRefresh) {
+                state.pendingPreferencesRefresh = false;
+                void loadPreferences(refs, state, state.mode === 'settings');
+            }
         }
     }
 
@@ -581,6 +595,7 @@
 
         const destinations = [
             ['email', 'E-mail'],
+            ['browser', 'Push на устройствах'],
             ['telegram', 'Telegram'],
             ['max', 'MAX'],
             ['webhook', 'Webhook'],
@@ -592,6 +607,8 @@
             const enabled = subscription.channels?.[channel] === true;
             const hint = channel === 'email'
                 ? emailHint(detail, subscription)
+                : channel === 'browser'
+                    ? browserHint(detail, subscription)
                 : detail.available === true
                     ? 'Доступен для этой категории; отправка выполняется общей очередью.'
                     : 'Администратор ещё не настроил доступного получателя.';
@@ -602,11 +619,6 @@
                 refs, state, card, category, { channels: { [channel]: toggle.input.checked } }
             ));
         });
-
-        const future = node('div', 'workspace-notification-preference__future');
-        future.appendChild(node('span', '', 'Browser Push · позже'));
-
-        card.appendChild(future);
 
         external.input.addEventListener('change', () => void savePreference(
             refs,
@@ -640,6 +652,16 @@
             showFeedback(refs.settingsFeedback, errorMessage(error, 'Не удалось сохранить настройки.'), 'error');
             await loadPreferences(refs, state, true);
         }
+    }
+
+    function browserHint(availability, subscription) {
+        if (availability.available !== true) {
+            return 'Сначала включите Push на устройстве в начале настроек.';
+        }
+        if (subscription.effective_channels?.browser === true) {
+            return 'Включён для этой категории. Уведомления доставляются на привязанные устройства.';
+        }
+        return 'Устройства подключены. Разрешите Push для этой категории.';
     }
 
     function emailHint(availability, subscription) {

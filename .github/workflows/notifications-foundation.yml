@@ -44,6 +44,7 @@ on:
       - 'tests/integration/notification_web_push_*_12.php'
       - 'tests/integration/notification_messenger_events_mysql_12.php'
       - 'tests/integration/notification_pwa_push_12.mjs'
+      - 'tests/integration/notification_push_preferences_ui_12.mjs'
       - 'database/notifications_schema.sql'
       - 'tests/integration/calendar_reminders_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
@@ -91,6 +92,7 @@ on:
       - 'tests/integration/notification_web_push_*_12.php'
       - 'tests/integration/notification_messenger_events_mysql_12.php'
       - 'tests/integration/notification_pwa_push_12.mjs'
+      - 'tests/integration/notification_push_preferences_ui_12.mjs'
       - 'database/notifications_schema.sql'
       - 'tests/integration/calendar_reminders_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
@@ -216,6 +218,7 @@ jobs:
           node --check service-worker.js
           node --check assets/js/pwa-push.js
           node tests/integration/notification_pwa_push_12.mjs
+          node tests/integration/notification_push_preferences_ui_12.mjs
           php -l app/services/notifications/SmsGatewayNotificationChannel.php
           php -l app/services/notifications/SignedWebhookNotificationChannel.php
           php -l app/services/notifications/BotNotificationChannel.php

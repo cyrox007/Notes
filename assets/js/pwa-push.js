@@ -125,6 +125,9 @@
                     subscription = null;
                     enabled = false;
                     state('Push отключён для этого устройства. Другие устройства не затронуты.');
+                    // Доступность категорий пересчитывается после отзыва,
+                    // в том числе если это было единственное устройство.
+                    document.dispatchEvent(new CustomEvent('wspace:push-device-updated'));
                     return;
                 }
 
