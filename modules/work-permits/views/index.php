@@ -142,6 +142,56 @@ ob_start();
     <?php endif; ?>
 
     <?php if (!empty($can_manage_references)): ?>
+    <section class="calendar-shell wp-journal__editor" data-wp-daily-panel hidden>
+        <h2 data-wp-daily-title>Рабочие смены наряда</h2>
+        <p>Сведения отражают фактические допуски и остановки работ. Запись в Notes не заменяет подписи работников в официальном наряде.</p>
+        <div data-wp-period-list aria-live="polite"></div>
+        <form data-wp-period-start hidden>
+            <h3 data-wp-period-start-title>Повторный допуск</h3>
+            <label>Дата и время фактического допуска (местное время)
+                <input type="datetime-local" name="started_at" required>
+            </label>
+            <label>Допускающий
+                <select name="admitted_employee_id" required></select>
+            </label>
+            <label>Инструктаж провёл
+                <select name="briefed_by_employee_id" required></select>
+            </label>
+            <label>Инструктаж получил (производитель)
+                <select name="briefing_recipient_id" required></select>
+            </label>
+            <label class="wp-journal__wide"><input type="checkbox" name="workplace_prepared" required>
+                Рабочее место повторно проверено и подготовлено
+            </label>
+            <label class="wp-journal__wide"><input type="checkbox" name="briefing_confirmed" required>
+                Инструктаж в эту смену фактически проведён
+            </label>
+            <button type="submit" data-wp-period-submit>Записать допуск</button>
+        </form>
+        <form data-wp-period-stop hidden>
+            <h3>Остановка работ</h3>
+            <label>Дата и время фактической остановки (местное время)
+                <input type="datetime-local" name="ended_at" required>
+            </label>
+            <label>Вид события
+                <select name="end_kind" required>
+                    <option value="break">Перерыв в течение дня</option>
+                    <option value="day_end">Завершение рабочего дня</option>
+                </select>
+            </label>
+            <label class="wp-journal__wide">Причина и принятые меры
+                <textarea name="note" maxlength="1000" rows="3"></textarea>
+            </label>
+            <label class="wp-journal__wide"><input type="checkbox" name="work_stopped" required>
+                Работы фактически остановлены, рабочее место приведено в безопасное состояние
+            </label>
+            <button type="submit" data-wp-period-submit>Зафиксировать остановку</button>
+        </form>
+        <button type="button" data-wp-period-close>Закрыть карточку</button>
+    </section>
+    <?php endif; ?>
+
+    <?php if (!empty($can_manage_references)): ?>
     <details class="calendar-shell wp-journal__registry" data-wp-admin>
         <summary>Управление справочниками</summary>
         <p>Названия можно изменять; старые документы сохраняют название на момент регистрации. Удаления нет — используйте архив.</p>
@@ -219,5 +269,6 @@ echo $view->layout('core/base', [
         $view->moduleAsset('work-permits', 'work-permits.js'),
         $view->moduleAsset('work-permits', 'work-permits-templates.js'),
         $view->moduleAsset('work-permits', 'work-permits-lifecycle.js'),
+        $view->moduleAsset('work-permits', 'work-permits-daily.js'),
     ],
 ], $content);
