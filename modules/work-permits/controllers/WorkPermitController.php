@@ -12,6 +12,7 @@ use Core\UserActionLog;
 use DomainException;
 use InvalidArgumentException;
 use Modules\WorkPermits\Services\WorkPermitDraftService;
+use Modules\WorkPermits\Services\WorkPermitDraftEditService;
 use Throwable;
 
 /**
@@ -76,6 +77,21 @@ final class WorkPermitController extends Controller
             }
             return ['document' => $created];
         }, 201);
+    }
+
+    public function edit(Request $request, int $id): void
+    {
+        $this->handle($request, function (int $actor) use ($request, $id): array {
+            $changed = (new WorkPermitDraftEditService(DatabaseManager::getInstance()))
+                ->save($id, $actor, $this->json($request));
+            if (!$changed['replayed']) {
+                UserActionLog::emit($actor, 'work_permits.draft_updated', 'work-permits',
+                    'http', 'success', 200, [
+                        'document_id' => $id, 'version' => $changed['version'],
+                    ]);
+            }
+            return ['document' => $changed];
+        });
     }
 
     /** Ограниченный список для формы; архив виден только управляющему. */
