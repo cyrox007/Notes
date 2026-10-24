@@ -9,6 +9,7 @@ require_once $root . '/core/Config.php';
 
 use Core\CliRuntime;
 use Core\DatabaseManager;
+use App\Services\Notifications\NotificationWorkerScheduleHealth;
 
 $options = getopt('', ['json', 'help']);
 if (isset($options['help'])) {
@@ -86,6 +87,9 @@ try {
          WHERE state_key = :state_key LIMIT 1",
         [':state_key' => 'delivery_http_fallback']
     );
+    $workerHealth = NotificationWorkerScheduleHealth::evaluate(
+        NotificationWorkerScheduleHealth::readLastSuccess($db)
+    );
     $configurationCounts = ['active' => 0, 'disabled' => 0];
     foreach ($configs as $config) {
         $key = (int) $config['enabled'] === 1 ? 'active' : 'disabled';
@@ -148,6 +152,8 @@ try {
         'smtp_jobs_by_state' => $stateCounts,
         'smtp_attempt_codes_last_24h' => $attemptCodes,
         'last_http_fallback_utc' => is_string($lastFallback) ? $lastFallback : null,
+        'cli_worker_last_success_utc' => $workerHealth['last_success_utc'],
+        'cli_worker_state' => $workerHealth['state'],
         'scheduler_running' => 'not_verified',
         'smtp_delivery_received' => 'not_verified',
     ];
@@ -162,6 +168,9 @@ try {
         echo 'Активные подписки SMTP: ' . $result['smtp_subscriptions_active'] . PHP_EOL;
         echo 'Очередь SMTP: ' . json_encode($stateCounts, JSON_UNESCAPED_UNICODE) . PHP_EOL;
         echo 'Коды попыток за 24 часа: ' . json_encode($attemptCodes, JSON_UNESCAPED_UNICODE) . PHP_EOL;
+        echo 'Последний успешный проход отдельного обработчика (UTC): '
+            . ($result['cli_worker_last_success_utc'] ?? 'не зафиксирован') . PHP_EOL;
+        echo 'Состояние отдельного обработчика: ' . $result['cli_worker_state'] . PHP_EOL;
         echo 'Последний резервный проход (UTC): ' . ($result['last_http_fallback_utc'] ?? 'не зафиксирован') . PHP_EOL;
         echo "Работа планировщика и фактическое получение письма этой командой не проверяются.\n";
     }
