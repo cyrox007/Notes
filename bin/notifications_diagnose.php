@@ -10,6 +10,8 @@ require_once $root . '/core/Config.php';
 use Core\CliRuntime;
 use Core\DatabaseManager;
 use App\Services\Notifications\NotificationWorkerScheduleHealth;
+use App\Services\Notifications\SmtpOperationalReadiness;
+use App\Services\Notifications\EnvironmentNotificationSecretResolver;
 
 $options = getopt('', ['json', 'help']);
 if (isset($options['help'])) {
@@ -90,6 +92,27 @@ try {
     $workerHealth = NotificationWorkerScheduleHealth::evaluate(
         NotificationWorkerScheduleHealth::readLastSuccess($db)
     );
+    $smtpConfig = $db->fetchOne(
+        "SELECT enabled,config_json,secret_ref FROM notification_channel_configs
+         WHERE channel='email' AND owner_user_id IS NULL ORDER BY id ASC LIMIT 1"
+    );
+    $secretAvailable = false;
+    if ($smtpConfig !== null) {
+        try {
+            $secret = (new EnvironmentNotificationSecretResolver())
+                ->resolve($smtpConfig['secret_ref'] ?? null);
+            $secretAvailable = is_string($secret) && $secret !== '';
+            unset($secret);
+        } catch (Throwable) {
+            // Не включаем имя переменной или содержимое исключения в отчёт.
+        }
+    }
+    $smtpReadiness = SmtpOperationalReadiness::assess(
+        $smtpConfig,
+        $secretAvailable,
+        (int) ($subscriptions['active'] ?? 0),
+        $workerHealth['state']
+    );
     $configurationCounts = ['active' => 0, 'disabled' => 0];
     foreach ($configs as $config) {
         $key = (int) $config['enabled'] === 1 ? 'active' : 'disabled';
@@ -147,6 +170,7 @@ try {
         'notifications_total' => $notifications,
         'channels' => $channels,
         'smtp_configurations' => $configurationCounts,
+        'smtp_readiness' => $smtpReadiness,
         'subscriptions_total' => (int) ($subscriptions['total'] ?? 0),
         'smtp_subscriptions_active' => (int) ($subscriptions['active'] ?? 0),
         'smtp_jobs_by_state' => $stateCounts,
@@ -165,6 +189,7 @@ try {
         echo 'Событий: ' . $events . '; уведомлений: ' . $notifications . PHP_EOL;
         echo 'Все каналы (агрегированные показатели): ' . json_encode($channels, JSON_UNESCAPED_UNICODE) . PHP_EOL;
         echo 'SMTP-конфигурации: ' . json_encode($configurationCounts, JSON_UNESCAPED_UNICODE) . PHP_EOL;
+        echo 'Проверка готовности SMTP: ' . json_encode($smtpReadiness, JSON_UNESCAPED_UNICODE) . PHP_EOL;
         echo 'Активные подписки SMTP: ' . $result['smtp_subscriptions_active'] . PHP_EOL;
         echo 'Очередь SMTP: ' . json_encode($stateCounts, JSON_UNESCAPED_UNICODE) . PHP_EOL;
         echo 'Коды попыток за 24 часа: ' . json_encode($attemptCodes, JSON_UNESCAPED_UNICODE) . PHP_EOL;
