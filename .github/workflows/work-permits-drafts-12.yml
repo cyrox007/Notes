@@ -18,6 +18,8 @@ on:
       - 'tests/integration/work_permits_condition_templates_mysql_12.php'
       - 'tests/integration/work_permits_local_day_mysql_12.php'
       - 'database/migrations/20261024_work_permits_local_day.sql'
+      - 'database/migrations/20261025_work_permits_permissions_briefings.sql'
+      - 'tests/integration/work_permits_safety_authorizations_mysql_12.php'
       - 'database/migrations/20261024_work_permits_conditions_templates.sql'
       - 'database/migrations/20261024_work_permits_completion_closure.sql'
       - 'database/migrations/20261024_work_permits_crew_extensions.sql'
@@ -89,6 +91,7 @@ jobs:
           node --check modules/work-permits/assets/work-permits-daily.js
           node --check modules/work-permits/assets/work-permits-amendments.js
           node --check modules/work-permits/assets/work-permits-closure.js
+          node --check modules/work-permits/assets/work-permits-safety.js
           node --check modules/work-permits/assets/work-permits-lifecycle.js
           php tests/integration/module_registry_contract.php
           php tests/integration/module_schema_ownership_contract_12.php
@@ -99,4 +102,4 @@ jobs:
           TEST_DB_NAME: workspace_test
           TEST_DB_USER: root
           TEST_DB_PASS: root
-        run: php tests/integration/work_permits_local_day_mysql_12.php
+        run: php tests/integration/work_permits_safety_authorizations_mysql_12.php
