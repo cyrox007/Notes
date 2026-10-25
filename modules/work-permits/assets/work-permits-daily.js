@@ -76,6 +76,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-daily.js',
                 item.append(title);
                 line(item, 'Начало: ' + window.WorkPermitTime.display(period.started_at, detail)
                     + ' · допускающий: ' + period.admitter_name);
+                line(item, 'Рабочее место: ' + (period.workplace || 'Не указано в исходной записи'));
                 line(item, 'Инструктаж провёл: ' + period.instructor_name
                     + ' · получил: ' + period.recipient_name);
                 line(item, period.ended_at
@@ -99,6 +100,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-daily.js',
             }
             state.action = last.end_kind === 'break' ? 'resume' : 'daily_admission';
             startForm.hidden = false;
+            startForm.elements.namedItem('workplace').value = last.workplace || '';
             startForm.querySelector('[data-wp-period-start-title]').textContent =
                 state.action === 'resume' ? 'Возобновление после перерыва' : 'Допуск в следующий рабочий день';
             const all = await employees(detail.organization_id);
@@ -173,6 +175,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-daily.js',
                     payload.admitted_employee_id = input.admitted_employee_id;
                     payload.briefed_by_employee_id = input.briefed_by_employee_id;
                     payload.briefing_recipient_id = input.briefing_recipient_id;
+                    payload.workplace = input.workplace;
                     payload.workplace_prepared = input.workplace_prepared === 'on';
                     payload.briefing_confirmed = input.briefing_confirmed === 'on';
                 }
