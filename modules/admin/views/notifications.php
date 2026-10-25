@@ -5,6 +5,7 @@ declare(strict_types=1);
 /** @var \Core\NativeViewRenderer $view */
 $details = is_array($notification_settings ?? null) ? $notification_settings : [];
 $mail = is_array($details['smtp'] ?? null) ? $details['smtp'] : [];
+$smtpReadiness = is_array($details['smtp_readiness'] ?? null) ? $details['smtp_readiness'] : [];
 $config = is_array($mail['settings'] ?? null) ? $mail['settings'] : [];
 $jobs = is_array($details['jobs'] ?? null) ? $details['jobs'] : [];
 $attempts = is_array($details['attempts'] ?? null) ? $details['attempts'] : [];
@@ -57,6 +58,23 @@ ob_start();
             <?= empty($mail['enabled']) ? 'отключён' : 'включён' ?> ·
             <?= empty($mail['secret_configured']) ? 'секрет не указан' : (!empty($mail['secret_available']) ? 'секрет доступен' : 'секрет не найден в окружении') ?>
         </p>
+        <div role="status" aria-live="polite">
+            <strong>Проверка готовности:</strong>
+            <?php if (($smtpReadiness['state'] ?? '') === 'blocked'): ?>
+                Обнаружены препятствия для отправки.
+            <?php else: ?>
+                Явных препятствий в настройках не найдено. Это не подтверждает доставку письма.
+            <?php endif; ?>
+            <?php if (!empty($smtpReadiness['blockers']) || !empty($smtpReadiness['warnings'])): ?>
+                <ul>
+                    <?php foreach (array_merge($smtpReadiness['blockers'] ?? [], $smtpReadiness['warnings'] ?? []) as $finding): ?>
+                        <li><?= $view->e((string) ($finding['message'] ?? '')) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+            <p>Проверяется окружение веб-процесса. У отдельного обработчика оно может отличаться.
+                Итоговый признак работоспособности — тестовое письмо и подтверждение получения адресатом.</p>
+        </div>
         <form action="<?= $view->e($view->route('admin_notifications_smtp')) ?>" method="post"
               class="custom-fields-form" data-notification-ajax-form autocomplete="off">
             <?= $view->csrfInput() ?>
