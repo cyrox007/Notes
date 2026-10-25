@@ -89,7 +89,7 @@ final class WorkPermitController extends Controller
             return;
         }
         try {
-            $output = (new WorkPermitPdfRenderer())->render($document);
+            $output = (new WorkPermitPdfRenderer())->renderForm($document);
         } catch (DomainException $error) {
             http_response_code($error->getCode() === 409 ? 409 : 400);
             header('Content-Type: text/plain; charset=utf-8');
