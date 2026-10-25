@@ -92,7 +92,42 @@ final class WorkPermitPdfRenderer
         $pdf->paragraph('Условия производства работ', $this->text($issue['work_conditions'] ?? null));
         $pdf->paragraph('Отдельные указания', $this->text($issue['special_instructions'] ?? null));
 
-        $pdf->section('6. Первичный допуск и целевой инструктаж');
+        $pdf->section('6. Разрешения на подготовку рабочих мест и допуск');
+        $permissionRows = [];
+        foreach ($lifecycle['preparation_permissions'] ?? [] as $permission) {
+            $permissionRows[] = [
+                $this->localTime($permission['granted_at'] ?? null, $zone),
+                $this->text($permission['grantor_name'] ?? null),
+                $this->text($permission['receiver_name'] ?? null),
+                $this->text($permission['workplace'] ?? null),
+                $this->text($permission['communication_method'] ?? null),
+            ];
+        }
+        $pdf->table(
+            ['Получено (время объекта)', 'Передал', 'Получил', 'Рабочее место', 'Способ'],
+            $permissionRows, [1.15, 1.1, 1.1, 1.5, 0.8]
+        );
+        $pdf->paragraph('', 'Разрешения отражены как учётные сведения без подписи работников.');
+
+        $pdf->section('7. Целевые инструктажи (индивидуальные записи)');
+        $briefingRows = [];
+        foreach ($lifecycle['target_briefings'] ?? [] as $briefing) {
+            $briefingRows[] = [
+                $this->text($briefing['stage'] ?? null),
+                $this->localTime($briefing['briefed_at'] ?? null, $zone),
+                $this->text($briefing['instructor_name'] ?? null),
+                $this->text($briefing['recipient_name'] ?? null)
+                    . ' (гр. ' . $this->text($briefing['recipient_group'] ?? null) . ')',
+                $this->text($briefing['topic'] ?? null),
+            ];
+        }
+        $pdf->table(
+            ['Этап', 'Время объекта', 'Провёл', 'Получил', 'Содержание'],
+            $briefingRows, [0.7, 1.1, 1.05, 1.2, 1.4]
+        );
+        $pdf->paragraph('', 'Отметки о проведении инструктажа не заменяют таблицу подписей утверждённого бланка.');
+
+        $pdf->section('8. Первичный допуск и отметка об инструктаже допускающим');
         $admission = $lifecycle['first_admission'] ?? null;
         $pdf->table(['Сведение', 'Значение'], is_array($admission) ? [
             ['Первый допуск (время объекта)', $this->localTime($admission['started_at'] ?? null, $zone)],
