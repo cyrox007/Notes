@@ -98,12 +98,13 @@ final class WorkPermitIssuanceService
             foreach ($measures as $index => $measure) {
                 $this->db->execute(
                     'INSERT INTO work_permit_safety_measures
-                        (document_id,sequence_no,equipment,isolation,remaining_live)
-                     VALUES (:doc,:sequence,:equipment,:isolation,:remaining)',
+                        (document_id,sequence_no,equipment,isolation,isolated_parts,remaining_live)
+                     VALUES (:doc,:sequence,:equipment,:isolation,:isolated,:remaining)',
                     [
                         ':doc' => $documentId, ':sequence' => $index + 1,
                         ':equipment' => $measure['equipment'],
                         ':isolation' => $measure['isolation'],
+                        ':isolated' => $measure['isolated_parts'] ?? null,
                         ':remaining' => $measure['remaining_live'],
                     ]
                 );
@@ -211,7 +212,7 @@ final class WorkPermitIssuanceService
                 [':id' => $documentId]
             ),
             'measures' => $this->db->fetchAll(
-                'SELECT sequence_no,equipment,isolation,remaining_live
+                'SELECT sequence_no,equipment,isolation,isolated_parts,remaining_live
                  FROM work_permit_safety_measures WHERE document_id=:id ORDER BY sequence_no',
                 [':id' => $documentId]
             ),
@@ -315,7 +316,7 @@ final class WorkPermitIssuanceService
             JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
     }
 
-    /** @return list<array{equipment:string,isolation:string,remaining_live:string}> */
+    /** @return list<array{equipment:string,isolation:string,isolated_parts?:string,remaining_live:string}> */
     private function measures(mixed $rows): array
     {
         if (!is_array($rows) || !array_is_list($rows) || count($rows) < 1 || count($rows) > 20) {
@@ -324,12 +325,19 @@ final class WorkPermitIssuanceService
         $result = [];
         foreach ($rows as $row) {
             if (!is_array($row)) throw new InvalidArgumentException('Некорректное мероприятие безопасности');
-            $result[] = [
+            $entry = [
                 'equipment' => $this->string($row['equipment'] ?? null, 240, true),
                 'isolation' => $this->string($row['isolation'] ?? null, 1000, true),
                 'remaining_live' => $this->string($row['remaining_live'] ??
                     'Оборудование и токоведущие части, оставшиеся в работе под напряжением.', 500, true),
             ];
+            // Старые команды не включали графу изоляции в отпечаток.
+            // Если отдельное значение появилось, оно обязательно влияет на идемпотентность.
+            $isolated = $this->string($row['isolated_parts'] ?? '', 1000, false);
+            if ($isolated !== '') {
+                $entry['isolated_parts'] = $isolated;
+            }
+            $result[] = $entry;
         }
         return $result;
     }

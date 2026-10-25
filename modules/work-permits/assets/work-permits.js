@@ -70,6 +70,9 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
                 exportLink.href = api + '/' + Number(item.id) + '/pdf';
                 exportLink.setAttribute('download', 'naryad-' + Number(item.id) + '.pdf');
                 section.append(exportLink);
+                const previewLink = node('a', 'Макет бланка для сверки');
+                previewLink.href = api + '/' + Number(item.id) + '/pdf?layout=form';
+                section.append(previewLink);
             }
             if (item.state === 'draft') {
                 const edit = node('button', 'Открыть и изменить');

@@ -165,6 +165,10 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                         link.href = api + '/' + Number(item.id) + '/pdf';
                         link.setAttribute('download', 'naryad-' + Number(item.id) + '.pdf');
                         row.append(link);
+                        const preview = document.createElement('a');
+                        preview.textContent = 'Макет бланка для сверки';
+                        preview.href = api + '/' + Number(item.id) + '/pdf?layout=form';
+                        row.append(preview);
                     }
                     managerList.append(row);
                 }
@@ -203,7 +207,8 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
             row.className = 'wp-journal__measure';
             for (const [name, label, length, value] of [
                 ['equipment', 'Оборудование / участок', 240, ''],
-                ['isolation', 'Что отключить, заземлить или почему это не требуется', 1000, ''],
+                ['isolation', 'Что отключить и где заземлить (либо «Не требуется»)', 1000, ''],
+                ['isolated_parts', 'Что изолировать или оградить (либо «Не требуется»)', 1000, ''],
                 ['remaining_live', 'Что осталось под напряжением', 500,
                     'Оборудование и токоведущие части, оставшиеся в работе под напряжением.'],
             ]) {

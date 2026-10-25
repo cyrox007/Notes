@@ -184,6 +184,7 @@ try {
         work_conditions: 'Проверить ограждение места работ',
         special_instructions: 'Связь с диспетчером',
         measures: [{ equipment: 'КРУН-10 кВ', isolation: 'Отключить ячейку',
+            isolated_parts: 'Оградить смежную ячейку',
             remaining_live: 'Соседняя ячейка под напряжением' }],
     };
     const concurrentIssue = await Promise.all([

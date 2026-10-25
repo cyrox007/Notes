@@ -214,6 +214,7 @@ CREATE TABLE IF NOT EXISTS work_permit_safety_measures (
  sequence_no SMALLINT UNSIGNED NOT NULL,
  equipment VARCHAR(240) NOT NULL,
  isolation VARCHAR(1000) NOT NULL,
+ isolated_parts VARCHAR(1000) NULL,
  remaining_live VARCHAR(500) NOT NULL,
  UNIQUE KEY uq_wp_safety_order (document_id,sequence_no),
  CONSTRAINT fk_wp_safety_doc FOREIGN KEY (document_id) REFERENCES work_permit_documents(id) ON DELETE RESTRICT

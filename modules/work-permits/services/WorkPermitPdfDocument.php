@@ -118,6 +118,12 @@ final class WorkPermitPdfDocument
         $this->y += 10;
     }
 
+    /** Разделение лицевой и оборотной сторон: оборот всегда на новой странице. */
+    public function pageBreak(): void
+    {
+        $this->newPage();
+    }
+
     public function build(): string
     {
         $pageCount = count($this->pages);

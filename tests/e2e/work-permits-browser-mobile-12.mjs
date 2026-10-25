@@ -254,7 +254,8 @@ try {
     await page.waitForFunction(() => document.querySelector('[data-wp-issue-form] textarea[name=work_conditions]')?.value.includes('ограждение'));
     await issue.locator('textarea[name=special_instructions]').fill('Особые указания');
     for (const [name, value] of Object.entries({
-        equipment: 'КРУН', isolation: 'Отключить', remaining_live: 'Смежная ячейка',
+        equipment: 'КРУН', isolation: 'Отключить', isolated_parts: 'Оградить ввод',
+        remaining_live: 'Смежная ячейка',
     })) await issue.locator('textarea[name=' + name + ']').fill(value);
     state.failNext = true;
     await issue.locator('button[type=submit]').click();
