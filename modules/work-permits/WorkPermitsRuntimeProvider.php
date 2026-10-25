@@ -42,6 +42,8 @@ final class WorkPermitsRuntimeProvider implements ModuleRuntimeProvider
             ->add('POST', '/', [WorkPermitController::class, 'create'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_create')
             ->add('POST', '/{int:id}/edit', [WorkPermitController::class, 'edit'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_edit')
             ->add('POST', '/{int:id}/issue', [WorkPermitController::class, 'issue'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_issue')
+            ->add('POST', '/{int:id}/preparation-permission', [WorkPermitController::class, 'preparationPermission'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_preparation_permission')
+            ->add('POST', '/{int:id}/target-briefing', [WorkPermitController::class, 'targetBriefing'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_target_briefing')
             ->add('POST', '/{int:id}/first-admission', [WorkPermitController::class, 'firstAdmission'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_first_admission')
             ->add('POST', '/{int:id}/work-period/{str:action}', [WorkPermitController::class, 'workPeriod'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_work_period')
             ->add('POST', '/{int:id}/change-crew', [WorkPermitController::class, 'changeCrew'], [ApiLoginRequired::class, CSRFMiddleware::class], 'work_permits_change_crew')

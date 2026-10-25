@@ -244,6 +244,72 @@ ob_start();
     <?php endif; ?>
 
     <?php if (!empty($can_manage_references)): ?>
+    <section class="calendar-shell wp-journal__editor" data-wp-safety-records hidden>
+        <h2 data-wp-safety-title>Разрешения и целевые инструктажи</h2>
+        <p>Это учёт фактически совершённых действий. Отметка в системе не заменяет личную подпись работника на установленном бланке.</p>
+        <div data-wp-safety-history aria-live="polite"></div>
+        <form data-wp-preparation-permission>
+            <h3 class="wp-journal__wide">Разрешение на подготовку места</h3>
+            <label>Получено (время объекта)
+                <input type="datetime-local" name="granted_at" required>
+            </label>
+            <label>Передавший разрешение
+                <select name="grantor_employee_id" required></select>
+            </label>
+            <label>Получивший разрешение
+                <select name="receiver_employee_id" required></select>
+            </label>
+            <label>Способ передачи
+                <select name="communication_method" required>
+                    <option value="personally">Лично</option>
+                    <option value="telephone">По телефону</option>
+                    <option value="radio">По радиосвязи</option>
+                    <option value="other">Иной</option>
+                </select>
+            </label>
+            <label class="wp-journal__wide">Рабочее место
+                <input name="workplace" maxlength="500" required>
+            </label>
+            <label class="wp-journal__wide">Примечание
+                <textarea name="note" maxlength="1000" rows="2"></textarea>
+            </label>
+            <label class="wp-journal__wide"><input type="checkbox" name="permission_confirmed" required>
+                Разрешение фактически передано и получено
+            </label>
+            <button type="submit">Зарегистрировать разрешение</button>
+        </form>
+        <form data-wp-target-briefing>
+            <h3 class="wp-journal__wide">Индивидуальный целевой инструктаж</h3>
+            <label>Этап
+                <select name="stage" required>
+                    <option value="issuer">Выдавшим наряд</option>
+                    <option value="admitter">Допускающим</option>
+                    <option value="manager">Ответственным руководителем</option>
+                    <option value="producer">Производителем работ</option>
+                </select>
+            </label>
+            <label>Фактическое время (время объекта)
+                <input type="datetime-local" name="briefed_at" required>
+            </label>
+            <label>Проводящий инструктаж
+                <select name="instructor_employee_id" required></select>
+            </label>
+            <label>Получивший инструктаж
+                <select name="recipient_employee_id" required></select>
+            </label>
+            <label class="wp-journal__wide">Тема, содержание и особенности
+                <textarea name="topic" maxlength="1000" rows="3" required></textarea>
+            </label>
+            <label class="wp-journal__wide"><input type="checkbox" name="briefing_confirmed" required>
+                Инструктаж фактически проведён этому работнику
+            </label>
+            <button type="submit">Зарегистрировать инструктаж</button>
+        </form>
+        <button type="button" data-wp-safety-close>Закрыть карточку</button>
+    </section>
+    <?php endif; ?>
+
+    <?php if (!empty($can_manage_references)): ?>
     <section class="calendar-shell wp-journal__editor" data-wp-daily-panel hidden>
         <h2 data-wp-daily-title>Рабочие смены наряда</h2>
         <p>Сведения отражают фактические допуски и остановки работ. Запись в Notes не заменяет подписи работников в официальном наряде.</p>
@@ -381,5 +447,6 @@ echo $view->layout('core/base', [
         $view->moduleAsset('work-permits', 'work-permits-daily.js'),
         $view->moduleAsset('work-permits', 'work-permits-amendments.js'),
         $view->moduleAsset('work-permits', 'work-permits-closure.js'),
+        $view->moduleAsset('work-permits', 'work-permits-safety.js'),
     ],
 ], $content);

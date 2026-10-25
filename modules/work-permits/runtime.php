@@ -11,6 +11,7 @@ foreach ([
     'services/WorkPermitCrewService.php',
     'services/WorkPermitTemplateService.php',
     'services/WorkPermitDraftEditService.php',
+    'services/WorkPermitSafetyAuthorizationService.php',
     'services/WorkPermitClosureService.php',
     'services/WorkPermitChangeService.php',
     'services/WorkPermitDailyService.php',

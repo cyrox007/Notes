@@ -47,7 +47,9 @@
       "work_permit_crew_revision_members",
       "work_permit_extensions",
       "work_permit_completions",
-      "work_permit_closures"
+      "work_permit_closures",
+      "work_permit_preparation_permissions",
+      "work_permit_target_briefings"
     ],
     "schemas": [
       "database/work_permits_schema.sql"
@@ -62,7 +64,8 @@
       "database/migrations/20261024_work_permits_crew_extensions.sql",
       "database/migrations/20261024_work_permits_completion_closure.sql",
       "database/migrations/20261024_work_permits_conditions_templates.sql",
-      "database/migrations/20261024_work_permits_local_day.sql"
+      "database/migrations/20261024_work_permits_local_day.sql",
+      "database/migrations/20261025_work_permits_permissions_briefings.sql"
     ]
   },
   "background": {

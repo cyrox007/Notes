@@ -203,6 +203,7 @@ final class WorkPermitDraftService
         $document['lifecycle'] = (new WorkPermitIssuanceService($this->db))->details($documentId);
         $document['lifecycle'] += (new WorkPermitChangeService($this->db))->details($documentId);
         $document['lifecycle'] += (new WorkPermitClosureService($this->db))->details($documentId);
+        $document['lifecycle'] += (new WorkPermitSafetyAuthorizationService($this->db))->details($documentId);
         return $document;
     }
 
