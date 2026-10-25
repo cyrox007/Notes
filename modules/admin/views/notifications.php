@@ -56,7 +56,10 @@ ob_start();
         <p>
             <strong>Состояние:</strong>
             <?= empty($mail['enabled']) ? 'отключён' : 'включён' ?> ·
-            <?= empty($mail['secret_configured']) ? 'секрет не указан' : (!empty($mail['secret_available']) ? 'секрет доступен' : 'секрет не найден в окружении') ?>
+            <?= trim((string) ($config['username'] ?? '')) === ''
+                ? 'без SMTP-авторизации (пароль не требуется)'
+                : (empty($mail['secret_configured']) ? 'секрет не указан'
+                    : (!empty($mail['secret_available']) ? 'секрет доступен' : 'секрет не найден в окружении')) ?>
         </p>
         <div role="status" aria-live="polite">
             <strong>Проверка готовности:</strong>
