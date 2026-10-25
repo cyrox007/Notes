@@ -16,6 +16,88 @@ final class WorkPermitPdfRenderer
     {
     }
 
+    /**
+     * Печатный макет с отдельными сторонами и незаполненными графами подписи.
+     * Учётные отметки не превращаются в подписи работников.
+     *
+     * @param array<string,mixed> $document
+     */
+    public function renderForm(array $document): string
+    {
+        if (($document['kind'] ?? null) !== 'permit'
+            || !in_array($document['state'] ?? null, ['issued', 'closed'], true)) {
+            throw new DomainException('Печатная форма доступна только для выданного наряда', 409);
+        }
+        $lifecycle = $document['lifecycle'] ?? [];
+        $issue = $lifecycle['issuance'] ?? null;
+        if (!is_array($issue)) {
+            throw new DomainException('Нет сведений о выдаче', 409);
+        }
+        $zone = WorkPermitLocalDay::validate($issue['time_zone'] ?? 'UTC');
+        $pdf = new WorkPermitPdfDocument($this->font ?? new WorkPermitPdfFont());
+        $pdf->section('НАРЯД-ДОПУСК № ' . $this->text($document['id'] ?? null) . ' — ЛИЦЕВАЯ СТОРОНА');
+        $pdf->paragraph('', 'ПЕЧАТНЫЙ МАКЕТ — не заменяет утверждённый бланк и подписи работников.');
+        $pdf->table(['Реквизит', 'Содержание'], [
+            ['Организация', $this->text($document['organization'] ?? null)],
+            ['Подразделение', $this->text($document['subdivision'] ?? null)],
+            ['Электроустановка', $this->text($document['facility'] ?? null)],
+            ['Поручается', $this->text($document['work_description'] ?? null)],
+            ['Начать работу', $this->localTime($issue['planned_start'] ?? null, $zone)],
+            ['Закончить работу', $this->localTime($issue['planned_finish'] ?? null, $zone)],
+        ]);
+        $roles = $this->roles($document['crew'] ?? []);
+        $pdf->table(['Назначение', 'ФИО, группа'], array_map(
+            fn (string $role, string $label): array => [$label, $roles[$role] ?? 'Не назначен'],
+            array_keys(['issuer'=>'Выдающий','responsible_manager'=>'Ответственный руководитель',
+                'admitter'=>'Допускающий','producer'=>'Производитель работ','observer'=>'Наблюдающий',
+                'member'=>'Члены бригады']),
+            array_values(['issuer'=>'Выдающий','responsible_manager'=>'Ответственный руководитель',
+                'admitter'=>'Допускающий','producer'=>'Производитель работ','observer'=>'Наблюдающий',
+                'member'=>'Члены бригады'])
+        ));
+        $rows = [];
+        foreach ($lifecycle['measures'] ?? [] as $measure) {
+            $rows[] = [$this->text($measure['equipment'] ?? null),
+                $this->text($measure['isolation'] ?? null),
+                'Заполняется на утверждённом бланке'];
+        }
+        $pdf->section('Мероприятия по подготовке рабочих мест');
+        $pdf->table(['Электроустановка', 'Что должно быть отключено и заземлено',
+            'Что должно быть изолировано (ограждено)'], $rows);
+        $pdf->paragraph('Условия производства работ', $this->text($issue['work_conditions'] ?? null));
+        $pdf->paragraph('Отдельные указания', $this->text($issue['special_instructions'] ?? null));
+        $pdf->table(['Оформление выдачи', 'ФИО и время', 'Собственноручная подпись'], [
+            ['Наряд выдал', $this->text($issue['issuer_name'] ?? null)
+                . ' / ' . $this->localTime($issue['issued_at'] ?? null, $zone), '________________'],
+        ]);
+        $pdf->section('ОБОРОТНАЯ СТОРОНА — учётные сведения');
+        $permissions = [];
+        foreach ($lifecycle['preparation_permissions'] ?? [] as $entry) {
+            $permissions[] = [$this->localTime($entry['granted_at'] ?? null, $zone),
+                $this->text($entry['grantor_name'] ?? null),
+                $this->text($entry['receiver_name'] ?? null), '________________'];
+        }
+        $pdf->table(['Разрешено', 'Передал', 'Получил', 'Подпись на бумаге'], $permissions);
+        $briefings = [];
+        foreach ($lifecycle['target_briefings'] ?? [] as $entry) {
+            $briefings[] = [$this->localTime($entry['briefed_at'] ?? null, $zone),
+                $this->text($entry['instructor_name'] ?? null),
+                $this->text($entry['recipient_name'] ?? null), '________________'];
+        }
+        $pdf->section('Целевые инструктажи');
+        $pdf->table(['Время', 'Провёл', 'Получил', 'Подписи на бумаге'], $briefings);
+        $periods = [];
+        foreach ($lifecycle['periods'] ?? [] as $period) {
+            $periods[] = [$this->localTime($period['started_at'] ?? null, $zone),
+                $this->text($period['admitter_name'] ?? null),
+                $this->localTime($period['ended_at'] ?? null, $zone), '________________'];
+        }
+        $pdf->section('Ежедневные допуски и окончание работ');
+        $pdf->table(['Допущены', 'Допускающий', 'Окончание', 'Подписи на бумаге'], $periods);
+        $pdf->paragraph('', 'Все линии подписей оставлены пустыми. Электронные отметки Notes не являются подписями.');
+        return $pdf->build();
+    }
+
     /** @param array<string,mixed> $document */
     public function render(array $document): string
     {
