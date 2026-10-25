@@ -192,7 +192,10 @@ final class WorkPermitPdfRenderer
             $measureRows[] = [
                 $this->text($measure['equipment'] ?? null),
                 $this->text($measure['isolation'] ?? null),
-                $this->text($measure['remaining_live'] ?? null),
+                $this->text($measure['remaining_live'] ?? null)
+                    . ($this->text($measure['isolated_parts'] ?? null) !== ''
+                        ? "\nИзолировано / ограждено: " . $this->text($measure['isolated_parts'])
+                        : ''),
             ];
         }
         $pdf->table([
