@@ -33,7 +33,7 @@ final class Release12SourcePreflight
         if ($filesPresent) {
             foreach ($migrations as $migration) {
                 if (!is_string($migration)
-                    || preg_match('/^[a-zA-Z0-9_./-]+\.sql$/D', $migration) !== 1
+                    || preg_match('~^[a-zA-Z0-9_./-]+\.sql$~D', $migration) !== 1
                     || str_contains($migration, '..')
                     || !is_file($root . '/database/migrations/' . $migration)) {
                     $filesPresent = false;
