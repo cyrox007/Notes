@@ -18,6 +18,8 @@ $issuing = new WorkPermitIssuanceService($db);
 
 // Старый наряд хранит именно неизвестное значение изоляции, а не выдуманное действие.
 $legacy = $drafts->detail($doc, $userA);
+wpAssert(($legacy['lifecycle']['periods'][0]['workplace'] ?? null) === null,
+    'У исторического допуска не должно появляться вымышленное рабочее место');
 wpAssert(($legacy['lifecycle']['measures'][0]['isolated_parts'] ?? null) === null,
     'Миграция не должна заполнять исторические сведения без оснований');
 checkPdfWithPoppler($renderer->renderForm($legacy), [

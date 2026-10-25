@@ -110,6 +110,7 @@ $staff = [
     'briefing_recipient_id' => $person['id'],
     'workplace_prepared' => true,
     'briefing_confirmed' => true,
+    'workplace' => 'КРУН-10 кВ, ячейка №4',
 ];
 $first = [
     ...$staff, 'version' => 3, 'command_id' => sprintf('%032x', 25004),
@@ -117,6 +118,8 @@ $first = [
 ];
 wpAssert($issueService->firstAdmission($draft['id'], $userB, $first)['version'] === 4,
     'Первичный допуск открыт до местной полуночи');
+wpAssert($dailyService->periods($draft['id'])[0]['workplace'] === 'КРУН-10 кВ, ячейка №4',
+    'Первое фактическое место допуска хранится отдельным снимком');
 try {
     $dailyService->finish($draft['id'], $userB, 'day_end', [
         'version' => 4, 'command_id' => sprintf('%032x', 25005),
@@ -138,11 +141,31 @@ wpAssert($dailyService->finish($draft['id'], $userB, 'day_end', $endDay)['versio
 $nextDay = [
     ...$staff, 'version' => 5, 'command_id' => sprintf('%032x', 25007),
     'started_at' => '2026-11-01 23:10:00',
+    'workplace' => 'ОПУ, панель РЗА №7',
 ];
 wpAssert($dailyService->start($draft['id'], $userB, 'daily_admission', $nextDay)['version'] === 6,
     'Новый местный день допускается при ещё прежней UTC-дате');
 wpAssert($dailyService->start($draft['id'], $userB, 'daily_admission', $nextDay)['replayed'],
     'Повтор дневного допуска безопасен');
+wpAssert($dailyService->periods($draft['id'])[1]['workplace'] === 'ОПУ, панель РЗА №7',
+    'Для каждого дня фиксируется собственное место, а не место предыдущего');
+try {
+    $dailyService->start($draft['id'], $userB, 'daily_admission', [
+        ...$nextDay, 'workplace' => 'Другое рабочее место',
+    ]);
+    throw new RuntimeException('Повтор команды позволил изменить историческое место допуска');
+} catch (DomainException $error) {
+    wpAssert($error->getCode() === 409, 'Замена места при повторе команды запрещена');
+}
+try {
+    $dailyService->start($draft['id'], $userB, 'daily_admission', [
+        ...$nextDay, 'command_id' => sprintf('%032x', 25027),
+        'workplace' => str_repeat('я', 501),
+    ]);
+    throw new RuntimeException('Слишком длинное место допуска было принято');
+} catch (InvalidArgumentException) {
+    // Недопустимая длина не изменяет документ.
+}
 
 $changed = $references->changeTimeZone($orgId, $changed['version'], $userB, 'America/New_York');
 wpAssert($changed['time_zone'] === 'America/New_York', 'Настройка организации изменена');
@@ -161,6 +184,9 @@ wpAssert($dailyService->start($draft['id'], $userB, 'daily_admission', [
 ])['version'] === 8, 'Третьи местные сутки открываются по исходному поясу');
 wpAssert(count($dailyService->periods($draft['id'])) === 3,
     'Три допуска сохранены без пересечений');
+checkPdfWithPoppler($renderer->renderForm($draftService->detail($draft['id'], $userA)), [
+    'КРУН-10', 'ОПУ', 'РЗА', 'Место',
+], 2);
 wpAssert(str_contains($renderer->render($draftService->detail($draft['id'], $userA)), 'ToUnicode'),
     'Печатная форма допускает сохранённый часовой пояс');
 

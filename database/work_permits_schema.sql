@@ -257,6 +257,7 @@ CREATE TABLE IF NOT EXISTS `work_permit_work_periods` (
   `document_id` BIGINT UNSIGNED NOT NULL,
   `start_kind` ENUM('first','daily_admission','resume') NOT NULL,
   `started_at` DATETIME NOT NULL,
+  `workplace` VARCHAR(500) NULL,
   `admitter_employee_id` BIGINT UNSIGNED NOT NULL,
   `admitter_name` VARCHAR(180) NOT NULL,
   `instructor_employee_id` BIGINT UNSIGNED NOT NULL,

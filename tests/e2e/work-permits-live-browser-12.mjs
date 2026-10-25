@@ -200,6 +200,7 @@ try {
     const firstAdmission = {
         version: 3, started_at: dateAt('09:00'), admitted_employee_id: a,
         briefed_by_employee_id: b, briefing_recipient_id: a,
+        workplace: 'КРУН-10, ячейка №4',
         workplace_prepared: true, briefing_confirmed: true,
     };
     const admission = await Promise.all([
@@ -214,6 +215,7 @@ try {
         'Конкурентный первый допуск создал дубль');
     detail = check(await http(first, 'GET', '/' + id), 'После первого допуска').document;
     assert.equal(detail.lifecycle.periods.length, 1);
+    assert.equal(detail.lifecycle.periods[0].workplace, 'КРУН-10, ячейка №4');
     assert.equal(Number(detail.version), 4);
 
     const end = async (action, at, version) => check(
@@ -227,7 +229,8 @@ try {
         await http(first, 'POST', '/' + id + '/work-period/' + action, {
             version, command_id: cmd(), started_at: dateAt(at),
             admitted_employee_id: a, briefed_by_employee_id: b,
-            briefing_recipient_id: a, workplace_prepared: true, briefing_confirmed: true,
+            briefing_recipient_id: a, workplace: 'ОПУ, панель №7',
+            workplace_prepared: true, briefing_confirmed: true,
         }),
         'Возобновление ' + action
     ).document;
@@ -236,6 +239,7 @@ try {
     assert.equal(Number((await end('day_end', '17:00', 6)).version), 7);
     detail = check(await http(second, 'GET', '/' + id), 'После смены').document;
     assert.equal(detail.lifecycle.periods.length, 2);
+    assert.equal(detail.lifecycle.periods[1].workplace, 'ОПУ, панель №7');
 
     const completed = check(await http(second, 'POST', '/' + id + '/complete', {
         version: 7, command_id: cmd(), completed_at: dateAt('17:10'),

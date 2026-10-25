@@ -338,6 +338,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                     payload.admitted_employee_id = data.admitted_employee_id;
                     payload.briefed_by_employee_id = data.briefed_by_employee_id;
                     payload.briefing_recipient_id = data.briefing_recipient_id;
+                    payload.workplace = data.workplace;
                     payload.workplace_prepared = data.workplace_prepared === 'on';
                     payload.briefing_confirmed = data.briefing_confirmed === 'on';
                 }

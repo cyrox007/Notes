@@ -66,7 +66,8 @@
       "database/migrations/20261024_work_permits_conditions_templates.sql",
       "database/migrations/20261024_work_permits_local_day.sql",
       "database/migrations/20261025_work_permits_permissions_briefings.sql",
-      "database/migrations/20261025_work_permits_isolation_column.sql"
+      "database/migrations/20261025_work_permits_isolation_column.sql",
+      "database/migrations/20261025_work_permits_period_workplace.sql"
     ]
   },
   "background": {
