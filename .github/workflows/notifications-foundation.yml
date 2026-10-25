@@ -41,6 +41,7 @@ on:
       - 'tests/integration/notification_cli_worker_health_12.php'
       - 'tests/integration/notification_admin_smtp_12.php'
       - 'tests/integration/notification_smtp_guidance_12.php'
+      - 'tests/integration/notification_smtp_readiness_12.php'
       - 'tests/integration/notification_smtp_feedback_12.mjs'
       - 'tests/integration/notification_external_channels_12.php'
       - 'tests/integration/notification_sms_gateway_12.php'
@@ -93,6 +94,7 @@ on:
       - 'tests/integration/notification_cli_worker_health_12.php'
       - 'tests/integration/notification_admin_smtp_12.php'
       - 'tests/integration/notification_smtp_guidance_12.php'
+      - 'tests/integration/notification_smtp_readiness_12.php'
       - 'tests/integration/notification_smtp_feedback_12.mjs'
       - 'tests/integration/notification_external_channels_12.php'
       - 'tests/integration/notification_sms_gateway_12.php'
@@ -211,6 +213,8 @@ jobs:
           php tests/integration/notification_smtp_contract.php
           php tests/integration/notification_admin_smtp_12.php
           php tests/integration/notification_smtp_guidance_12.php
+          php tests/integration/notification_smtp_readiness_12.php
+          php -l app/services/notifications/SmtpOperationalReadiness.php
           node tests/integration/notification_smtp_feedback_12.mjs
           php -l app/services/notifications/SmtpDeliveryGuidance.php
           php -l bin/notifications_smtp_probe.php

@@ -11,6 +11,8 @@ require_once __DIR__ . '/DatabaseNotificationPreferences.php';
 require_once __DIR__ . '/NotificationDeliveryRuntime.php';
 require_once __DIR__ . '/PushSubscriptionService.php';
 require_once __DIR__ . '/SmtpDeliveryGuidance.php';
+require_once __DIR__ . '/SmtpOperationalReadiness.php';
+require_once __DIR__ . '/NotificationWorkerScheduleHealth.php';
 
 use Core\DatabaseManager;
 use DomainException;
@@ -68,7 +70,22 @@ final class NotificationChannelAdministration
             "SELECT last_http_run_at FROM notification_runtime_state
              WHERE state_key = 'delivery_http_fallback' LIMIT 1"
         );
+        $activeSubscriptions = (int) $this->db->fetchValue(
+            'SELECT COUNT(*) FROM notification_subscriptions
+             WHERE enabled=1 AND email_enabled=1'
+        );
+        $workerHealth = NotificationWorkerScheduleHealth::evaluate(
+            NotificationWorkerScheduleHealth::readLastSuccess($this->db)
+        );
+        $smtpReadiness = SmtpOperationalReadiness::assess(
+            $config,
+            $config !== null && $this->secretAvailable((string) ($config['secret_ref'] ?? '')),
+            $activeSubscriptions,
+            $workerHealth['state']
+        );
+
         return [
+            'smtp_readiness' => $smtpReadiness,
             'smtp' => $config === null ? null : [
                 'enabled' => (int) $config['enabled'] === 1,
                 'settings' => json_decode((string) $config['config_json'], true) ?: [],
