@@ -39,6 +39,15 @@ try {
         && $positive['blockers'] === [] && $positive['release_ready'] === false,
         'корректная фикстура подтверждает только исходники, а не выпуск');
 
+    file_put_contents($temp . '/README.md',
+        "**Версия:** " . chr(96) . "1.1.0" . chr(96) . "\nВ следующих выпусках будет 1.2.0.");
+    $staleReadme = Release12SourcePreflight::inspect($temp, '1.2.0', 12000, 'stable',
+        '2026-11-01', $sha, $sha);
+    release12Assert(in_array('readme', $staleReadme['blockers'], true),
+        'упоминание 1.2.0 вне поля версии README не должно проходить проверку');
+    file_put_contents($temp . '/README.md',
+        "# Notes\n\n**Версия:** " . chr(96) . "1.2.0" . chr(96));
+
     $wrong = Release12SourcePreflight::inspect($temp, '1.2.0', 12000, 'stable',
         '2026-11-01', $sha, str_repeat('b', 40));
     release12Assert(in_array('exact_sha', $wrong['blockers'], true),
