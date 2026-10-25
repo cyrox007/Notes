@@ -52,8 +52,7 @@ final class Release12SourcePreflight
             'version_identity' => $version === '1.2.0' && $versionCode === 12000
                 && $status === 'stable'
                 && preg_match('/^\d{4}-\d{2}-\d{2}$/D', $releaseDate) === 1,
-            'readme' => str_contains($readme, '**Версия:**')
-                && str_contains($readme, '1.2.0'),
+            'readme' => preg_match('/^\*\*Версия:\*\*\s*`1\.2\.0`\s*$/m', $readme) === 1,
             'changelog' => preg_match('/^## 1\.2\.0(?:\s|$)/m', $changelog) === 1,
             'release_notes' => str_contains($notes, '# Workspace Organizer 1.2.0')
                 && strlen($notes) > 150,
