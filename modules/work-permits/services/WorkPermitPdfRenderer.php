@@ -46,20 +46,27 @@ final class WorkPermitPdfRenderer
             ['Закончить работу', $this->localTime($issue['planned_finish'] ?? null, $zone)],
         ]);
         $roles = $this->roles($document['crew'] ?? []);
-        $pdf->table(['Назначение', 'ФИО, группа'], array_map(
-            fn (string $role, string $label): array => [$label, $roles[$role] ?? 'Не назначен'],
-            array_keys(['issuer'=>'Выдающий','responsible_manager'=>'Ответственный руководитель',
-                'admitter'=>'Допускающий','producer'=>'Производитель работ','observer'=>'Наблюдающий',
-                'member'=>'Члены бригады']),
-            array_values(['issuer'=>'Выдающий','responsible_manager'=>'Ответственный руководитель',
-                'admitter'=>'Допускающий','producer'=>'Производитель работ','observer'=>'Наблюдающий',
-                'member'=>'Члены бригады'])
-        ));
+        $roleLabels = [
+            'issuer' => 'Выдающий',
+            'responsible_manager' => 'Ответственный руководитель',
+            'admitter' => 'Допускающий',
+            'producer' => 'Производитель работ',
+            'observer' => 'Наблюдающий',
+            'member' => 'Члены бригады',
+        ];
+        $roleRows = [];
+        foreach ($roleLabels as $role => $label) {
+            $roleRows[] = [$label, $roles[$role] ?? 'Не назначен'];
+        }
+        $pdf->table(['Назначение', 'ФИО, группа'], $roleRows);
         $rows = [];
         foreach ($lifecycle['measures'] ?? [] as $measure) {
-            $rows[] = [$this->text($measure['equipment'] ?? null),
+            $isolated = $this->text($measure['isolated_parts'] ?? null);
+            $rows[] = [
+                $this->text($measure['equipment'] ?? null),
                 $this->text($measure['isolation'] ?? null),
-                'Заполняется на утверждённом бланке'];
+                $isolated !== '' ? $isolated : 'Не указано в исходной записи',
+            ];
         }
         $pdf->section('Мероприятия по подготовке рабочих мест');
         $pdf->table(['Электроустановка', 'Что должно быть отключено и заземлено',
@@ -70,6 +77,17 @@ final class WorkPermitPdfRenderer
             ['Наряд выдал', $this->text($issue['issuer_name'] ?? null)
                 . ' / ' . $this->localTime($issue['issued_at'] ?? null, $zone), '________________'],
         ]);
+        $extensions = [];
+        foreach ($lifecycle['extensions'] ?? [] as $extension) {
+            $extensions[] = [
+                $this->localTime($extension['new_finish'] ?? null, $zone),
+                $this->text($extension['issuer_name'] ?? null),
+                '________________',
+            ];
+        }
+        $pdf->table(['Наряд продлён по', 'Продлил', 'Подпись на бумаге'], $extensions);
+        // Оборотная сторона не должна начинаться ниже лицевых реквизитов.
+        $pdf->pageBreak();
         $pdf->section('ОБОРОТНАЯ СТОРОНА — учётные сведения');
         $permissions = [];
         foreach ($lifecycle['preparation_permissions'] ?? [] as $entry) {
@@ -94,6 +112,27 @@ final class WorkPermitPdfRenderer
         }
         $pdf->section('Ежедневные допуски и окончание работ');
         $pdf->table(['Допущены', 'Допускающий', 'Окончание', 'Подписи на бумаге'], $periods);
+        $revisions = [];
+        foreach ($lifecycle['crew_revisions'] ?? [] as $revision) {
+            $revisions[] = [
+                $this->localTime($revision['changed_at'] ?? null, $zone),
+                $this->text($revision['reason'] ?? null),
+                '________________',
+            ];
+        }
+        $pdf->section('Изменения состава бригады');
+        $pdf->table(['Время изменения', 'Основание', 'Подпись на бумаге'], $revisions);
+        $completion = $lifecycle['completion'] ?? null;
+        $closure = $lifecycle['closure'] ?? null;
+        $pdf->section('Оформление полного окончания и закрытия');
+        $pdf->table(['Событие', 'Время объекта', 'Ответственный', 'Подпись'], [
+            ['Работа закончена',
+                $this->localTime($completion['completed_at'] ?? null, $zone),
+                $this->text($completion['producer_name'] ?? null), '________________'],
+            ['Наряд закрыт',
+                $this->localTime($closure['closed_at'] ?? null, $zone),
+                $this->text($closure['closer_name'] ?? null), '________________'],
+        ]);
         $pdf->paragraph('', 'Все линии подписей оставлены пустыми. Электронные отметки Notes не являются подписями.');
         return $pdf->build();
     }
