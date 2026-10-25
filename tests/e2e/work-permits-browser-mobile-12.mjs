@@ -273,6 +273,7 @@ try {
     const admit = page.locator('[data-wp-admission-form]');
     await admit.waitFor({ state: 'visible' });
     await admit.locator('input[name=started_at]').fill('2026-10-30T09:00');
+    await admit.locator('input[name=workplace]').fill('КРУН-10, ячейка 4');
     await admit.locator('select[name=admitted_employee_id]').selectOption('21');
     await admit.locator('select[name=briefed_by_employee_id]').selectOption('22');
     await admit.locator('select[name=briefing_recipient_id]').selectOption('21');
@@ -282,6 +283,8 @@ try {
     await admit.waitFor({ state: 'hidden' });
     assert.equal(state.calls.find(x => x.path === '100/first-admission').data.started_at,
         '2026-10-30 06:00:00', 'Допуск тоже использует пояс выдачи');
+    assert.equal(state.calls.find(x => x.path === '100/first-admission').data.workplace,
+        'КРУН-10, ячейка 4', 'Место первого допуска отправляется в запросе');
 
     const managerList = page.locator('[data-wp-management-list]');
     await managerList.getByRole('button', { name: 'Рабочие смены и перерывы' }).click();
@@ -294,6 +297,7 @@ try {
     const resume = page.locator('[data-wp-period-start]');
     await resume.waitFor({ state: 'visible' });
     await resume.locator('input[name=started_at]').fill('2026-10-30T13:00');
+    await resume.locator('input[name=workplace]').fill('ОПУ, панель 7');
     await resume.locator('input[name=workplace_prepared]').check();
     await resume.locator('input[name=briefing_confirmed]').check();
     await resume.locator('button[type=submit]').click();
@@ -303,6 +307,8 @@ try {
     await stop.locator('input[name=work_stopped]').check();
     await stop.locator('button[type=submit]').click();
     assert.equal(state.docs[0].lifecycle.periods.length, 2);
+    assert.equal(state.calls.find(x => x.path === '100/work-period/resume').data.workplace,
+        'ОПУ, панель 7', 'Повторный допуск отправляет новое место');
     await page.locator('[data-wp-period-close]').click();
 
     await managerList.getByRole('button', { name: 'Окончание работ' }).click();
