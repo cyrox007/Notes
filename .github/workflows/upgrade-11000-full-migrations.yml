@@ -8,6 +8,7 @@ on:
       - 'core/DatabaseOwnership.php'
       - 'database/migrations/**'
       - 'tests/integration/upgrade_11000_full_migrations.php'
+      - 'tests/integration/upgrade_11000_prepare_published_schema.php'
       - '.github/workflows/upgrade-11000-full-migrations.yml'
   push:
     branches: ['1.2']
@@ -15,6 +16,7 @@ on:
       - 'core/UpdateDatabaseMigrator.php'
       - 'database/migrations/**'
       - 'tests/integration/upgrade_11000_full_migrations.php'
+      - 'tests/integration/upgrade_11000_prepare_published_schema.php'
       - '.github/workflows/upgrade-11000-full-migrations.yml'
   workflow_dispatch:
 
@@ -28,6 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        prefix: ['', 'nt12_']
         database:
           - {name: 'MySQL 8.4', image: 'mysql:8.4', health: 'mysqladmin ping -h 127.0.0.1 -uroot -proot'}
           - {name: 'MariaDB 11.4', image: 'mariadb:11.4', health: 'healthcheck.sh --connect --innodb_initialized'}
@@ -77,18 +80,26 @@ jobs:
           DBNAME: workspace_full_upgrade_test
           DBUSER: workspace
           DBPASS: workspace
-          DBPREFIX: ''
+          DBPREFIX: ${{ matrix.prefix }}
         run: |
           set -euo pipefail
           export MYSQL_PWD="$DBPASS"
           # Только опубликованные схемы составленного пакета 1.1.0.
           php -r 'require "published/core/ModuleManifest.php"; require "published/core/DatabaseOwnership.php"; foreach (\Core\DatabaseOwnership::fromPackageRoot("published")->schemaFiles() as $file) echo $file, "\n";' > /tmp/notes-published-schemas.txt
-          while IFS= read -r schema; do
-            mysql --protocol=tcp -h127.0.0.1 -u"$DBUSER" "$DBNAME" < "published/$schema"
-          done < /tmp/notes-published-schemas.txt
-          mysql --protocol=tcp -h127.0.0.1 -u"$DBUSER" "$DBNAME" <<'SQL'
-          INSERT INTO users(uid,username,email,password_hash,firstname,lastname)
-          VALUES ('00000000-0000-4000-8000-000000000211','upgrade_11000_fixture','upgrade-11000@example.test','hash-test','Проверка','Сохранено');
+          # При DBPREFIX проверяем изоляцию от посторонней таблицы в общей БД.
+          if [[ -n "$DBPREFIX" ]]; then
+            mysql --protocol=tcp -h127.0.0.1 -u"$DBUSER" "$DBNAME" <<'SQL'
+          CREATE TABLE users (id INT PRIMARY KEY, marker VARCHAR(40) NOT NULL);
+          INSERT INTO users VALUES (1, 'Чужая таблица');
           SQL
+          fi
+          while IFS= read -r schema; do
+            php -l candidate/tests/integration/upgrade_11000_prepare_published_schema.php
+            php candidate/tests/integration/upgrade_11000_prepare_published_schema.php "published/$schema" > /tmp/notes-prefixed-schema.sql
+            mysql --protocol=tcp -h127.0.0.1 -u"$DBUSER" "$DBNAME" < /tmp/notes-prefixed-schema.sql
+          done < /tmp/notes-published-schemas.txt
+          # Одна и та же тестовая запись вставляется в логическую таблицу users.
+          php -r 'require "candidate/core/DatabasePrefix.php"; echo (new \Core\DatabasePrefix())->sql("INSERT INTO users(uid,username,email,password_hash,firstname,lastname) VALUES (\x2700000000-0000-4000-8000-000000000211\x27,\x27upgrade_11000_fixture\x27,\x27upgrade-11000@example.test\x27,\x27hash-test\x27,\x27Проверка\x27,\x27Сохранено\x27);",true);' > /tmp/notes-upgrade-fixture.sql
+          mysql --protocol=tcp -h127.0.0.1 -u"$DBUSER" "$DBNAME" < /tmp/notes-upgrade-fixture.sql
           php -l candidate/tests/integration/upgrade_11000_full_migrations.php
           php candidate/tests/integration/upgrade_11000_full_migrations.php
