@@ -26,6 +26,10 @@ if ($expected < 1) {
 }
 
 $runner = new \Core\UpdateDatabaseMigrator($root);
+$ledgerMode = (string) (getenv('LEDGER_MODE') ?: 'без журнала');
+if (!in_array($ledgerMode, ['без журнала', 'с журналом'], true)) {
+    throw new RuntimeException('Неизвестный режим испытания исторического журнала');
+}
 $before = $runner->run(true, 11000);
 if ($before['pending'] !== $expected) {
     throw new RuntimeException('Некорректное количество ожидающих миграций до обновления: '
@@ -97,6 +101,6 @@ try {
     $db->close();
 }
 
-echo 'Все ' . $expected
+echo 'Режим: ' . $ledgerMode . '. Все ' . $expected
     . ' миграций 1.2 применены, повтор безопасен, данные пользователя сохранены'
     . PHP_EOL;

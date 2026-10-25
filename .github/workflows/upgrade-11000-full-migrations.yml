@@ -9,6 +9,7 @@ on:
       - 'database/migrations/**'
       - 'tests/integration/upgrade_11000_full_migrations.php'
       - 'tests/integration/upgrade_11000_prepare_published_schema.php'
+      - 'tests/integration/upgrade_11000_seed_published_ledger.php'
       - '.github/workflows/upgrade-11000-full-migrations.yml'
   push:
     branches: ['1.2']
@@ -17,6 +18,7 @@ on:
       - 'database/migrations/**'
       - 'tests/integration/upgrade_11000_full_migrations.php'
       - 'tests/integration/upgrade_11000_prepare_published_schema.php'
+      - 'tests/integration/upgrade_11000_seed_published_ledger.php'
       - '.github/workflows/upgrade-11000-full-migrations.yml'
   workflow_dispatch:
 
@@ -31,6 +33,7 @@ jobs:
       fail-fast: false
       matrix:
         prefix: ['', 'nt12_']
+        ledger: ['без журнала', 'с журналом']
         database:
           - {name: 'MySQL 8.4', image: 'mysql:8.4', health: 'mysqladmin ping -h 127.0.0.1 -uroot -proot'}
           - {name: 'MariaDB 11.4', image: 'mariadb:11.4', health: 'healthcheck.sh --connect --innodb_initialized'}
@@ -81,6 +84,7 @@ jobs:
           DBUSER: workspace
           DBPASS: workspace
           DBPREFIX: ${{ matrix.prefix }}
+          LEDGER_MODE: ${{ matrix.ledger }}
         run: |
           set -euo pipefail
           export MYSQL_PWD="$DBPASS"
@@ -101,5 +105,9 @@ jobs:
           # Одна и та же тестовая запись вставляется в логическую таблицу users.
           php -r 'require "candidate/core/DatabasePrefix.php"; echo (new \Core\DatabasePrefix())->sql("INSERT INTO users(uid,username,email,password_hash,firstname,lastname) VALUES (\x2700000000-0000-4000-8000-000000000211\x27,\x27upgrade_11000_fixture\x27,\x27upgrade-11000@example.test\x27,\x27hash-test\x27,\x27Проверка\x27,\x27Сохранено\x27);",true);' > /tmp/notes-upgrade-fixture.sql
           mysql --protocol=tcp -h127.0.0.1 -u"$DBUSER" "$DBNAME" < /tmp/notes-upgrade-fixture.sql
+          if [[ "$LEDGER_MODE" == 'с журналом' ]]; then
+            php -l candidate/tests/integration/upgrade_11000_seed_published_ledger.php
+            php candidate/tests/integration/upgrade_11000_seed_published_ledger.php
+          fi
           php -l candidate/tests/integration/upgrade_11000_full_migrations.php
           php candidate/tests/integration/upgrade_11000_full_migrations.php
