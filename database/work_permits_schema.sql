@@ -240,7 +240,7 @@ CREATE TABLE IF NOT EXISTS work_permit_lifecycle_commands (
  command_id CHAR(32) NOT NULL PRIMARY KEY,
  document_id BIGINT UNSIGNED NOT NULL,
  actor_user_id INT DEFAULT NULL,
- action ENUM('issue','first_admission','daily_admission','resume','break','day_end','crew_change','extension','complete','close_permit','close_order') NOT NULL,
+ action ENUM('issue','first_admission','daily_admission','resume','break','day_end','crew_change','extension','complete','close_permit','close_order','preparation_permission','target_briefing') NOT NULL,
  request_hash CHAR(64) NOT NULL,
  result_version BIGINT UNSIGNED NOT NULL,
  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
