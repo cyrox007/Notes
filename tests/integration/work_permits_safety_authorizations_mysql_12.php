@@ -19,6 +19,13 @@ $drafts = new WorkPermitDraftService($db);
 $editing = new WorkPermitDraftEditService($db);
 $issuing = new WorkPermitIssuanceService($db);
 
+$safetyProducer = (new \Modules\WorkPermits\Services\WorkPermitReferenceService($db))->create(
+    'employees',
+    ['name' => 'Смирнов Пётр Алексеевич', 'organization_id' => $org1['id'],
+     'department_id' => $dept['id'], 'electrical_group' => 'IV'],
+    $userB
+);
+
 $prepared = $drafts->create($userA, [
     'kind' => 'permit', 'organization_id' => $org1['id'],
     'department_id' => $dept['id'], 'facility_id' => $facility['id'],
@@ -34,9 +41,9 @@ $editing->save($prepared['id'], $userA, [
         'issuer' => $person['id'],
         'responsible_manager' => $person['id'],
         'admitter' => $person['id'],
-        'producer' => $secondEmployee['id'],
+        'producer' => $safetyProducer['id'],
     ],
-    'member_ids' => [$person['id'], $secondEmployee['id']],
+    'member_ids' => [$person['id'], $safetyProducer['id']],
 ]);
 $issuing->issue($prepared['id'], $userB, [
     'version' => 2, 'command_id' => sprintf('%032x', 31003),
@@ -53,7 +60,7 @@ $doc = $prepared['id'];
 $permission = [
     'version' => 3, 'command_id' => sprintf('%032x', 31004),
     'granted_at' => '2026-12-07 07:30:00',
-    'grantor_employee_id' => $secondEmployee['id'],
+    'grantor_employee_id' => $safetyProducer['id'],
     'receiver_employee_id' => $person['id'],
     'workplace' => 'КРУН-10, ячейка 4',
     'communication_method' => 'radio',
@@ -91,7 +98,7 @@ $issuerBriefing = [
     'stage' => 'issuer',
     'briefed_at' => '2026-12-07 07:40:00',
     'instructor_employee_id' => $person['id'],
-    'recipient_employee_id' => $secondEmployee['id'],
+    'recipient_employee_id' => $safetyProducer['id'],
     'topic' => 'Границы рабочего места и опасные части оборудования',
     'briefing_confirmed' => true,
 ];
@@ -109,7 +116,7 @@ wpAssert($safety->targetBriefing($doc, $userB, $managerBriefing)['version'] === 
 $producerBriefing = [
     ...$issuerBriefing, 'version' => 6,
     'command_id' => sprintf('%032x', 31010), 'stage' => 'producer',
-    'instructor_employee_id' => $secondEmployee['id'],
+    'instructor_employee_id' => $safetyProducer['id'],
     'recipient_employee_id' => $person['id'],
     'briefed_at' => '2026-12-07 07:50:00',
 ];
@@ -124,7 +131,7 @@ wpAssert($safety->targetBriefing($doc, $userB, $admitterBriefing)['version'] ===
     'Инструктаж допускающим выделен в собственную строку');
 foreach ([
     [...$issuerBriefing, 'version' => 8, 'command_id' => sprintf('%032x', 31012),
-        'instructor_employee_id' => $secondEmployee['id']],
+        'instructor_employee_id' => $safetyProducer['id']],
     [...$issuerBriefing, 'version' => 8, 'command_id' => sprintf('%032x', 31013),
         'recipient_employee_id' => $otherEmployee['id']],
     [...$issuerBriefing, 'version' => 8, 'command_id' => sprintf('%032x', 31014),
@@ -172,7 +179,7 @@ $admitted = $issuing->firstAdmission($doc, $userB, [
     'started_at' => '2026-12-07 08:10:00',
     'admitted_employee_id' => $person['id'],
     'briefed_by_employee_id' => $person['id'],
-    'briefing_recipient_id' => $secondEmployee['id'],
+    'briefing_recipient_id' => $safetyProducer['id'],
     'workplace_prepared' => true, 'briefing_confirmed' => true,
 ]);
 wpAssert($admitted['version'] === 9, 'Старый допуск совместим с отдельными новыми сведениями');
