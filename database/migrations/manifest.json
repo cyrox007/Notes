@@ -68,6 +68,7 @@
     "20261024_work_permits_completion_closure.sql",
     "20261024_work_permits_conditions_templates.sql",
     "20261024_work_permits_local_day.sql",
-    "20261025_work_permits_permissions_briefings.sql"
+    "20261025_work_permits_permissions_briefings.sql",
+    "20261025_work_permits_isolation_column.sql"
   ]
 }
