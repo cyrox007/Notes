@@ -61,6 +61,7 @@ require_once $root . '/core/DatabaseManager.php';
 require_once $root . '/app/services/PermissionService.php';
 require_once $root . '/modules/work-permits/services/WorkPermitLocalDay.php';
 require_once $root . '/modules/work-permits/services/WorkPermitCrewService.php';
+require_once $root . '/modules/work-permits/services/WorkPermitSafetyAuthorizationService.php';
 require_once $root . '/modules/work-permits/services/WorkPermitClosureService.php';
 require_once $root . '/modules/work-permits/services/WorkPermitChangeService.php';
 require_once $root . '/modules/work-permits/services/WorkPermitDailyService.php';
