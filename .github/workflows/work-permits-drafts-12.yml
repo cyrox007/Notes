@@ -20,6 +20,8 @@ on:
       - 'database/migrations/20261024_work_permits_local_day.sql'
       - 'database/migrations/20261025_work_permits_permissions_briefings.sql'
       - 'tests/integration/work_permits_safety_authorizations_mysql_12.php'
+      - 'tests/integration/work_permits_print_layout_mysql_12.php'
+      - 'database/migrations/20261025_work_permits_isolation_column.sql'
       - 'database/migrations/20261024_work_permits_conditions_templates.sql'
       - 'database/migrations/20261024_work_permits_completion_closure.sql'
       - 'database/migrations/20261024_work_permits_crew_extensions.sql'
@@ -102,4 +104,4 @@ jobs:
           TEST_DB_NAME: workspace_test
           TEST_DB_USER: root
           TEST_DB_PASS: root
-        run: php tests/integration/work_permits_safety_authorizations_mysql_12.php
+        run: php tests/integration/work_permits_print_layout_mysql_12.php
