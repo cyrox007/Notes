@@ -127,7 +127,7 @@ final class WorkPermitPdfRenderer
         );
         $pdf->paragraph('', 'Отметки о проведении инструктажа не заменяют таблицу подписей утверждённого бланка.');
 
-        $pdf->section('8. Первичный допуск и отметка об инструктаже допускающим');
+        $pdf->section('8. Первичный допуск и целевой инструктаж допускающим');
         $admission = $lifecycle['first_admission'] ?? null;
         $pdf->table(['Сведение', 'Значение'], is_array($admission) ? [
             ['Первый допуск (время объекта)', $this->localTime($admission['started_at'] ?? null, $zone)],
