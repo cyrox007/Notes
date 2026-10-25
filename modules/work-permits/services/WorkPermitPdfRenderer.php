@@ -91,27 +91,75 @@ final class WorkPermitPdfRenderer
         $pdf->section('ОБОРОТНАЯ СТОРОНА — учётные сведения');
         $permissions = [];
         foreach ($lifecycle['preparation_permissions'] ?? [] as $entry) {
-            $permissions[] = [$this->localTime($entry['granted_at'] ?? null, $zone),
+            $method = $this->text($entry['communication_method'] ?? null);
+            $place = $this->text($entry['workplace'] ?? null);
+            $permissions[] = [
+                $this->localTime($entry['granted_at'] ?? null, $zone),
+                ($place !== '' ? $place : 'Место не указано')
+                    . ($method !== '' ? "\nСпособ связи: " . $method : ''),
                 $this->text($entry['grantor_name'] ?? null),
-                $this->text($entry['receiver_name'] ?? null), '________________'];
+                '__________',
+                $this->text($entry['receiver_name'] ?? null),
+                '__________',
+            ];
         }
-        $pdf->table(['Разрешено', 'Передал', 'Получил', 'Подпись на бумаге'], $permissions);
+        $pdf->section('Разрешения на подготовку рабочего места и допуск');
+        $pdf->table(
+            ['Разрешено', 'Место / связь', 'Передал', 'Подпись передавшего',
+                'Получил', 'Подпись получившего'],
+            $permissions, [1.15, 1.55, 1.15, 0.9, 1.15, 0.9]
+        );
         $briefings = [];
         foreach ($lifecycle['target_briefings'] ?? [] as $entry) {
-            $briefings[] = [$this->localTime($entry['briefed_at'] ?? null, $zone),
+            $stage = match ($entry['stage'] ?? '') {
+                'issuer' => 'При выдаче',
+                'manager' => 'Ответственным руководителем',
+                'producer' => 'Производителем',
+                'admitter' => 'Допускающим',
+                default => 'Этап не указан',
+            };
+            $group = $this->text($entry['recipient_group'] ?? null);
+            $briefings[] = [
+                $this->localTime($entry['briefed_at'] ?? null, $zone),
+                $stage . "\n" . $this->text($entry['topic'] ?? null),
                 $this->text($entry['instructor_name'] ?? null),
-                $this->text($entry['recipient_name'] ?? null), '________________'];
+                '__________',
+                $this->text($entry['recipient_name'] ?? null)
+                    . ($group !== '' ? ' (гр. ' . $group . ')' : ''),
+                '__________',
+            ];
         }
         $pdf->section('Целевые инструктажи');
-        $pdf->table(['Время', 'Провёл', 'Получил', 'Подписи на бумаге'], $briefings);
+        $pdf->table(
+            ['Время', 'Этап / тема', 'Провёл', 'Подпись проводившего',
+                'Получил', 'Подпись получившего'],
+            $briefings, [1.15, 1.65, 1.15, 0.9, 1.15, 0.9]
+        );
         $periods = [];
         foreach ($lifecycle['periods'] ?? [] as $period) {
-            $periods[] = [$this->localTime($period['started_at'] ?? null, $zone),
+            $kind = match ($period['start_kind'] ?? '') {
+                'first' => 'Первичный допуск',
+                'daily_admission' => 'Ежедневный допуск',
+                'resume' => 'После перерыва',
+                default => 'Допуск',
+            };
+            $end = $period['ended_at'] ?? null;
+            $periods[] = [
+                $kind . "\n" . $this->localTime($period['started_at'] ?? null, $zone)
+                    . "\nОкончание: " . ($end !== null
+                        ? $this->localTime($end, $zone) : 'Не зарегистрировано'),
                 $this->text($period['admitter_name'] ?? null),
-                $this->localTime($period['ended_at'] ?? null, $zone), '________________'];
+                '__________',
+                $this->text($period['recipient_name'] ?? null),
+                '__________',
+            ];
         }
         $pdf->section('Ежедневные допуски и окончание работ');
-        $pdf->table(['Допущены', 'Допускающий', 'Окончание', 'Подписи на бумаге'], $periods);
+        $pdf->table(
+            ['Допуск / окончание', 'Допускающий', 'Подпись допускающего',
+                'Производитель работ', 'Подпись производителя'],
+            $periods, [1.6, 1.2, 1.0, 1.25, 1.0]
+        );
         $revisions = [];
         foreach ($lifecycle['crew_revisions'] ?? [] as $revision) {
             $revisions[] = [
