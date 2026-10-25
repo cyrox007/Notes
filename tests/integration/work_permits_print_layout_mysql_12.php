@@ -23,8 +23,27 @@ wpAssert(($legacy['lifecycle']['measures'][0]['isolated_parts'] ?? null) === nul
 checkPdfWithPoppler($renderer->renderForm($legacy), [
     'ЛИЦЕВАЯ СТОРОНА', 'ОБОРОТНАЯ СТОРОНА',
     'Не указано в исходной записи', 'Целевые инструктажи',
-    'Разрешено', 'Подпись на бумаге', 'Смирнов',
+    'Разрешено', 'Смирнов', 'КРУН-10', 'radio',
+    'передавшего', 'получившего', 'проводившего',
+    'допускающего', 'производителя', 'При выдаче',
 ], 2);
+
+
+// Проверяем самостоятельные пустые графы: учётные подтверждения не заполняют их.
+$sample = tempnam(sys_get_temp_dir(), 'naryad-signatures-');
+if (!is_string($sample)) throw new RuntimeException('Не удалось подготовить тест подписей');
+try {
+    file_put_contents($sample, $renderer->renderForm($legacy));
+    $extracted = [];
+    exec('pdftotext -layout -enc UTF-8 ' . escapeshellarg($sample)
+        . ' - 2>&1', $extracted, $status);
+    wpAssert($status === 0, 'Печатные графы должны читаться в PDF');
+    $plain = implode("\n", $extracted);
+    wpAssert(substr_count($plain, '__________') >= 12,
+        'Участники разрешений, инструктажей и допусков имеют отдельные пустые графы');
+} finally {
+    @unlink($sample);
+}
 
 $new = $drafts->create($userA, [
     'kind' => 'permit', 'organization_id' => $org1['id'],
@@ -100,7 +119,7 @@ checkPdfWithPoppler($printed, [
     'Оградить', 'соседнюю', 'кабельный отсек',
     'изолировано',
     'ОБОРОТНАЯ СТОРОНА',
-    'Подпись на бумаге',
+    'Подпись', 'Передал', 'Получил',
     'Подтвердить положение аппаратов',
 ], 2);
 checkPdfWithPoppler($renderer->render($read), [
