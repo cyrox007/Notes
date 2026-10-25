@@ -1,0 +1,76 @@
+name: 1.2 — контракт и предварительная проверка релиз-кандидата
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'core/Release12SourcePreflight.php'
+      - 'bin/release_12_source_preflight.php'
+      - 'tests/integration/release_12_source_preflight_contract.php'
+      - '.github/workflows/release-12-source-preflight.yml'
+      - 'core/Version.php'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'composer.json'
+      - 'docs/releases/v1.2.0.md'
+      - 'database/migrations/manifest.json'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'core/Release12SourcePreflight.php'
+      - 'bin/release_12_source_preflight.php'
+      - 'tests/integration/release_12_source_preflight_contract.php'
+      - '.github/workflows/release-12-source-preflight.yml'
+      - 'core/Version.php'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'composer.json'
+      - 'docs/releases/v1.2.0.md'
+      - 'database/migrations/manifest.json'
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'Точный 40-символьный SHA проверяемого кандидата'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    name: Контракт предварительной проверки 1.2 (не готовность релиза)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверить синтаксис и безопасный отказ незавершённому релизу
+        run: |
+          php -l core/Release12SourcePreflight.php
+          php -l bin/release_12_source_preflight.php
+          php tests/integration/release_12_source_preflight_contract.php
+
+  source-candidate:
+    name: Проверка исходников точного SHA (не выпуск!)
+    if: github.event_name == 'workflow_dispatch'
+    needs: source-contract
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверить исходный релиз-кандидат
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          test "$(printf '%s' "$EXPECTED_SHA" | wc -c)" -eq 40
+          php bin/release_12_source_preflight.php --expected-sha="$EXPECTED_SHA" --json
