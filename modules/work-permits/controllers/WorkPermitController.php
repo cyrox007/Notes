@@ -88,8 +88,17 @@ final class WorkPermitController extends Controller
             http_response_code(404);
             return;
         }
+        $layout = (string) $request->get('layout', 'report');
+        if (!in_array($layout, ['report', 'form'], true)) {
+            http_response_code(400);
+            return;
+        }
         try {
-            $output = (new WorkPermitPdfRenderer())->renderForm($document);
+            $renderer = new WorkPermitPdfRenderer();
+            // Не подменяем существующую учётную копию неподтверждённым бланком.
+            $output = $layout === 'form'
+                ? $renderer->renderForm($document)
+                : $renderer->render($document);
         } catch (DomainException $error) {
             http_response_code($error->getCode() === 409 ? 409 : 400);
             header('Content-Type: text/plain; charset=utf-8');
@@ -106,7 +115,8 @@ final class WorkPermitController extends Controller
         UserActionLog::emit($actor, 'work_permits.pdf_export', 'work-permits',
             'http', 'success', 200, ['document_id' => $id, 'version' => $document['version']]);
         header('Content-Type: application/pdf');
-        header('Content-Disposition: attachment; filename="naryad-' . $id . '.pdf"');
+        $filename = $layout === 'form' ? 'naryad-maket-' : 'naryad-';
+        header('Content-Disposition: attachment; filename="' . $filename . $id . '.pdf"');
         header('Content-Length: ' . strlen($output));
         header('Cache-Control: private, no-store, max-age=0');
         header('X-Content-Type-Options: nosniff');
