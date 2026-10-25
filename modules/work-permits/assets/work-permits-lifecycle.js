@@ -130,6 +130,15 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                         row.append(periods);
                     }
                     if (item.state === 'issued' && item.kind === 'permit') {
+                        const safetyButton = document.createElement('button');
+                        safetyButton.type = 'button';
+                        safetyButton.textContent = 'Разрешения и инструктажи';
+                        pageScope.listen(safetyButton, 'click', () => root.dispatchEvent(
+                            new CustomEvent('wp:safety-open', { detail: { id: Number(item.id) } })
+                        ));
+                        row.append(safetyButton);
+                    }
+                    if (item.state === 'issued' && item.kind === 'permit') {
                         const button = document.createElement('button');
                         button.type = 'button';
                         button.textContent = 'Состав бригады и продление';
