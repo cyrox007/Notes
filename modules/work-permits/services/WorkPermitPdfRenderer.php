@@ -147,7 +147,6 @@ final class WorkPermitPdfRenderer
             $periods[] = [
                 $kind . "\n" . $this->localTime($period['started_at'] ?? null, $zone)
                     . "\nМесто: " . ($this->text($period['workplace'] ?? null) ?: 'Не указано в исходной записи')
-                    . ''
                     . "\nОкончание: " . ($end !== null
                         ? $this->localTime($end, $zone) : 'Не зарегистрировано'),
                 $this->text($period['admitter_name'] ?? null),
