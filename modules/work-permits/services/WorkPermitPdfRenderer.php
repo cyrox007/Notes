@@ -146,6 +146,8 @@ final class WorkPermitPdfRenderer
             $end = $period['ended_at'] ?? null;
             $periods[] = [
                 $kind . "\n" . $this->localTime($period['started_at'] ?? null, $zone)
+                    . "\nМесто: " . ($this->text($period['workplace'] ?? null) ?: 'Не указано в исходной записи')
+                    . ''
                     . "\nОкончание: " . ($end !== null
                         ? $this->localTime($end, $zone) : 'Не зарегистрировано'),
                 $this->text($period['admitter_name'] ?? null),
@@ -318,6 +320,7 @@ final class WorkPermitPdfRenderer
                     default => 'Допуск',
                 },
                 $this->localTime($period['started_at'] ?? null, $zone),
+                $this->text($period['workplace'] ?? null) ?: 'Не указано в исходной записи',
                 $this->text($period['admitter_name'] ?? null),
                 $this->text($period['instructor_name'] ?? null)
                     . ' / ' . $this->text($period['recipient_name'] ?? null),
@@ -330,9 +333,9 @@ final class WorkPermitPdfRenderer
             ];
         }
         $pdf->table([
-            'Вид', 'Начало (объект)', 'Допускающий', 'Инструктаж: провёл / получил',
-            'Окончание (объект) и причина',
-        ], $periodRows, [0.8, 1.0, 1.1, 1.4, 1.25]);
+            'Вид', 'Начало (объект)', 'Место допуска', 'Допускающий',
+            'Инструктаж: провёл / получил', 'Окончание и причина',
+        ], $periodRows, [0.75, 1.0, 1.25, 1.05, 1.3, 1.2]);
 
         $pdf->section('8. Продления наряда');
         $extensionRows = [];
