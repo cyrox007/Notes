@@ -72,7 +72,6 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
                 section.append(exportLink);
                 const previewLink = node('a', 'Макет бланка для сверки');
                 previewLink.href = api + '/' + Number(item.id) + '/pdf?layout=form';
-                previewLink.setAttribute('download', 'naryad-maket-' + Number(item.id) + '.pdf');
                 section.append(previewLink);
             }
             if (item.state === 'draft') {
