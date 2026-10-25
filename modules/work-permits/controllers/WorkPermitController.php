@@ -17,6 +17,7 @@ use Modules\WorkPermits\Services\WorkPermitIssuanceService;
 use Modules\WorkPermits\Services\WorkPermitDailyService;
 use Modules\WorkPermits\Services\WorkPermitChangeService;
 use Modules\WorkPermits\Services\WorkPermitClosureService;
+use Modules\WorkPermits\Services\WorkPermitSafetyAuthorizationService;
 use Modules\WorkPermits\Services\WorkPermitPdfRenderer;
 use Throwable;
 
@@ -176,6 +177,36 @@ final class WorkPermitController extends Controller
             if (!$result['replayed']) {
                 UserActionLog::emit($actor, 'work_permits.first_admission', 'work-permits',
                     'http', 'success', 200, ['document_id' => $id, 'version' => $result['version']]);
+            }
+            return ['document' => $result];
+        });
+    }
+
+    /** Фактически полученное разрешение на подготовку рабочего места. */
+    public function preparationPermission(Request $request, int $id): void
+    {
+        $this->safetyRecord($request, $id, 'preparation_permission');
+    }
+
+    /** Самостоятельная учётная строка целевого инструктажа получателя. */
+    public function targetBriefing(Request $request, int $id): void
+    {
+        $this->safetyRecord($request, $id, 'target_briefing');
+    }
+
+    private function safetyRecord(Request $request, int $id, string $action): void
+    {
+        $this->handle($request, function (int $actor) use ($request, $id, $action): array {
+            (new PermissionService())->requirePermission($actor, 'work_permits.manage');
+            $service = new WorkPermitSafetyAuthorizationService(DatabaseManager::getInstance());
+            $input = $this->json($request);
+            $result = $action === 'preparation_permission'
+                ? $service->preparationPermission($id, $actor, $input)
+                : $service->targetBriefing($id, $actor, $input);
+            if (!$result['replayed']) {
+                UserActionLog::emit($actor, 'work_permits.' . $action, 'work-permits',
+                    'http', 'success', 200,
+                    ['document_id' => $id, 'version' => $result['version']]);
             }
             return ['document' => $result];
         });
