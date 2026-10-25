@@ -130,12 +130,14 @@ final class WorkPermitIssuanceService
         $admitter = $this->positive($data['admitted_employee_id'] ?? null, 'admitted_employee_id');
         $instructor = $this->positive($data['briefed_by_employee_id'] ?? null, 'briefed_by_employee_id');
         $recipient = $this->positive($data['briefing_recipient_id'] ?? null, 'briefing_recipient_id');
+        $workplace = WorkPermitDailyService::normalizeWorkplace($data['workplace'] ?? null);
         if (($data['workplace_prepared'] ?? null) !== true || ($data['briefing_confirmed'] ?? null) !== true) {
             throw new DomainException('Подтвердите подготовку места и фактически проведённый инструктаж', 409);
         }
-        $hash = $this->fingerprint($documentId, $actor, 'first_admission', [
-            $version, $start, $admitter, $instructor, $recipient, true, true,
-        ]);
+        // Не меняем отпечатки старых команд, в которых место не указывалось.
+        $fingerprint = [$version, $start, $admitter, $instructor, $recipient, true, true];
+        if ($workplace !== null) $fingerprint[] = $workplace;
+        $hash = $this->fingerprint($documentId, $actor, 'first_admission', $fingerprint);
         $old = $this->replay($command, $documentId, $actor, 'first_admission', $hash);
         if ($old !== null) return $old;
 
@@ -187,7 +189,7 @@ final class WorkPermitIssuanceService
             );
             (new WorkPermitDailyService($this->db))->firstPeriod(
                 $documentId, $actor, $start, $admitter, $admitterName,
-                $instructor, $instructorName, $recipient, $recipientName
+                $instructor, $instructorName, $recipient, $recipientName, $workplace
             );
             $next = $this->advance($documentId, $version, 'issued', 'first_admission', $actor);
             $this->recordCommand($command, $documentId, $actor, 'first_admission', $hash, $next);
