@@ -63,6 +63,36 @@ try {
     if ((int) ($count['total'] ?? 0) !== count(array_unique(array_merge($published, $owned)))) {
         throw new RuntimeException('Журнал миграций не соответствует релизу');
     }
+    // В режиме общей БД чужие таблицы без нашего префикса не меняются.
+    if ($db->namespace->prefix !== '') {
+        $physicalUsers = $db->namespace->name('users');
+        $physicalLedger = $db->namespace->name('schema_migrations');
+        if ($physicalUsers === 'users' || $physicalLedger === 'schema_migrations') {
+            throw new RuntimeException('DBPREFIX не изолирует физические таблицы');
+        }
+        $raw = new mysqli(
+            (string) (getenv('DBHOST') ?: '127.0.0.1'),
+            (string) (getenv('DBUSER') ?: 'workspace'),
+            (string) (getenv('DBPASS') ?: 'workspace'),
+            $name,
+            (int) (getenv('DBPORT') ?: 3306)
+        );
+        try {
+            $foreign = $raw->query('SELECT marker FROM users WHERE id=1')->fetch_assoc();
+            if (($foreign['marker'] ?? null) !== 'Чужая таблица') {
+                throw new RuntimeException('Миграции изменили чужую таблицу в общей БД');
+            }
+            $unexpectedLedger = $raw->query(
+                "SELECT COUNT(*) AS total FROM information_schema.tables
+                 WHERE table_schema=DATABASE() AND table_name='schema_migrations'"
+            )->fetch_assoc();
+            if ((int) ($unexpectedLedger['total'] ?? 1) !== 0) {
+                throw new RuntimeException('Журнал миграций создан без DBPREFIX');
+            }
+        } finally {
+            $raw->close();
+        }
+    }
 } finally {
     $db->close();
 }
