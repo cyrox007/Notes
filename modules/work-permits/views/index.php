@@ -131,6 +131,9 @@ ob_start();
             </div>
         </form>
         <form data-wp-admission-form hidden>
+            <label class="wp-journal__wide">Фактическое рабочее место первого допуска
+                <input name="workplace" maxlength="500" required placeholder="Объект, ячейка, панель, участок">
+            </label>
             <label>Фактическое начало работ (местное время)
                 <input type="datetime-local" name="started_at" required>
             </label>
@@ -316,6 +319,9 @@ ob_start();
         <div data-wp-period-list aria-live="polite"></div>
         <form data-wp-period-start hidden>
             <h3 data-wp-period-start-title>Повторный допуск</h3>
+            <label class="wp-journal__wide">Фактическое рабочее место этой смены
+                <input name="workplace" maxlength="500" required placeholder="Уточните место, даже если оно не менялось">
+            </label>
             <label>Дата и время фактического допуска (местное время)
                 <input type="datetime-local" name="started_at" required>
             </label>
