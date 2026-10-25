@@ -32,12 +32,14 @@ final class WorkPermitDailyService
         int $instructor,
         string $instructorName,
         int $recipient,
-        string $recipientName
+        string $recipientName,
+        ?string $workplace = null
     ): void {
         $this->insertPeriod($documentId, $actor, 'first', $startedAt, [
             'admitter' => $admitter, 'admitter_name' => $admitterName,
             'instructor' => $instructor, 'instructor_name' => $instructorName,
             'recipient' => $recipient, 'recipient_name' => $recipientName,
+            'workplace' => $workplace,
         ]);
     }
 
@@ -58,13 +60,15 @@ final class WorkPermitDailyService
         $admitter = $this->positive($data['admitted_employee_id'] ?? null, 'admitted_employee_id');
         $instructor = $this->positive($data['briefed_by_employee_id'] ?? null, 'briefed_by_employee_id');
         $recipient = $this->positive($data['briefing_recipient_id'] ?? null, 'briefing_recipient_id');
+        $workplace = self::normalizeWorkplace($data['workplace'] ?? null);
         if (($data['workplace_prepared'] ?? null) !== true
             || ($data['briefing_confirmed'] ?? null) !== true) {
             throw new DomainException('Подтвердите подготовку места и проведённый инструктаж', 409);
         }
-        $hash = $this->fingerprint($documentId, $actor, $action, [
-            $version, $started, $admitter, $instructor, $recipient, true, true,
-        ]);
+        // Старые команды без места допуска сохраняют прежний отпечаток.
+        $fingerprint = [$version, $started, $admitter, $instructor, $recipient, true, true];
+        if ($workplace !== null) $fingerprint[] = $workplace;
+        $hash = $this->fingerprint($documentId, $actor, $action, $fingerprint);
         $old = $this->replay($command, $documentId, $actor, $action, $hash);
         if ($old !== null) return $old;
 
@@ -100,6 +104,7 @@ final class WorkPermitDailyService
                 'admitter' => $admitter, 'admitter_name' => $this->employee($admitter, $organization),
                 'instructor' => $instructor, 'instructor_name' => $this->employee($instructor, $organization),
                 'recipient' => $recipient, 'recipient_name' => $this->employee($recipient, $organization),
+                'workplace' => $workplace,
             ];
             $this->insertPeriod($documentId, $actor, $action, $started, $personnel);
             $this->advance($documentId, $actor, $version, $action, $command, $hash);
@@ -182,7 +187,7 @@ final class WorkPermitDailyService
         return $this->db->fetchAll(
             'SELECT id,start_kind,started_at,admitter_employee_id,admitter_name,
                 instructor_employee_id,instructor_name,recipient_employee_id,recipient_name,
-                workplace_prepared,briefing_confirmed,ended_at,end_kind,end_note
+                workplace,workplace_prepared,briefing_confirmed,ended_at,end_kind,end_note
              FROM work_permit_work_periods WHERE document_id=:document ORDER BY id ASC',
             [':document' => $documentId]
         );
@@ -256,21 +261,21 @@ final class WorkPermitDailyService
         );
     }
 
-    /** @param array<string,int|string> $employee */
+    /** @param array<string,int|string|null> $employee */
     private function insertPeriod(int $doc, int $actor, string $kind, string $start, array $employee): void
     {
         $this->db->execute(
             'INSERT INTO work_permit_work_periods
              (document_id,start_kind,started_at,admitter_employee_id,admitter_name,
               instructor_employee_id,instructor_name,recipient_employee_id,recipient_name,
-              workplace_prepared,briefing_confirmed,started_by_user_id)
+              workplace,workplace_prepared,briefing_confirmed,started_by_user_id)
              VALUES (:doc,:kind,:start,:admitter,:admitter_name,:instructor,:instructor_name,
-                     :recipient,:recipient_name,1,1,:actor)',
+                     :recipient,:recipient_name,:workplace,1,1,:actor)',
             [':doc' => $doc, ':kind' => $kind, ':start' => $start,
                 ':admitter' => $employee['admitter'], ':admitter_name' => $employee['admitter_name'],
                 ':instructor' => $employee['instructor'], ':instructor_name' => $employee['instructor_name'],
                 ':recipient' => $employee['recipient'], ':recipient_name' => $employee['recipient_name'],
-                ':actor' => $actor]
+                ':workplace' => $employee['workplace'] ?? null, ':actor' => $actor]
         );
     }
 
@@ -363,6 +368,21 @@ final class WorkPermitDailyService
             throw new InvalidArgumentException('Несуществующая дата/время');
         }
         return $value;
+    }
+
+    /** Пустое значение допускается только для старых клиентов и записей. */
+    public static function normalizeWorkplace(mixed $value): ?string
+    {
+        if ($value === null) return null;
+        if (!is_string($value)) {
+            throw new InvalidArgumentException('Некорректное рабочее место допуска');
+        }
+        $workplace = trim($value);
+        if ($workplace === '' || mb_strlen($workplace) > 500
+            || preg_match('/[\x00-\x1F\x7F]/u', $workplace) === 1) {
+            throw new InvalidArgumentException('Рабочее место должно содержать от 1 до 500 символов');
+        }
+        return $workplace;
     }
 
     private function note(mixed $value): string
