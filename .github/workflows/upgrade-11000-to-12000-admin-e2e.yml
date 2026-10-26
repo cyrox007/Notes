@@ -266,6 +266,18 @@ jobs:
           sha256sum -c /tmp/notes-identity-before.txt
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.1.0'
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = 11000
+          echo 'Проверить готовность установленной 1.1.0 после подготовки'
+          (
+            cd "$LIVE"
+            DBHOST=127.0.0.1 DBPORT=3306 DBUSER=workspace_upgrade \
+            DBPASS=workspace-upgrade-ci DBNAME=previous_stable_upgrade php -r '
+              require "core/ModuleManifest.php";
+              require "core/DatabaseOwnership.php";
+              require "core/SchemaReadiness.php";
+              $result = Core\SchemaReadiness::inspect(getcwd());
+              echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), PHP_EOL;
+            '
+          )
           # Провести испытание подписанного upgrade только после проверки
           # неизменности исходной версии и ключей доверия.
 
