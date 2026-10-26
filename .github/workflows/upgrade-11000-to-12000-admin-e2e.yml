@@ -447,12 +447,12 @@ jobs:
           echo '--- версия и фактический контракт БД после установки ---'
           (
             cd "$DRILL/live"
-            php -r 'require "core/Version.php"; echo "Файлы: ", Core\\Version::VERSION, " (", Core\\Version::VERSION_CODE, ")\\n";' || true
+            php -r 'require "core/Version.php"; echo "Файлы: ", Core\Version::VERSION, " (", Core\Version::VERSION_CODE, ")\\n";' || true
             php -r '
               require "core/ModuleManifest.php";
               require "core/DatabaseOwnership.php";
               require "core/SchemaReadiness.php";
-              $state = Core\\SchemaReadiness::inspect(getcwd());
+              $state = Core\SchemaReadiness::inspect(getcwd());
               echo json_encode($state, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), PHP_EOL;
             ' || true
             php bin/migrate.php --status 2>&1 | tail -n 12 || true
