@@ -24,12 +24,13 @@ permissions:
 
 jobs:
   recovery:
-    name: Восстановление (${{ matrix.database.name }})
+    name: Восстановление (${{ matrix.database.name }}, DBPREFIX=${{ matrix.prefix }})
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
+        prefix: ['', 'nt12_']
         database:
           - {name: MySQL-8.4, image: 'mysql:8.4', health: 'mysqladmin ping -h 127.0.0.1 -uroot -proot'}
           - {name: MariaDB-11.4, image: 'mariadb:11.4', health: 'healthcheck.sh --connect --innodb_initialized'}
@@ -64,7 +65,7 @@ jobs:
           TEST_DB_NAME: workspace_recovery_test
           TEST_DB_USER: workspace
           TEST_DB_PASS: workspace
-          DBPREFIX: ''
+          DBPREFIX: ${{ matrix.prefix }}
         run: |
           php -l tests/integration/updater_real_backup_restore_mysql_12.php
           php tests/integration/updater_real_backup_restore_mysql_12.php
