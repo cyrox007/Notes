@@ -164,7 +164,11 @@ final class DatabaseOwnership
                 'notification_delivery_jobs',
                 'notification_delivery_attempts',
                 'notification_runtime_state',
-                'notification_push_subscriptions',
+                ... (in_array(
+                    'database/migrations/20261020_notifications_push_subscriptions.sql',
+                    $this->packageCoreMigrations,
+                    true
+                ) ? ['notification_push_subscriptions'] : []),
                 ... (in_array('database/migrations/20261023_notification_receipt_attestations.sql', $this->packageCoreMigrations, true)
                     ? ['notification_receipt_attestations'] : []),
                 ... (in_array('database/migrations/20261021_notification_action_tokens.sql', $this->packageCoreMigrations, true)
