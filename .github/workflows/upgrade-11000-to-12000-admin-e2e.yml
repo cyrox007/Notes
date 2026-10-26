@@ -388,7 +388,6 @@ jobs:
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-1100-1200/ca.crt
-          E2E_ADMIN_PREPARATION: "1"
           E2E_APP_ROOT: /tmp/workspace-1100-1200/live
           E2E_UPDATE_ENTRY: admin
           E2E_REQUIRE_EXTERNAL: "1"
