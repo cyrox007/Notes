@@ -444,8 +444,27 @@ jobs:
           cat "$DRILL/private/logs/app.log" 2>/dev/null || true
           echo '--- сервисный журнал updater/recovery ---'
           tail -n 200 "$DRILL/private/logs/service-events.jsonl" 2>/dev/null || true
-          echo '--- журналы updater ---'
-          find "$DRILL/private" -maxdepth 4 -type f -name '*.json' -print -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \; 2>/dev/null || true
+          echo '--- версия и фактический контракт БД после установки ---'
+          (
+            cd "$DRILL/live"
+            php -r 'require "core/Version.php"; echo "Файлы: ", Core\\Version::VERSION, " (", Core\\Version::VERSION_CODE, ")\\n";' || true
+            php -r '
+              require "core/ModuleManifest.php";
+              require "core/DatabaseOwnership.php";
+              require "core/SchemaReadiness.php";
+              $state = Core\\SchemaReadiness::inspect(getcwd());
+              echo json_encode($state, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), PHP_EOL;
+            ' || true
+            php bin/migrate.php --status 2>&1 | tail -n 12 || true
+          )
+          echo '--- итоговая фаза транзакций без содержимого снимков ---'
+          php -r '
+            foreach (glob($argv[1] . "/private/state/transactions/*.json") ?: [] as $path) {
+              $state = json_decode((string) file_get_contents($path), true);
+              if (!is_array($state)) continue;
+              echo basename($path), ": ", ($state["state"] ?? "?"), PHP_EOL;
+            }
+          ' "$DRILL" || true
 
       - name: Остановить тестовые процессы и восстановить DNS
         if: always()
