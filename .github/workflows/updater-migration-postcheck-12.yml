@@ -6,6 +6,7 @@ on:
     paths:
       - 'core/UpdateMigrationPostcheck.php'
       - 'core/UpdateApplyCommand.php'
+      - 'core/UpdateExternalRuntime.php'
       - 'tests/integration/updater_migration_postcheck_12.php'
       - '.github/workflows/updater-migration-postcheck-12.yml'
   push:
@@ -13,6 +14,7 @@ on:
     paths:
       - 'core/UpdateMigrationPostcheck.php'
       - 'core/UpdateApplyCommand.php'
+      - 'core/UpdateExternalRuntime.php'
       - 'tests/integration/updater_migration_postcheck_12.php'
       - '.github/workflows/updater-migration-postcheck-12.yml'
   workflow_dispatch:

@@ -34,3 +34,8 @@ if (!str_contains($apply, "UpdateMigrationPostcheck::assertComplete(\$migrationS
 }
 
 echo "Запрет ложного commit при неполных миграциях подтверждён\n";
+
+$runtime = (string) file_get_contents(dirname(__DIR__, 2) . '/core/UpdateExternalRuntime.php');
+if (!str_contains($runtime, "'core/UpdateMigrationPostcheck.php'")) {
+    throw new RuntimeException('Автономный обновлятор потерял зависимость проверки миграций');
+}

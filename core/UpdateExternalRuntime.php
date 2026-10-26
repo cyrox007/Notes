@@ -52,6 +52,7 @@ final class UpdateExternalRuntime
         'core/UpdateApplyOperationLock.php',
         'core/UpdateRollbackCodeRestorer.php',
         'core/UpdateApplyCommand.php',
+        'core/UpdateMigrationPostcheck.php',
         'core/SecurityEventLog.php',
         'core/ServiceLog.php',
         'core/MigrationManifest.php',
