@@ -1,0 +1,41 @@
+name: 1.2 — строгая проверка миграций после обновления
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'core/UpdateMigrationPostcheck.php'
+      - 'core/UpdateApplyCommand.php'
+      - 'tests/integration/updater_migration_postcheck_12.php'
+      - '.github/workflows/updater-migration-postcheck-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'core/UpdateMigrationPostcheck.php'
+      - 'core/UpdateApplyCommand.php'
+      - 'tests/integration/updater_migration_postcheck_12.php'
+      - '.github/workflows/updater-migration-postcheck-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migration-postcheck:
+    name: Отказ при незавершённых миграциях
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Получить исходный код
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверить синтаксис и безопасный отказ
+        run: |
+          php -l core/UpdateMigrationPostcheck.php
+          php -l core/UpdateApplyCommand.php
+          php -l tests/integration/updater_migration_postcheck_12.php
+          php tests/integration/updater_migration_postcheck_12.php
