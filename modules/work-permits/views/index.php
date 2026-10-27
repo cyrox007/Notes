@@ -25,6 +25,51 @@ ob_start();
         <div data-wp-list aria-live="polite"></div>
         <button type="button" data-wp-more hidden>Показать ещё</button>
     </section>
+    <?php if (!empty($can_manage_references)): ?>
+    <section class="calendar-shell wp-journal__registry" data-wp-management>
+        <h2 id="wp-management-title">Журнал на выдачу и первичный допуск</h2>
+        <p>Показываются документы разных авторов. Операции требуют разрешения на управление модулем.</p>
+        <label>Состояние
+            <select data-wp-management-state>
+                <option value="draft">Черновики для выдачи</option>
+                <option value="issued">Выданные документы</option>
+                <option value="closed">Закрытые</option>
+            </select>
+        </label>
+        <div data-wp-management-list aria-live="polite"></div>
+        <button type="button" data-wp-management-more hidden>Показать ещё</button>
+    </section>
+    <?php endif; ?>
+    <section class="calendar-shell wp-journal__editor" aria-labelledby="wp-form-title">
+        <h2 id="wp-form-title">Новый документ</h2>
+        <form data-wp-form>
+            <label>Тип документа
+                <select name="kind" required>
+                    <option value="permit">Наряд-допуск</option>
+                    <option value="order">Распоряжение</option>
+                </select>
+            </label>
+            <label>Организация
+                <select name="organization_id" data-wp-organization required><option value="">Загрузка организаций…</option></select>
+            </label>
+            <label>Подразделение
+                <select name="department_id" data-wp-department><option value="">Не выбрано</option></select>
+            </label>
+            <label>Объект / подстанция
+                <select name="facility_id" data-wp-facility required><option value="">Выберите объект</option></select>
+            </label>
+            <div class="wp-journal__template-picker wp-journal__wide" data-wp-job-picker="new">
+                <label>Шаблон задания <select data-wp-job-choice><option value="">Выберите организацию</option></select></label>
+                <button type="button" data-wp-apply-job>Подставить задание</button>
+            </div>
+            <label class="wp-journal__wide">Задание на производство работ
+                <textarea name="work_description" maxlength="10000" rows="4" required></textarea>
+            </label>
+            <button type="submit" data-wp-submit>Сохранить черновик</button>
+        </form>
+        <p>Номер присваивается сервером. Черновик ещё не является выданным нарядом или распоряжением.</p>
+    </section>
+
     <section class="calendar-shell wp-journal__editor" data-wp-editor hidden aria-labelledby="wp-edit-title">
         <h2 id="wp-edit-title" data-wp-edit-title>Изменить черновик</h2>
         <p>Карточка и состав бригады сохраняются вместе. При изменении в другой вкладке загрузите актуальную версию.</p>
@@ -59,49 +104,6 @@ ob_start();
     </section>
 
     <?php if (!empty($can_manage_references)): ?>
-    <section class="calendar-shell wp-journal__registry" data-wp-management>
-        <h2 id="wp-management-title">Журнал на выдачу и первичный допуск</h2>
-        <p>Показываются документы разных авторов. Операции требуют разрешения на управление модулем.</p>
-        <label>Состояние
-            <select data-wp-management-state>
-                <option value="draft">Черновики для выдачи</option>
-                <option value="issued">Выданные документы</option>
-                <option value="closed">Закрытые</option>
-            </select>
-        </label>
-        <div data-wp-management-list aria-live="polite"></div>
-        <button type="button" data-wp-management-more hidden>Показать ещё</button>
-    </section>
-    <section class="calendar-shell wp-journal__editor" aria-labelledby="wp-form-title">
-        <h2 id="wp-form-title">Новый документ</h2>
-        <form data-wp-form>
-            <label>Тип документа
-                <select name="kind" required>
-                    <option value="permit">Наряд-допуск</option>
-                    <option value="order">Распоряжение</option>
-                </select>
-            </label>
-            <label>Организация
-                <select name="organization_id" data-wp-organization required><option value="">Загрузка организаций…</option></select>
-            </label>
-            <label>Подразделение
-                <select name="department_id" data-wp-department><option value="">Не выбрано</option></select>
-            </label>
-            <label>Объект / подстанция
-                <select name="facility_id" data-wp-facility required><option value="">Выберите объект</option></select>
-            </label>
-            <div class="wp-journal__template-picker wp-journal__wide" data-wp-job-picker="new">
-                <label>Шаблон задания <select data-wp-job-choice><option value="">Выберите организацию</option></select></label>
-                <button type="button" data-wp-apply-job>Подставить задание</button>
-            </div>
-            <label class="wp-journal__wide">Задание на производство работ
-                <textarea name="work_description" maxlength="10000" rows="4" required></textarea>
-            </label>
-            <button type="submit" data-wp-submit>Сохранить черновик</button>
-        </form>
-        <p>Номер присваивается сервером. Черновик ещё не является выданным нарядом или распоряжением.</p>
-    </section>
-
     <section class="calendar-shell wp-journal__editor" data-wp-lifecycle hidden aria-label="Выдача и первичный допуск">
         <h2 data-wp-lifecycle-title>Выдача документа</h2>
         <p>Время вводится по часовому поясу объекта, указанному над формой, а не по часам вашего устройства.</p>
