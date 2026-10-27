@@ -57,7 +57,18 @@ ob_start();
            href="<?= $view->e($view->route('files_global')) ?>">Открыть общие файлы</a>
     </header>
 
-    <section class="admin-panel-card">
+    <nav class="file-spaces-page__shortcuts" aria-label="Разделы управления общими файлами">
+        <a href="#files-admin-groups">Группы доступа</a>
+        <a href="#files-admin-acl">Права на папки</a>
+        <a href="#files-admin-check">Проверить пользователя</a>
+        <a href="#files-admin-trash">Корзина</a>
+    </nav>
+    <div class="file-spaces-page__intro" role="note">
+        <strong><?= count($groups) ?> групп доступа</strong>
+        <span>Правила действуют на выбранную папку. Запрет имеет приоритет над разрешением; перед массовой настройкой проверьте итоговые права пользователя.</span>
+    </div>
+
+    <section class="admin-panel-card" id="files-admin-groups">
         <div class="admin-panel-card__header"><h2>Группы доступа</h2></div>
         <p>Группы назначают файловые права, но не изменяют системные роли участников.</p>
         <form action="<?= $view->e($view->route('files_admin_group_create')) ?>"
@@ -117,7 +128,7 @@ ob_start();
         <?php endforeach; ?>
     </section>
 
-    <section class="admin-panel-card">
+    <section class="admin-panel-card" id="files-admin-acl">
         <div class="admin-panel-card__header"><h2>Права на каталоги</h2></div>
         <p>Настраивайте общий корень или откройте нужную папку. При равном уровне явный запрет важнее разрешения.</p>
         <nav aria-label="Выбор папки">
@@ -268,7 +279,7 @@ ob_start();
         </details>
     </section>
 
-    <section class="admin-panel-card">
+    <section class="admin-panel-card" id="files-admin-check">
         <div class="admin-panel-card__header"><h2>Проверка итоговых прав пользователя</h2></div>
         <form action="<?= $view->e($rootUrl) ?>" method="get">
             <?php if ($folderId !== null): ?>
@@ -307,7 +318,7 @@ ob_start();
         <?php endif; ?>
     </section>
 
-    <section class="admin-panel-card">
+    <section class="admin-panel-card" id="files-admin-trash">
         <div class="admin-panel-card__header"><h2>Политика корзины</h2></div>
         <p>Срок хранения определяет период до разрешённой окончательной очистки.
            Автоматическое безвозвратное удаление на этом этапе не запускается.</p>
@@ -339,6 +350,7 @@ echo $view->layout('core/base', [
     'module_styles' => [
         $view->moduleAsset('admin', 'style.css'),
         $view->moduleAsset('files', 'style.css'),
+        $view->moduleAsset('files', 'spaces-usability.css'),
     ],
     'module_scripts' => [$view->moduleAsset('files', 'spaces.js')],
 ], $content);
