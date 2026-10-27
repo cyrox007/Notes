@@ -129,7 +129,7 @@ nativeAdminAssert(str_contains($moduleView, 'Отключение запреще
 nativeAdminAssert(str_contains($moduleView, 'license_feature'), 'страница модулей не показывает лицензионное разрешение');
 
 $moduleService = (string) file_get_contents($root . '/modules/admin/services/ModuleManagementService.php');
-nativeAdminAssert(str_contains($moduleService, 'if (!$decision[\'entitled\'])'), 'неразрешённые лицензией модули не скрываются из Admin');
+nativeAdminAssert(str_contains($moduleService, 'if (!$decision[\'entitled\'])'), 'Admin не запрещает изменение состояния без разрешения лицензии');
 nativeAdminAssert(str_contains($moduleService, '$manifest->required() && !$enabled'), 'Admin не запрещает отключение обязательного модуля');
 nativeAdminAssert(str_contains($moduleService, '$this->permissions->hasRole($actorId, \'superadmin\')'), 'управление модулями не ограничено суперадминистратором');
 

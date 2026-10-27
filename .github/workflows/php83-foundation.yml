@@ -53,6 +53,7 @@ jobs:
           php tests/integration/environment_entrypoints_contract.php
           php tests/integration/core_refactor_contract.php
           php tests/integration/module_runtime_composition_contract.php
+          php tests/integration/admin_module_catalog_contract.php
           php tests/integration/external_update_runtime_contract.php
           php tests/integration/automatic_update_recovery_contract.php
 
@@ -86,6 +87,8 @@ jobs:
           php tests/integration/environment_entrypoints_contract.php
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           php tests/integration/module_runtime_composition_contract.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          php tests/integration/admin_module_catalog_contract.php
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           php tests/integration/automatic_update_recovery_contract.php
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

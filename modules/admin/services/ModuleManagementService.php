@@ -9,13 +9,14 @@ use DomainException;
 use InvalidArgumentException;
 
 /**
- * Управление состоянием только тех модулей, которые разрешены текущей лицензией.
+ * Каталог установленных модулей; изменение состояния требует разрешения лицензии.
  */
 final class ModuleManagementService
 {
     /** @var array<string,string> */
     private const MODULE_LABELS = [
         'admin' => 'Администрирование',
+        'calendar' => 'Календарь',
         'files' => 'Файлы',
         'messenger' => 'Мессенджер',
         'notes' => 'Заметки',
@@ -46,10 +47,6 @@ final class ModuleManagementService
         $rows = [];
         foreach ($this->registry->all() as $moduleId => $manifest) {
             $decision = $this->entitlements->decision($manifest);
-            if (!$decision['entitled']) {
-                continue;
-            }
-
             $lifecycle = $this->registry->lifecycleFor($moduleId);
             $rows[] = [
                 'id' => $moduleId,
@@ -57,6 +54,8 @@ final class ModuleManagementService
                 'version' => $manifest->version(),
                 'required' => $manifest->required(),
                 'license_feature' => $decision['feature'],
+                'license_entitled' => (bool) $decision['entitled'],
+                'license_reason' => $decision['reason'],
                 'configured_state' => (string) ($lifecycle['configured_state'] ?? ''),
                 'effective_state' => (string) ($lifecycle['effective_state'] ?? ''),
                 'last_error' => trim((string) ($lifecycle['last_error'] ?? '')),
@@ -80,7 +79,8 @@ final class ModuleManagementService
         $manifest = $this->registry->get($moduleId);
         $decision = $this->entitlements->decision($manifest);
         if (!$decision['entitled']) {
-            // Не раскрываем через управляющий маршрут модули, которых нет в лицензии.
+            // Просмотр каталога не разрешает менять состояние без лицензии,
+            // в том числе прямым запросом к управляющему маршруту.
             throw new InvalidArgumentException('Модуль не найден', 404);
         }
 
