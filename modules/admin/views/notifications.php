@@ -496,10 +496,11 @@ ob_start();
     <section class="admin-panel-card">
         <div class="admin-panel-card__header">
             <div>
-                <h2>SMS через отдельный HTTPS-шлюз</h2>
-                <p>Исходящие уведомления без текстов переписки. Шлюз должен принимать JSON с полями recipient, text и delivery_id; внутренняя локальная сеть и произвольные HTTP-адреса не допускаются.</p>
+                <h2>SMS через Headwind GSM</h2>
+                <p>Workspace передаёт SMS напрямую Windows-драйверу Headwind GSM на этом сервере. Внешний адрес и API-ключ не нужны. Модем и SIM-карта настраиваются в Headwind GSM.</p>
             </div>
         </div>
+        <p role="status"><?= $view->e($sms_environment['message'] ?? 'Для SMS необходимы Windows, расширение PHP com_dotnet и установленный Headwind GSM.') ?></p>
         <form action="<?= $view->e($view->route('admin_notifications_external')) ?>" method="post"
               data-notification-ajax-form class="custom-fields-form">
             <?= $view->csrfInput() ?>
@@ -509,15 +510,7 @@ ob_start();
                     <input type="number" name="owner_user_id" min="1" required>
                 </label>
                 <label class="custom-field__control">Телефон E.164
-                    <input type="tel" name="phone" pattern="\\+[1-9][0-9]{7,14}" required placeholder="+79990000000">
-                </label>
-                <label class="custom-field__control">Внешний HTTPS-адрес SMS-шлюза
-                    <input type="url" name="url" required placeholder="https://sms-gateway.example.org/send">
-                </label>
-                <label class="custom-field__control">Секрет API шлюза
-                    <input type="text" name="secret_ref" pattern="env:[A-Z][A-Z0-9_]{1,127}"
-                           placeholder="env:NOTES_SMS_GATEWAY_KEY" autocomplete="off">
-                    <small>Пароль должен находиться в переменной окружения PHP и не записывается в БД.</small>
+                    <input type="tel" name="phone" pattern="\+[1-9][0-9]{7,14}" required placeholder="+79990000000">
                 </label>
                 <label class="custom-field__control">Канал
                     <select name="enabled"><option value="1">Включить</option><option value="0">Отключить</option></select>
@@ -526,8 +519,9 @@ ob_start();
                     <input type="password" name="current_password" autocomplete="current-password" required>
                 </label>
             </div>
-            <button type="submit" class="admin-action admin-action--primary">Сохранить SMS-шлюз</button>
+            <button type="submit" class="admin-action admin-action--primary">Сохранить SMS</button>
         </form>
+        <p>Драйвер подтверждает принятие SMS в исходящие, а не доставку на телефон. Тексты переписки в SMS не включаются.</p>
         <form action="<?= $view->e($view->route('admin_notifications_test')) ?>" method="post"
               data-notification-ajax-form>
             <?= $view->csrfInput() ?>
@@ -537,7 +531,7 @@ ob_start();
     </section>
 
     <section class="admin-panel-card">
-        <h2>Настроенные внешние адресаты</h2>
+        <h2>Настроенные адресаты доставки</h2>
         <?php if ($externalChannels === []): ?>
         <p>Дополнительных адресатов пока нет.</p>
         <?php else: ?>
@@ -551,7 +545,8 @@ ob_start();
                         <td><?= $view->e($entry['owner_user_id'] ?? 'системный') ?></td>
                         <td><?= $view->e(($entry['settings']['chat_id'] ?? $entry['settings']['user_id'] ?? $entry['settings']['phone'] ?? $entry['settings']['url'] ?? '—')) ?></td>
                         <td><?= !empty($entry['enabled']) ? 'Да' : 'Нет' ?></td>
-                        <td><?= !empty($entry['has_secret']) ? 'Задан в окружении' : 'Нет' ?></td>
+                        <td><?= ($entry['channel'] ?? '') === 'sms' && ($entry['settings']['transport'] ?? '') === 'headwind'
+                            ? 'Не требуется (Headwind GSM)' : (!empty($entry['has_secret']) ? 'Задан в окружении' : 'Нет') ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

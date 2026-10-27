@@ -57,6 +57,7 @@ final class NotificationSettingsController extends Controller
             'user' => $user,
             'notification_settings' => (new NotificationChannelAdministration())->overview(),
             'external_channels' => (new NotificationExternalChannelAdministration())->overview(),
+            'sms_environment' => \App\Services\Notifications\HeadwindSmsTransport::environment(),
             'reminder_scheduler' => $this->reminderSchedulerStatus(),
             'notification_worker' => $this->deliveryWorkerStatus(),
             'receipt_inspection' => $inspection,
