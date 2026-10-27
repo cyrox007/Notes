@@ -30,7 +30,7 @@ ob_start();
         <div>
             <span class="admin-page__eyebrow">Состав Workspace</span>
             <h1>Модули</h1>
-            <p>Здесь отображаются только модули, которые явно разрешены текущей лицензией. Отключённый модуль сохраняет данные, но не регистрирует маршруты, интерфейс и межмодульные возможности.</p>
+            <p>Здесь показаны все установленные модули. Для включения модуля требуется разрешение в действующей лицензии. Отключение сохраняет его данные и настройки.</p>
         </div>
     </header>
 
@@ -43,7 +43,7 @@ ob_start();
         <div class="admin-panel-card__header">
             <div>
                 <span class="admin-panel-card__kicker">Жизненный цикл</span>
-                <h2>Разрешённые модули</h2>
+                <h2>Установленные модули</h2>
                 <p>Выключение не удаляет таблицы, файлы и настройки модуля. При повторном включении прежние данные остаются доступны.</p>
             </div>
         </div>
@@ -67,7 +67,8 @@ ob_start();
                         $configured = (string) ($module['configured_state'] ?? '');
                         $effective = (string) ($module['effective_state'] ?? '');
                         $required = !empty($module['required']);
-                        $canToggle = in_array($configured, ['enabled', 'disabled'], true) && !$required;
+                        $entitled = !empty($module['license_entitled']);
+                        $canToggle = $entitled && in_array($configured, ['enabled', 'disabled'], true) && !$required;
                         $nextEnabled = $configured !== 'enabled';
                     ?>
                     <tr>
@@ -78,17 +79,26 @@ ob_start();
                         </td>
                         <td data-label="Версия"><?= $view->e($module['version'] ?? '') ?></td>
                         <td data-label="Состояние">
-                            <strong><?= $view->e($stateLabel($effective)) ?></strong>
-                            <?php if ($effective !== $configured): ?>
+                            <strong><?= $entitled ? $view->e($stateLabel($effective)) : 'Недоступен' ?></strong>
+                            <?php if ($entitled && $effective !== $configured): ?>
                                 <br><small>Настройка: <?= $view->e($stateLabel($configured)) ?></small>
                             <?php endif; ?>
                             <?php if (!empty($module['last_error'])): ?>
                                 <br><small><?= $view->e($module['last_error']) ?></small>
                             <?php endif; ?>
                         </td>
-                        <td data-label="Лицензия"><code><?= $view->e($module['license_feature'] ?? '') ?></code></td>
+                        <td data-label="Лицензия">
+                            <strong><?= $entitled ? 'Разрешён' : 'Не разрешён лицензией' ?></strong><br>
+                            <code><?= $view->e($module['license_feature'] ?? '') ?></code>
+                            <?php if (!$entitled && !empty($module['license_reason'])): ?>
+                                <br><small><?= $view->e($module['license_reason']) ?></small>
+                            <?php endif; ?>
+                        </td>
                         <td data-label="Действие">
-                            <?php if ($required): ?>
+                            <?php if (!$entitled): ?>
+                                <span class="admin-user-actions__locked">Требуется расширение лицензии</span><br>
+                                <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('system_license')) ?>">Обновить ключ</a>
+                            <?php elseif ($required): ?>
                                 <span class="admin-user-actions__locked">Отключение запрещено</span>
                             <?php elseif ($canToggle): ?>
                                 <form action="<?= $view->e($view->route('admin_modules_state')) ?>" method="post" class="admin-user-actions"
@@ -109,7 +119,7 @@ ob_start();
                     </tr>
                 <?php endforeach; ?>
                 <?php if ($moduleRows === []): ?>
-                    <tr><td colspan="5">В текущей лицензии нет модулей, доступных для управления.</td></tr>
+                    <tr><td colspan="5">Установленные модули не найдены.</td></tr>
                 <?php endif; ?>
                 </tbody>
             </table>
