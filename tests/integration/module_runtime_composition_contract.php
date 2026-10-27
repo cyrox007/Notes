@@ -176,6 +176,10 @@ $routeControllers = [];
 foreach ($routes as $route) {
     $controller = $route['controller'][0] ?? null;
     if (is_string($controller)) {
+        runtimeCompositionAssert(class_exists($controller), "registered route controller {$controller} was not loaded by its module");
+        $action = $route['controller'][1] ?? '';
+        runtimeCompositionAssert(is_string($action) && method_exists($controller, $action), "registered route action {$controller}::{$action} does not exist");
+        runtimeCompositionAssert((new ReflectionMethod($controller, $action))->isPublic(), "registered route action {$controller}::{$action} is not public");
         $routeControllers[$controller] = true;
     }
 }
