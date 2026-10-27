@@ -1,0 +1,25 @@
+name: Notification settings layout
+on:
+  pull_request:
+    branches: ['1.2']
+    paths: ['modules/admin/**', 'assets/js/navigation.js', 'assets/css/workspace.css', 'app/views/core/**', 'app/views/^shared/**', 'tests/e2e/notification-settings-layout.mjs', 'tests/fixtures/admin-notification-layout.php', '.github/workflows/notification-settings-layout.yml']
+  push:
+    branches: ['1.2']
+    paths: ['modules/admin/**', 'assets/js/navigation.js', 'assets/css/workspace.css', 'app/views/core/**', 'app/views/^shared/**', 'tests/e2e/notification-settings-layout.mjs', 'tests/fixtures/admin-notification-layout.php', '.github/workflows/notification-settings-layout.yml']
+permissions:
+  contents: read
+jobs:
+  notification-layout:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/e2e/notification-settings-layout.mjs

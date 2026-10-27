@@ -1,0 +1,70 @@
+.admin-notification-settings{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  align-items:start;
+  min-width:0;
+}
+.admin-notification-settings>.admin-page__hero,
+.admin-notification-settings>.admin-settings-tabs,
+.admin-notification-settings>.admin-notification-panel--wide,
+.admin-notification-settings>[data-notification-feedback]{grid-column:1/-1}
+.admin-notification-settings>.admin-panel-card{min-width:0}
+.admin-notification-settings .admin-panel-card>p,
+.admin-notification-settings .admin-panel-card>h2,
+.admin-notification-settings .admin-panel-card>h3{margin:12px 16px}
+.admin-notification-settings .admin-panel-card>p{
+  color:var(--ui-muted);
+  font-size:12px;
+  line-height:1.6;
+  overflow-wrap:anywhere;
+}
+.admin-notification-settings .admin-panel-card>h3{font-size:14px}
+.admin-notification-settings .admin-panel-card>[role="status"]{
+  margin:12px 16px;
+  padding:12px;
+  border:1px solid var(--ui-border);
+  border-radius:10px;
+  background:var(--ui-surface-soft);
+  font-size:12px;
+  line-height:1.6;
+}
+.admin-notification-settings [role="status"] p{margin:8px 0 0}
+.admin-notification-settings [role="status"] ul{margin:8px 0;padding-left:20px}
+.admin-notification-fields{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
+  align-items:start;
+  min-width:0;
+}
+.admin-notification-panel--smtp .admin-notification-fields{grid-template-columns:repeat(3,minmax(0,1fr))}
+.admin-notification-fields .custom-field__control{font-size:12px;font-weight:700;line-height:1.5}
+.admin-notification-fields :is(input,select){width:100%;min-width:0}
+.admin-notification-fields small{font-size:11px;font-weight:400;color:var(--ui-muted);overflow-wrap:anywhere}
+.admin-notification-settings .admin-panel-card>form:not(.custom-fields-form){margin:12px 16px}
+.admin-notification-settings .admin-panel-card>.admin-action{margin:0 16px 14px}
+.admin-notification-settings form>button.admin-action{
+  justify-self:start;
+  max-width:100%;
+  min-height:36px;
+  padding:8px 12px;
+  white-space:normal;
+}
+.admin-notification-settings .admin-users-table-wrap{min-width:0;max-width:100%;overflow-x:auto}
+.admin-notification-settings :is(code,small){overflow-wrap:anywhere}
+.admin-notification-counts{display:flex;flex-wrap:wrap;gap:8px;margin:12px 16px}
+.admin-notification-settings>[data-notification-feedback]{
+  margin:0;
+  padding:12px 16px;
+  border:1px solid var(--ui-border);
+  border-radius:10px;
+  background:var(--ui-surface-soft);
+  overflow-wrap:anywhere;
+}
+@media(max-width:1180px){
+  .admin-notification-settings{grid-template-columns:minmax(0,1fr)}
+  .admin-notification-panel--smtp .admin-notification-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:600px){
+  .admin-notification-fields,.admin-notification-panel--smtp .admin-notification-fields{grid-template-columns:minmax(0,1fr)}
+  .admin-notification-settings form>button.admin-action{justify-self:stretch;width:100%}
+}
