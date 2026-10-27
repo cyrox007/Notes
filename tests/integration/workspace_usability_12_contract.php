@@ -56,6 +56,10 @@ $create = strpos($workPermits, '<h2 id="wp-form-title"');
 usabilityAssert($own !== false && $management !== false && $create !== false
     && $own < $management && $management < $create,
     'документы и журнал должны идти раньше формы создания');
+$betweenManagementAndCreation = substr($workPermits, $management, $create - $management);
+usabilityAssert(str_contains($betweenManagementAndCreation, '<?php endif; ?>'),
+    'обычная форма создания должна находиться вне блока управления нарядами');
+
 usabilityAssert(str_contains($workPermits, 'data-wp-form')
     && str_contains($workPermits, 'data-wp-management-list')
     && str_contains($workPermits, 'data-wp-list')
