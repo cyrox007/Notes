@@ -53,6 +53,13 @@ ob_start();
                 <i class="fa fa-angle-right workspace-module__arrow" aria-hidden="true"></i>
             </a>
         <?php endif; ?>
+        <?php if (!empty($access['work_permits'])): ?>
+            <a class="workspace-module workspace-module--work-permits" href="<?= $view->e($view->route('work_permits')) ?>">
+                <span class="workspace-module__icon"><i class="fa fa-clipboard" aria-hidden="true"></i></span>
+                <span class="workspace-module__body"><strong>Наряды и допуски</strong><small>Мои документы, выдача и рабочие смены.</small></span>
+                <i class="fa fa-angle-right workspace-module__arrow" aria-hidden="true"></i>
+            </a>
+        <?php endif; ?>
         <?php if (!empty($access['files'])): ?>
             <a class="workspace-module workspace-module--files" href="<?= $view->e($view->route('files')) ?>">
                 <span class="workspace-module__icon"><i class="fa fa-folder-o" aria-hidden="true"></i></span>
