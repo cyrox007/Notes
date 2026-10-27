@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Notifications;
 
 require_once __DIR__ . '/NotificationHttpTransport.php';
+require_once __DIR__ . '/LimitedHttpResponse.php';
 
 use InvalidArgumentException;
 use RuntimeException;
@@ -67,6 +68,7 @@ final class CurlNotificationHttpTransport implements NotificationHttpTransport
             $requestHeaders[] = $key . ': ' . $value;
         }
 
+        $responseBuffer = new LimitedHttpResponse();
         $curl = curl_init();
         if ($curl === false) {
             throw new RuntimeException('Не удалось начать HTTPS-доставку');
@@ -79,7 +81,9 @@ final class CurlNotificationHttpTransport implements NotificationHttpTransport
                 CURLOPT_POST => true,
                 CURLOPT_POSTFIELDS => $body,
                 CURLOPT_HTTPHEADER => $requestHeaders,
-                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_RETURNTRANSFER => false,
+                CURLOPT_WRITEFUNCTION => static fn ($handle, string $chunk): int
+                    => $responseBuffer->accept($chunk),
                 CURLOPT_HEADER => false,
                 CURLOPT_FOLLOWLOCATION => false,
                 CURLOPT_CONNECTTIMEOUT => min(5, $timeout),
@@ -87,16 +91,20 @@ final class CurlNotificationHttpTransport implements NotificationHttpTransport
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_SSL_VERIFYHOST => 2,
                 CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+                CURLOPT_PROXY => '',
                 CURLOPT_RESOLVE => [$host . ':443:' . $pinned],
             ]);
 
             $response = curl_exec($curl);
-            if (!is_string($response)) {
+            if ($responseBuffer->exceeded()) {
+                throw new RuntimeException('HTTP-ответ внешнего канала превышает допустимый размер');
+            }
+            if ($response !== true) {
                 // Не возвращаем URL, токен, тело запроса, DNS и cURL error.
                 throw new RuntimeException('HTTPS-соединение не выполнено; проверьте сеть и сертификаты');
             }
             $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-            return ['status' => $status, 'body' => substr($response, 0, 4096)];
+            return ['status' => $status, 'body' => $responseBuffer->preview()];
         } finally {
             curl_close($curl);
         }

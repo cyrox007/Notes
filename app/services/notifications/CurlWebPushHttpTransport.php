@@ -6,6 +6,7 @@ namespace App\Services\Notifications;
 
 require_once __DIR__ . '/WebPushHttpTransport.php';
 require_once __DIR__ . '/PushSubscriptionService.php';
+require_once __DIR__ . '/LimitedHttpResponse.php';
 
 use InvalidArgumentException;
 use RuntimeException;
@@ -52,6 +53,7 @@ final class CurlWebPushHttpTransport implements WebPushHttpTransport
 
         $ip = $safe[0];
         $pinned = str_contains($ip, ':') ? '[' . $ip . ']' : $ip;
+        $responseBuffer = new LimitedHttpResponse(0, 8192);
         $curl = curl_init();
         if ($curl === false) {
             throw new RuntimeException('Не удалось открыть Web Push соединение');
@@ -62,7 +64,9 @@ final class CurlWebPushHttpTransport implements WebPushHttpTransport
                 CURLOPT_POST => true,
                 CURLOPT_POSTFIELDS => $body,
                 CURLOPT_HTTPHEADER => $headersList,
-                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_RETURNTRANSFER => false,
+                CURLOPT_WRITEFUNCTION => static fn ($handle, string $chunk): int
+                    => $responseBuffer->accept($chunk),
                 CURLOPT_FOLLOWLOCATION => false,
                 CURLOPT_CONNECTTIMEOUT => 5,
                 CURLOPT_TIMEOUT => 12,
@@ -73,7 +77,10 @@ final class CurlWebPushHttpTransport implements WebPushHttpTransport
                 CURLOPT_RESOLVE => [$host . ':443:' . $pinned],
             ]);
             $response = curl_exec($curl);
-            if (!is_string($response)) {
+            if ($responseBuffer->exceeded()) {
+                throw new RuntimeException('HTTP-ответ Push-сервиса превышает допустимый размер');
+            }
+            if ($response !== true) {
                 throw new RuntimeException('Push-сервис недоступен или сертификат не прошёл проверку');
             }
             return (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);

@@ -1,0 +1,46 @@
+name: 1.2 — ограничение ответов внешних HTTP-каналов
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'app/services/notifications/LimitedHttpResponse.php'
+      - 'app/services/notifications/CurlNotificationHttpTransport.php'
+      - 'app/services/notifications/CurlWebPushHttpTransport.php'
+      - 'tests/integration/notification_http_response_limit_12.php'
+      - '.github/workflows/notification-http-response-limit-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'app/services/notifications/LimitedHttpResponse.php'
+      - 'app/services/notifications/CurlNotificationHttpTransport.php'
+      - 'app/services/notifications/CurlWebPushHttpTransport.php'
+      - 'tests/integration/notification_http_response_limit_12.php'
+      - '.github/workflows/notification-http-response-limit-12.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  limited-http-response:
+    name: Проверка безопасного предела ответа HTTP
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: curl
+          coverage: none
+      - name: Проверить синтаксис, границы и подключения
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/services/notifications/LimitedHttpResponse.php
+          php -l app/services/notifications/CurlNotificationHttpTransport.php
+          php -l app/services/notifications/CurlWebPushHttpTransport.php
+          php -l tests/integration/notification_http_response_limit_12.php
+          php tests/integration/notification_http_response_limit_12.php
+          php tests/integration/notification_external_channels_12.php
