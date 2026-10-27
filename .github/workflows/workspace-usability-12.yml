@@ -1,0 +1,64 @@
+name: 1.2 — удобство основных рабочих экранов
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'core/Controller.php'
+      - 'app/controllers/MainController.php'
+      - 'app/services/WorkspaceHomeSummary.php'
+      - 'app/views/main_page/index.php'
+      - 'app/views/^shared/sidebar/index.php'
+      - 'assets/css/workspace.css'
+      - 'modules/work-permits/views/index.php'
+      - 'modules/work-permits/assets/work-permits.css'
+      - 'modules/files/views/spaces.php'
+      - 'modules/files/views/admin-spaces.php'
+      - 'modules/files/assets/spaces-usability.css'
+      - 'modules/profile/views/publication.php'
+      - 'modules/profile/assets/metrics.css'
+      - 'tests/integration/workspace_usability_12_contract.php'
+      - '.github/workflows/workspace-usability-12.yml'
+  push:
+    branches: ['1.2']
+    paths:
+      - 'tests/integration/workspace_usability_12_contract.php'
+      - '.github/workflows/workspace-usability-12.yml'
+      - 'core/Controller.php'
+      - 'modules/work-permits/views/index.php'
+      - 'modules/files/views/spaces.php'
+
+permissions:
+  contents: read
+
+jobs:
+  workspace-usability:
+    name: Доступ к нарядам и компактные рабочие экраны
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверить синтаксис и контракты
+        shell: bash
+        run: |
+          set -euo pipefail
+          for source in \
+            core/Controller.php \
+            app/controllers/MainController.php \
+            app/services/WorkspaceHomeSummary.php \
+            app/views/^shared/sidebar/index.php \
+            app/views/main_page/index.php \
+            modules/work-permits/views/index.php \
+            modules/files/views/spaces.php \
+            modules/files/views/admin-spaces.php \
+            modules/profile/views/publication.php
+          do
+            php -l "$source"
+          done
+          php tests/integration/workspace_usability_12_contract.php
+          php tests/integration/native_workspace_shell_contract.php
