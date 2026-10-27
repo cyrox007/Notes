@@ -53,6 +53,39 @@ try {
     release12Assert(in_array('exact_sha', $wrong['blockers'], true),
         'проверка на чужом SHA запрещена');
 
+    $wrongDate = Release12SourcePreflight::inspect($temp, '1.2.0', 12000, 'stable',
+        '2026-02-31', $sha, $sha);
+    release12Assert(in_array('version_identity', $wrongDate['blockers'], true),
+        'несуществующая календарная дата должна блокировать выпуск');
+
+    mkdir($temp . '/database/migrations/nested', 0700, true);
+    file_put_contents($temp . '/database/migrations/nested/another.sql', "-- Испытательная миграция.\n");
+    file_put_contents($temp . '/database/migrations/manifest.json',
+        '{"schema":1,"product":"workspace-organizer","migrations":["nested/another.sql"]}');
+    $nested = Release12SourcePreflight::inspect($temp, '1.2.0', 12000, 'stable',
+        '2026-11-01', $sha, $sha);
+    release12Assert(in_array('migration_manifest', $nested['blockers'], true),
+        'манифест не должен принимать вложенный или неоднозначный путь к SQL');
+    unlink($temp . '/database/migrations/nested/another.sql');
+    rmdir($temp . '/database/migrations/nested');
+    file_put_contents($temp . '/database/migrations/manifest.json',
+        '{"schema":1,"product":"workspace-organizer","migrations":["test.sql"]}');
+
+    $outside = tempnam(sys_get_temp_dir(), 'release12-outside-');
+    if (is_string($outside)) {
+        file_put_contents($outside, "-- Миграция за пределами пакета.\n");
+        unlink($temp . '/database/migrations/test.sql');
+        if (function_exists('symlink') && @symlink($outside, $temp . '/database/migrations/test.sql')) {
+            $linked = Release12SourcePreflight::inspect($temp, '1.2.0', 12000, 'stable',
+                '2026-11-01', $sha, $sha);
+            release12Assert(in_array('migration_manifest', $linked['blockers'], true),
+                'символическая ссылка вне дерева пакета не должна проходить проверку');
+            unlink($temp . '/database/migrations/test.sql');
+        }
+        file_put_contents($temp . '/database/migrations/test.sql', "-- Обычная миграция.\n");
+        unlink($outside);
+    }
+
     unlink($temp . '/database/migrations/test.sql');
     $missing = Release12SourcePreflight::inspect($temp, '1.2.0', 12000, 'stable',
         '2026-11-01', $sha, $sha);

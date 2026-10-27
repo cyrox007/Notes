@@ -33,9 +33,9 @@ final class Release12SourcePreflight
         if ($filesPresent) {
             foreach ($migrations as $migration) {
                 if (!is_string($migration)
-                    || preg_match('~^[a-zA-Z0-9_./-]+\.sql$~D', $migration) !== 1
-                    || str_contains($migration, '..')
-                    || !is_file($root . '/database/migrations/' . $migration)) {
+                    || preg_match('~^[a-zA-Z0-9_-]+\.sql$~D', $migration) !== 1
+                    || !is_file($root . '/database/migrations/' . $migration)
+                    || is_link($root . '/database/migrations/' . $migration)) {
                     $filesPresent = false;
                     break;
                 }
@@ -51,7 +51,9 @@ final class Release12SourcePreflight
                 && hash_equals($actualSha, $expectedSha),
             'version_identity' => $version === '1.2.0' && $versionCode === 12000
                 && $status === 'stable'
-                && preg_match('/^\d{4}-\d{2}-\d{2}$/D', $releaseDate) === 1,
+                && preg_match('/^\d{4}-\d{2}-\d{2}$/D', $releaseDate) === 1
+                && checkdate((int) substr($releaseDate, 5, 2),
+                    (int) substr($releaseDate, 8, 2), (int) substr($releaseDate, 0, 4)),
             'readme' => preg_match('/^\*\*Версия:\*\*\s*`1\.2\.0`\s*$/m', $readme) === 1,
             'changelog' => preg_match('/^## 1\.2\.0(?:\s|$)/m', $changelog) === 1,
             'release_notes' => str_contains($notes, '# Workspace Organizer 1.2.0')
@@ -79,7 +81,7 @@ final class Release12SourcePreflight
 
     private static function read(string $path): string
     {
-        if (!is_file($path)) return '';
+        if (!is_file($path) || is_link($path)) return '';
         $content = @file_get_contents($path);
         return is_string($content) ? $content : '';
     }
