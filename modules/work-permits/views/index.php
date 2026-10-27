@@ -10,39 +10,21 @@ ob_start();
     <?= $csrf_input ?? '' ?>
     <header class="module-page-header">
         <h1>Наряды и допуски</h1>
-        <p>Журнал нарядов и распоряжений: выдача, допуски, перерывы, продления, закрытие и печать наряда в PDF.</p>
+        <p>Сначала выберите документ в журнале или создайте новый. Дальнейшие действия появятся в карточке документа.</p>
     </header>
     <p data-wp-feedback role="status" aria-live="polite" hidden></p>
-    <section class="calendar-shell wp-journal__editor" aria-labelledby="wp-form-title">
-        <h2 id="wp-form-title">Новый документ</h2>
-        <form data-wp-form>
-            <label>Тип документа
-                <select name="kind" required>
-                    <option value="permit">Наряд-допуск</option>
-                    <option value="order">Распоряжение</option>
-                </select>
-            </label>
-            <label>Организация
-                <select name="organization_id" data-wp-organization required><option value="">Загрузка организаций…</option></select>
-            </label>
-            <label>Подразделение
-                <select name="department_id" data-wp-department><option value="">Не выбрано</option></select>
-            </label>
-            <label>Объект / подстанция
-                <select name="facility_id" data-wp-facility required><option value="">Выберите объект</option></select>
-            </label>
-            <div class="wp-journal__template-picker wp-journal__wide" data-wp-job-picker="new">
-                <label>Шаблон задания <select data-wp-job-choice><option value="">Выберите организацию</option></select></label>
-                <button type="button" data-wp-apply-job>Подставить задание</button>
-            </div>
-            <label class="wp-journal__wide">Задание на производство работ
-                <textarea name="work_description" maxlength="10000" rows="4" required></textarea>
-            </label>
-            <button type="submit" data-wp-submit>Сохранить черновик</button>
-        </form>
-        <p>Номер присваивается сервером. Черновик ещё не является выданным нарядом или распоряжением.</p>
+    <nav class="wp-journal__shortcuts" aria-label="Разделы журнала">
+        <a href="#wp-registry-title"><i class="fa fa-folder-open-o" aria-hidden="true"></i> Мои документы</a>
+        <?php if (!empty($can_manage_references)): ?>
+            <a href="#wp-management-title"><i class="fa fa-clipboard" aria-hidden="true"></i> Журнал выдачи</a>
+        <?php endif; ?>
+        <a href="#wp-form-title" class="wp-journal__shortcuts-primary"><i class="fa fa-plus" aria-hidden="true"></i> Создать документ</a>
+    </nav>
+    <section class="calendar-shell wp-journal__registry" aria-labelledby="wp-registry-title">
+        <h2 id="wp-registry-title">Мои документы за последний месяц</h2>
+        <div data-wp-list aria-live="polite"></div>
+        <button type="button" data-wp-more hidden>Показать ещё</button>
     </section>
-
     <section class="calendar-shell wp-journal__editor" data-wp-editor hidden aria-labelledby="wp-edit-title">
         <h2 id="wp-edit-title" data-wp-edit-title>Изменить черновик</h2>
         <p>Карточка и состав бригады сохраняются вместе. При изменении в другой вкладке загрузите актуальную версию.</p>
@@ -78,7 +60,7 @@ ob_start();
 
     <?php if (!empty($can_manage_references)): ?>
     <section class="calendar-shell wp-journal__registry" data-wp-management>
-        <h2>Журнал на выдачу и первичный допуск</h2>
+        <h2 id="wp-management-title">Журнал на выдачу и первичный допуск</h2>
         <p>Показываются документы разных авторов. Операции требуют разрешения на управление модулем.</p>
         <label>Состояние
             <select data-wp-management-state>
@@ -90,6 +72,36 @@ ob_start();
         <div data-wp-management-list aria-live="polite"></div>
         <button type="button" data-wp-management-more hidden>Показать ещё</button>
     </section>
+    <section class="calendar-shell wp-journal__editor" aria-labelledby="wp-form-title">
+        <h2 id="wp-form-title">Новый документ</h2>
+        <form data-wp-form>
+            <label>Тип документа
+                <select name="kind" required>
+                    <option value="permit">Наряд-допуск</option>
+                    <option value="order">Распоряжение</option>
+                </select>
+            </label>
+            <label>Организация
+                <select name="organization_id" data-wp-organization required><option value="">Загрузка организаций…</option></select>
+            </label>
+            <label>Подразделение
+                <select name="department_id" data-wp-department><option value="">Не выбрано</option></select>
+            </label>
+            <label>Объект / подстанция
+                <select name="facility_id" data-wp-facility required><option value="">Выберите объект</option></select>
+            </label>
+            <div class="wp-journal__template-picker wp-journal__wide" data-wp-job-picker="new">
+                <label>Шаблон задания <select data-wp-job-choice><option value="">Выберите организацию</option></select></label>
+                <button type="button" data-wp-apply-job>Подставить задание</button>
+            </div>
+            <label class="wp-journal__wide">Задание на производство работ
+                <textarea name="work_description" maxlength="10000" rows="4" required></textarea>
+            </label>
+            <button type="submit" data-wp-submit>Сохранить черновик</button>
+        </form>
+        <p>Номер присваивается сервером. Черновик ещё не является выданным нарядом или распоряжением.</p>
+    </section>
+
     <section class="calendar-shell wp-journal__editor" data-wp-lifecycle hidden aria-label="Выдача и первичный допуск">
         <h2 data-wp-lifecycle-title>Выдача документа</h2>
         <p>Время вводится по часовому поясу объекта, указанному над формой, а не по часам вашего устройства.</p>
@@ -433,11 +445,6 @@ ob_start();
         <button type="button" data-wp-template-more hidden>Показать ещё</button>
     </details>
     <?php endif; ?>
-    <section class="calendar-shell wp-journal__registry" aria-labelledby="wp-registry-title">
-        <h2 id="wp-registry-title">Мои документы за последний месяц</h2>
-        <div data-wp-list aria-live="polite"></div>
-        <button type="button" data-wp-more hidden>Показать ещё</button>
-    </section>
 </main>
 <?php
 $content = (string) ob_get_clean();
