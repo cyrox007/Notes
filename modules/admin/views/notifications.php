@@ -46,7 +46,7 @@ ob_start();
         </div>
     </header>
 
-    <section class="admin-panel-card">
+    <section class="admin-panel-card admin-notification-panel--wide admin-notification-panel--smtp">
         <div class="admin-panel-card__header">
             <div>
                 <h2>Электронная почта — SMTP</h2>
@@ -130,7 +130,7 @@ ob_start();
         <p>Для доставки обычных уведомлений пользователь должен разрешить E-mail в настройках своей категории. Обработчик очереди запускается по расписанию; резервный HTTP-проход включён как страховка.</p>
     </section>
 
-    <section class="admin-panel-card">
+    <section class="admin-panel-card admin-notification-panel--wide">
         <div class="admin-panel-card__header">
             <div>
                 <h2>Проверка настоящей доставки</h2>
@@ -216,7 +216,7 @@ ob_start();
            href="<?= $view->e($view->route('admin_notifications')) ?>">Обновить состояние</a>
     </section>
 
-    <section class="admin-panel-card">
+    <section class="admin-panel-card admin-notification-panel--wide">
         <div class="admin-panel-card__header">
             <div>
                 <h2>Ручная приёмка получения</h2>
@@ -345,7 +345,7 @@ ob_start();
         <p>Свидетельство оператора может быть исправлено повторной проверкой. Адрес, содержание уведомления и секреты в отчёт не включаются.</p>
     </section>
 
-    <section class="admin-panel-card">
+    <section class="admin-panel-card admin-notification-panel--wide">
         <div class="admin-panel-card__header">
             <div>
                 <h2>Состояние очереди</h2>
@@ -585,7 +585,10 @@ echo $view->layout('core/base', [
     'workspaceAccess' => $access,
     'socket_ticket' => $socket_ticket ?? '',
     'socket_url' => $socket_url ?? '',
-    'module_styles' => [$view->moduleAsset('admin', 'style.css')],
+    'module_styles' => [
+        $view->moduleAsset('admin', 'style.css'),
+        $view->moduleAsset('admin', 'notification-settings.css'),
+    ],
     'module_scripts' => [
         $view->moduleAsset('admin', 'admin-settings-nav.js'),
         $view->moduleAsset('admin', 'notification-settings.js'),
