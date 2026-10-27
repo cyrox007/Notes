@@ -109,6 +109,16 @@ jobs:
             tests/integration/notes_files_staged_http_capacity_12.py
           php tests/integration/filespaces_http_seed_12.php > /tmp/fsp-http-fixture.json
           php tests/support/ci_license_fixture.php
+          # Диагностируем фактическую готовность схемы до обращения по HTTP.
+          # Печатаются только имена отсутствующих таблиц/столбцов.
+          php -r '
+            require_once "core/CliRuntime.php";
+            \Core\CliRuntime::loadEnvironment(getcwd());
+            require_once "core/RuntimeAutoloader.php";
+            \Core\RuntimeAutoloader::register(getcwd());
+            $state = \Core\SchemaReadiness::inspect(getcwd());
+            echo json_encode($state, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), PHP_EOL;
+          '
           # На одноразовом CI-исполнителе файлы находятся под /home/runner.
           # Для production это не образец назначения пользователя веб-службы.
           chmod 600 .env
