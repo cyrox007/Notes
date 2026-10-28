@@ -70,6 +70,7 @@ jobs:
           set -euo pipefail
           php tests/integration/defects_service_assignments_12.php
           php tests/integration/defects_registration_12.php
+          php tests/integration/defects_module_runtime_12.php
 
       - name: Развернуть каноническую схему MySQL 8.4
         run: |
