@@ -153,6 +153,33 @@ try {
     await detail(page, first);
     check((await page.locator('[data-defects-history-list]').innerText()).includes('Зарегистрирован'),
         'Регистрация отсутствует в истории');
+    const editServices = page.locator('form[data-defects-services-edit]');
+    await editServices.waitFor({ state: 'visible' });
+    const entries = editServices.locator('[data-service-id]');
+    check(await entries.count() >= 2, 'Редактор не загрузил доступные службы');
+    await entries.nth(0).locator('input[type="text"]').fill('Иванов И. И.');
+    await entries.nth(1).locator('input[type="checkbox"]').check();
+    await entries.nth(1).locator('input[type="text"]').fill('Петров П. П.');
+    const pendingAssignments = ajaxResponse(page, '/api/defects/' + first + '/services');
+    await editServices.locator('button[type="submit"]').click();
+    const assignmentsResponse = await pendingAssignments;
+    check(assignmentsResponse.status() === 200, 'Не сохранились назначения исполнителей');
+    await page.locator('[data-defects-history-list]').getByText('Изменены службы и исполнители').waitFor({ state: 'visible' });
+    check((await editServices.locator('input[type="text"]').nth(1).inputValue()) === 'Петров П. П.',
+        'После сохранения потеряно назначение второго исполнителя');
+    const token = await page.locator('#defects-workspace input[name="csrf_token"]').inputValue();
+    const conflict = await page.evaluate(async ({baseUrl, identifier, csrfToken}) => {
+        const response = await fetch(baseUrl + '/api/defects/' + identifier + '/services', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+            body: JSON.stringify({
+                version: 1, command_id: 'assign_browser_conflict_123456',
+                assignments: [{ service_id: 1, executor_name: 'Конфликт' }],
+            }),
+        });
+        return response.status;
+    }, { baseUrl: base, identifier: first, csrfToken: token });
+    check(conflict === 409, 'Устаревшее назначение не отклонено конфликтом 409');
     await closeDefect(page, first, 'Заменён повреждённый изолятор');
     await page.locator('[data-defects-tab="closed"]').click();
     await page.locator('.defects-row[data-defect-id="' + first + '"]').waitFor({ state: 'visible' });
@@ -231,6 +258,19 @@ try {
     const denied = await regular.evaluate(async url =>
         (await fetch(url + '/api/defects/references/manage?kind=services', { credentials: 'same-origin' })).status, base);
     check(denied === 403, 'Сервер разрешил обычному пользователю доступ к управлению справочниками');
+    const regularCsrf = await regular.locator('#defects-workspace input[name="csrf_token"]').inputValue();
+    const forbiddenAssignment = await regular.evaluate(async ({baseUrl, csrfToken, identifier}) => {
+        const response = await fetch(baseUrl + '/api/defects/' + identifier + '/services', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+            body: JSON.stringify({
+                version: 2, command_id: 'assign_forbidden_user_123456',
+                assignments: [{ service_id: 1, executor_name: 'Без прав' }],
+            }),
+        });
+        return response.status;
+    }, { baseUrl: base, csrfToken: regularCsrf, identifier: first });
+    check(forbiddenAssignment === 403, 'Обычному пользователю разрешили редактировать службы');
 
     const mobileContext = await browser.newContext({
         viewport: { width: 390, height: 844 }, isMobile: true, deviceScaleFactor: 1,
