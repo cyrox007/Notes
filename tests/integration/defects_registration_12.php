@@ -67,6 +67,7 @@ $pdo->exec('CREATE TABLE defects (
 $pdo->exec('CREATE TABLE defect_responsible_services (
     defect_id INTEGER NOT NULL REFERENCES defects(id),
     service_id INTEGER NOT NULL REFERENCES defect_services(id),
+    executor_name TEXT DEFAULT NULL,
     PRIMARY KEY (defect_id, service_id)
 )');
 $pdo->exec('INSERT INTO defect_areas (id) VALUES (1)');
