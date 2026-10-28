@@ -1,0 +1,54 @@
+name: "1.2 — блокирующая проверка выпуска"
+
+# Проверка запускается при выпуске кандидата или вручную.
+# На обычных рабочих запросах она не должна блокировать исправления незакрытых задач.
+on:
+  push:
+    tags: ['v1.2.0-rc*', 'v1.2.0']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  release-blockers:
+    name: "Проверить обязательные условия выпуска"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: "Получить точный исходный код"
+        uses: actions/checkout@v4
+
+      - name: "Проверить незавершённые задачи релиза"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Нельзя признать выпуск готовым, пока остаётся хотя бы один обязательный блокер.
+          blockers=(274 421 422 423 424 425 426 427 429 537)
+          open=()
+          for number in "${blockers[@]}"; do
+            state="$(gh api "repos/$GH_REPO/issues/$number" --jq '.state')"
+            if [[ "$state" != "closed" ]]; then
+              open+=("#$number")
+            fi
+          done
+          if (( ${#open[@]} > 0 )); then
+            printf 'Выпуск 1.2 заблокирован открытыми задачами: %s\n' "${open[*]}"
+            exit 1
+          fi
+
+      - name: "Подготовить PHP 8.3"
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: "Проверить идентичность релизного исходника"
+        shell: bash
+        run: |
+          set -euo pipefail
+          php bin/release_12_source_preflight.php --expected-sha="$GITHUB_SHA" --json
