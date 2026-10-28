@@ -388,6 +388,11 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
             const description = event.event_type === 'closed' ? details.completed_work
                 : event.event_type === 'created' ? details.description : '';
             if (description) li.append(element('p', '', description));
+            if (event.event_type === 'closed') {
+                if (details.completed_by_name) li.append(element('p', '', 'Исполнитель: ' + details.completed_by_name));
+                if (details.closed_at) li.append(element('p', '', 'Фактическое закрытие: ' + dateText(details.closed_at)));
+                if (details.close_comment) li.append(element('p', '', 'Комментарий: ' + details.close_comment));
+            }
             historyList.append(li);
         });
     };
@@ -481,6 +486,9 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         try {
             await request(api + '/' + id + '/close', {
                 completed_work: closeForm.elements.namedItem('completed_work').value,
+                closed_at: new Date(closeForm.elements.namedItem('closed_at').value).toISOString(),
+                completed_by_name: closeForm.elements.namedItem('completed_by_name').value,
+                close_comment: closeForm.elements.namedItem('close_comment').value,
                 version: Number(state.detail.version), command_id: state.closeCommand,
             });
             state.closeCommand = null;
