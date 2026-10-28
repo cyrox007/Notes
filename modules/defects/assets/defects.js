@@ -185,6 +185,16 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         && new Date(String(item.due_at).replace(' ', 'T') + 'Z').getTime() < Date.now();
     const renderRow = (item) => {
         const row = element('button', 'defects-row');
+        // Цвет зависит от фактического срока; статус закрытия важнее подсветки.
+        if (item.status === 'open') {
+            const remaining = Date.parse(String(item.due_at).replace(' ', 'T') + 'Z') - Date.now();
+            const registered = Date.parse(String(item.created_at).replace(' ', 'T') + 'Z');
+            if (Number.isFinite(remaining) && remaining < 0) row.classList.add('defects-row--overdue');
+            else if (Number.isFinite(remaining) && remaining <= 3 * 86400000) row.classList.add('defects-row--urgent');
+            else if (Number.isFinite(remaining) && remaining <= 10 * 86400000) row.classList.add('defects-row--soon');
+            else if (Number.isFinite(registered) && registered <= Date.now()
+                && Date.now() - registered < 86400000) row.classList.add('defects-row--new');
+        }
         row.type = 'button';
         row.dataset.defectId = String(item.id);
         const main = element('span', 'defects-row__main');
@@ -302,6 +312,14 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
                 showFormError('[data-defects-create-error]', errorText(error));
             }
         }
+    });
+    form.addEventListener('reset', () => {
+        state.creationCommand = null;
+        showFormError('[data-defects-create-error]', '');
+        ++categorySequence;
+        ++objectSequence;
+        fillSelect(category, [], 'Выберите категорию');
+        fillSelect(object, [], 'Выберите объект');
     });
     form.addEventListener('input', () => { state.creationCommand = null; });
     form.addEventListener('change', () => { state.creationCommand = null; });
