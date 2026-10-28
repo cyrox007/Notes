@@ -54,6 +54,10 @@ ob_start();
                 <label>Ответственная служба <select data-defects-filter-service><option value="">Все службы</option></select></label>
                 <label>Обнаружен с <input type="date" data-defects-from></label>
                 <label>По <input type="date" data-defects-to></label>
+                <label>Зарегистрирован с <input type="date" data-defects-registered-from></label>
+                <label>Зарегистрирован по <input type="date" data-defects-registered-to></label>
+                <label>Плановый срок с <input type="date" data-defects-due-from></label>
+                <label>Плановый срок по <input type="date" data-defects-due-to></label>
             </div>
             <button type="button" class="defects-button defects-button--secondary ui-button ui-button--secondary" data-defects-reset>Сбросить фильтры</button>
         </details>
