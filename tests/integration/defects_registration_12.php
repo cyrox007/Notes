@@ -61,7 +61,8 @@ $pdo->exec('CREATE TABLE defects (
     closed_by_user_id INTEGER DEFAULT NULL,
     close_command_id TEXT DEFAULT NULL UNIQUE,
     close_request_hash TEXT DEFAULT NULL,
-    version INTEGER NOT NULL DEFAULT 1
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 )');
 $pdo->exec('CREATE TABLE defect_responsible_services (
     defect_id INTEGER NOT NULL REFERENCES defects(id),
