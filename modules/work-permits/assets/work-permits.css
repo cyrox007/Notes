@@ -7,6 +7,14 @@
 .wp-journal__wide{grid-column:1/-1}
 .wp-journal button{justify-self:start;padding:10px 16px;border:1px solid var(--ui-border);border-radius:8px;background:var(--ui-primary);color:white;cursor:pointer}
 .wp-journal button:disabled{opacity:.6;cursor:wait}
+.wp-journal :is(button,.wp-journal__quick-nav a){transition:background-color .2s ease,border-color .2s ease,box-shadow .2s ease,transform .2s ease}
+@media(hover:hover){.wp-journal :is(button:not(:disabled),.wp-journal__quick-nav a):hover{transform:translateY(-2px);box-shadow:0 5px 14px color-mix(in srgb,var(--ui-primary,#4f46e5) 22%,transparent);filter:brightness(1.08)}}
+.wp-journal button:not(:disabled):active{transform:translateY(0) scale(.98);box-shadow:none}
+.wp-journal summary{cursor:pointer;user-select:none;transition:color .2s ease}
+.wp-journal summary:hover{color:var(--ui-primary,#4f46e5)}
+.wp-journal summary::after{content:'⌄';display:inline-block;margin-left:10px;transition:transform .28s ease}
+.wp-journal details[open]>summary::after{transform:rotate(180deg)}
+@media(prefers-reduced-motion:reduce){.wp-journal :is(button,a,summary,summary::after){transition:none!important;transform:none!important}}
 .wp-journal__row{display:grid;gap:5px;padding:14px 0;border-bottom:1px solid var(--ui-border)}
 .wp-journal__row:last-child{border-bottom:0}
 .wp-journal__row small{color:var(--ui-muted)}
