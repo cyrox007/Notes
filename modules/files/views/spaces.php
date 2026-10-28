@@ -74,8 +74,23 @@ ob_start();
             <div class="file-manager__grid">
                 <?php foreach ($items as $item): ?>
                     <?php if (!is_array($item)) { continue; } ?>
-                    <div class="file-manager__item">
-                        <div class="file-manager__item-icon"><i class="fa <?= ($item['type'] ?? '') === 'folder' ? 'fa-folder' : 'fa-file-o' ?>" aria-hidden="true"></i></div>
+                    <?php
+                    $extension = strtolower(pathinfo((string) ($item['name'] ?? ''), PATHINFO_EXTENSION));
+                    $fileIcon = match ($extension) {
+                        'pdf' => 'fa-file-pdf-o',
+                        'doc', 'docx', 'odt' => 'fa-file-word-o',
+                        'xls', 'xlsx', 'csv', 'ods' => 'fa-file-excel-o',
+                        'ppt', 'pptx', 'odp' => 'fa-file-powerpoint-o',
+                        'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg' => 'fa-file-image-o',
+                        'zip', 'rar', '7z', 'gz', 'tar' => 'fa-file-archive-o',
+                        'mp3', 'ogg', 'wav', 'flac' => 'fa-file-audio-o',
+                        'mp4', 'webm', 'avi', 'mov' => 'fa-file-video-o',
+                        'txt', 'md', 'log' => 'fa-file-text-o',
+                        default => 'fa-file-o',
+                    };
+                    ?>
+                    <div class="file-manager__item" data-type="<?= ($item['type'] ?? '') === 'folder' ? 'folder' : 'file' ?>" data-extension="<?= $view->e($extension) ?>">
+                        <div class="file-manager__item-icon"><i class="fa <?= ($item['type'] ?? '') === 'folder' ? 'fa-folder' : $fileIcon ?>" aria-hidden="true"></i></div>
                         <div class="file-manager__item-name">
                             <?php if (($item['type'] ?? '') === 'folder'): ?>
                                 <a href="<?= $view->e($folderLink((int) $item['id'])) ?>"><?= $view->e($item['name']) ?></a>

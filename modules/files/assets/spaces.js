@@ -7,11 +7,27 @@ window.wspace.page.register('modules/files/assets/spaces.js', (pageScope) => {
         if (!root || root.dataset.actionsReady === '1') return;
         root.dataset.actionsReady = '1';
 
+        const motions = new Map();
+        const moveDialog = (dialog, closing = false) => {
+            if (!dialog || (closing && !dialog.open)) return;
+            motions.get(dialog)?.cancel();
+            if (!closing && !dialog.open) dialog.showModal();
+            const finish = () => { if (closing) dialog.close(); motions.delete(dialog); };
+            if (matchMedia('(prefers-reduced-motion: reduce)').matches) { finish(); return; }
+            const frames = [{opacity:0, transform:'translateY(14px) scale(.98)'}, {opacity:1, transform:'translateY(0) scale(1)'}];
+            const animation = dialog.animate(closing ? [...frames].reverse() : frames, {duration:220, easing:'cubic-bezier(.22,1,.36,1)', fill:'both'});
+            motions.set(dialog, animation);
+            animation.onfinish = () => { finish(); animation.cancel(); };
+        };
+        root.querySelectorAll('.filespace-properties').forEach(dialog => {
+            pageScope.listen(dialog, 'cancel', event => { event.preventDefault(); moveDialog(dialog, true); });
+        });
+        pageScope.onDispose(() => { motions.forEach((animation, dialog) => { animation.cancel(); dialog.close(); }); motions.clear(); });
         pageScope.listen(root, 'click', event => {
             const trigger = event.target.closest('[data-filespace-properties]');
-            if (trigger) document.getElementById(trigger.dataset.filespaceProperties)?.showModal();
+            if (trigger) moveDialog(document.getElementById(trigger.dataset.filespaceProperties));
             const close = event.target.closest('[data-filespace-close]');
-            if (close) close.closest('dialog')?.close();
+            if (close) moveDialog(close.closest('dialog'), true);
         });
 
         const newCommandId = () => 'files:web:' + (
