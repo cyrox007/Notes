@@ -192,8 +192,8 @@ ob_start();
                 <input type="hidden" name="parent_id" value="<?= $folderId === null ? '' : (int) $folderId ?>">
                 <input type="hidden" name="expected_version" value="<?= $folderVersion ?>">
                 <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
-                <label for="filespace-folder-name">Название</label>
-                <input id="filespace-folder-name" name="name" type="text" maxlength="255" required>
+                <label for="filespace-folder-name">Название
+                <input id="filespace-folder-name" name="name" type="text" maxlength="255" required></label>
                 <button class="file-manager__btn file-manager__btn--primary ui-button ui-button--primary" type="submit">Создать</button>
             </form>
         </section>
