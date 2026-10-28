@@ -24,7 +24,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
     const services = $('[data-defects-services]');
     const referenceForm = $('[data-defects-reference]');
     const closeForm = $('[data-defects-close]');
-    const displayButtons = $('[data-defects-display]');
+    const displayButtons = Array.from(root.querySelectorAll('[data-defects-display]'));
     const sortSelect = $('[data-defects-sort]');
     const filters = {
         priority: $('[data-defects-priority]'),
