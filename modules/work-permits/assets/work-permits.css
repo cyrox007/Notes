@@ -121,3 +121,8 @@
 .wp-journal :is([data-wp-list],[data-wp-management-list]){min-height:52px}
 .wp-journal :is([data-wp-list],[data-wp-management-list])>p{margin:0;padding:12px 0;line-height:24px;color:var(--ui-muted)}
 @media(prefers-reduced-motion:reduce){.wp-journal :is(button,.wp-journal__shortcuts a){transition:none!important;transform:none!important;filter:none!important}}
+
+/* Состояние журнала: черновик жёлтый, выданный зелёный, закрытый нейтральный. */
+.wp-journal__row[data-state="draft"]{box-shadow:inset 4px 0 0 var(--ui-warning);background:color-mix(in srgb,var(--ui-warning-soft) 52%,var(--ui-surface))}
+.wp-journal__row[data-state="issued"]{box-shadow:inset 4px 0 0 var(--ui-success);background:color-mix(in srgb,var(--ui-success-soft) 44%,var(--ui-surface))}
+.wp-journal__row[data-state="closed"]{background:var(--ui-surface)}
