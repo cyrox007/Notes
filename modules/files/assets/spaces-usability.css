@@ -78,3 +78,11 @@
 .file-spaces-page__catalog .file-manager__item{background:var(--ui-surface);gap:6px 10px}
 .file-spaces-page__catalog .file-manager__item-name{white-space:normal;overflow-wrap:anywhere}
 .file-spaces-page__catalog .filespace-properties-trigger{margin-top:8px;min-height:34px}
+
+/* Give both controls the same label row and control row. */
+.file-spaces-page .file-manager-findability{display:grid;grid-template-columns:minmax(0,1fr) 220px max-content;align-items:end;padding:12px 0 16px}
+.file-spaces-page .file-manager-findability>label{display:grid;grid-template-rows:16px 40px;gap:6px;margin:0;align-self:end}
+.file-spaces-page .file-manager-findability .list-findability__search>span{position:static;width:auto;height:auto;overflow:visible;clip-path:none}
+.file-spaces-page .file-manager-findability input,.file-spaces-page .file-manager-findability select{height:40px;min-height:40px;margin:0;box-sizing:border-box;width:100%}
+.file-spaces-page .file-manager-findability .list-findability__summary{align-self:end;display:flex;align-items:center;height:40px}
+@media(max-width:600px){.file-spaces-page .file-manager-findability{grid-template-columns:minmax(0,1fr)}.file-spaces-page .file-manager-findability .list-findability__summary{height:auto}}
