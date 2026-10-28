@@ -114,13 +114,15 @@ final class WorkPermitDraftService
      *
      * @return array{items:list<array<string,mixed>>,next_cursor:?int}
      */
-    public function listMine(int $userId, int $limit = 20, int $beforeId = 0): array
+    public function listMine(int $userId, int $limit = 20, int $beforeId = 0, string $state = 'active'): array
     {
-        if ($userId < 1 || $limit < 1 || $limit > 50 || $beforeId < 0) {
+        if ($userId < 1 || $limit < 1 || $limit > 50 || $beforeId < 0
+            || !in_array($state, ['active', 'closed', 'all'], true)) {
             throw new InvalidArgumentException('Недопустимые параметры журнала');
         }
         $params = [':user' => $userId];
-        $cursorSql = '';
+        $cursorSql = $state === 'active' ? " AND state <> 'closed'"
+            : ($state === 'closed' ? " AND state = 'closed'" : '');
         if ($beforeId > 0) {
             $cursorSql = ' AND id < :cursor';
             $params[':cursor'] = $beforeId;
@@ -147,13 +149,21 @@ final class WorkPermitDraftService
      *
      * @return array{items:list<array<string,mixed>>,next_cursor:?int}
      */
-    public function managementList(int $limit = 20, int $beforeId = 0, string $state = 'draft'): array
+    public function managementList(int $limit = 20, int $beforeId = 0, string $state = 'active'): array
     {
         if ($limit < 1 || $limit > 50 || $beforeId < 0
-            || !in_array($state, ['draft', 'issued', 'closed'], true)) {
+            || !in_array($state, ['active', 'draft', 'issued', 'closed', 'all'], true)) {
             throw new InvalidArgumentException('Некорректный фильтр управленческого журнала');
         }
-        $params = [':state' => $state];
+        $params = [];
+        $stateFilter = match ($state) {
+            'active' => "state <> 'closed'",
+            'all' => '1=1',
+            default => 'state = :state',
+        };
+        if ($state !== 'active' && $state !== 'all') {
+            $params[':state'] = $state;
+        }
         $cursor = '';
         if ($beforeId > 0) {
             $cursor = ' AND id<:cursor';
@@ -167,7 +177,7 @@ final class WorkPermitDraftService
                     (SELECT COUNT(*) FROM work_permit_completions co
                      WHERE co.document_id=work_permit_documents.id) AS has_completion
              FROM work_permit_documents
-             WHERE state=:state' . $cursor . ' ORDER BY id DESC LIMIT ' . ($limit + 1),
+             WHERE ' . $stateFilter . $cursor . ' ORDER BY id DESC LIMIT ' . ($limit + 1),
             $params
         );
         $more = count($rows) > $limit;
