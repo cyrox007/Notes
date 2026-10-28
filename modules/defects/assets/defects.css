@@ -49,3 +49,10 @@
 
 .defects-reference-manager{margin-top:16px;padding:15px;border:1px solid var(--df-border);border-radius:12px;background:var(--df-surface)}
 .defects-reference-toolbar{display:flex;align-items:end;flex-wrap:wrap;gap:12px;margin-bottom:12px}.defects-reference-toolbar label{min-width:175px}.defects-reference-toolbar .defects-reference-archive-toggle{display:flex;align-items:center;flex-direction:row;gap:8px;min-width:0}.defects-reference-archive-toggle input{width:17px;height:17px}.defects-reference-results{display:grid;gap:9px;margin-bottom:12px}.defects-reference-row{border:1px solid var(--df-border);border-radius:10px;padding:12px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}.defects-reference-row__title{display:flex;flex-direction:column;gap:3px;min-width:0}.defects-reference-row__title small{color:var(--df-muted)}.defects-reference-row__actions{display:flex;gap:8px;flex-wrap:wrap}.defects-reference-editor{display:flex;align-items:end;flex-wrap:wrap;gap:8px;width:100%}.defects-reference-editor label{flex:1;min-width:160px}.defects-reference-confirm{font-size:13px;font-weight:600;color:var(--df-danger)}
+
+/* Состояние дефекта видно по цвету строки, но смысл также остаётся текстом. */
+.defects-row--new{background:color-mix(in srgb,var(--ui-warning-soft) 54%,transparent);box-shadow:inset 4px 0 0 var(--ui-warning)}
+.defects-row--soon{background:color-mix(in srgb,var(--ui-warning-soft) 38%,transparent);box-shadow:inset 4px 0 0 var(--ui-warning)}
+.defects-row--urgent{background:color-mix(in srgb,var(--ui-warning-soft) 76%,transparent);box-shadow:inset 4px 0 0 var(--ui-warning)}
+.defects-row--overdue{background:color-mix(in srgb,var(--ui-danger-soft) 74%,transparent);box-shadow:inset 4px 0 0 var(--ui-danger)}
+.defects-row--overdue .defects-row__title{color:var(--ui-danger)}
