@@ -493,7 +493,22 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         state.serviceEditCommand = null;
         if (serviceEditForm.hidden) return;
 
-        const rows = await refRows('services');
+        // Дозагружаем весь справочник, иначе службы за первой сотней недоступны.
+        const rows = [];
+        let cursor = 0;
+        for (let page = 0; page < 100; page += 1) {
+            const query = new URLSearchParams({
+                kind: 'services', limit: '100', after_id: String(cursor),
+            });
+            const batch = (await request(api + '/references?' + query)).items || [];
+            rows.push(...batch);
+            if (batch.length < 100) break;
+            const lastId = Number(batch[batch.length - 1].id);
+            if (!Number.isSafeInteger(lastId) || lastId <= cursor || page === 99) {
+                throw new Error('Не удалось загрузить полный список служб');
+            }
+            cursor = lastId;
+        }
         if (sequence !== state.detailSequence) return;
         const current = new Map((defect.services || []).map(item => [Number(item.id), item]));
         const all = new Map(rows.map(item => [Number(item.id), item]));
