@@ -24,6 +24,8 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
     const services = $('[data-defects-services]');
     const referenceForm = $('[data-defects-reference]');
     const closeForm = $('[data-defects-close]');
+    const displayButtons = $('[data-defects-display]');
+    const sortSelect = $('[data-defects-sort]');
     const filters = {
         priority: $('[data-defects-priority]'),
         area_id: $('[data-defects-filter-area]'),
@@ -41,6 +43,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         selectedId: null, detail: null, detailSequence: 0,
         historyCursor: 0, creationCommand: null, closeCommand: null,
         previousFocus: null, historyLoading: false,
+        display: window.matchMedia('(max-width: 760px)').matches ? 'cards' : 'table',
     };
 
     const element = (tag, className = '', value = '') => {
@@ -210,6 +213,55 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         row.addEventListener('click', () => void openDetail(item.id, row));
         return row;
     };
+    // Табличное представление использует те же страницы и права доступа.
+    const renderTableRow = (item) => {
+        const row = element('tr', 'defects-row defects-table__row');
+        row.dataset.defectId = String(item.id);
+        row.tabIndex = 0;
+        const fields = [
+            '№' + item.id,
+            item.area_name || '—',
+            item.object_name || '—',
+            dateText(item.due_at),
+            item.description || '—',
+            String(item.service_names || '').split(',').join(', ') || 'Не назначены',
+            priorityText(item.priority),
+            item.status === 'closed' ? 'Закрыт' : isOverdue(item) ? 'Просрочен' : 'Открыт',
+        ];
+        fields.forEach(value => row.append(element('td', '', value)));
+        row.addEventListener('click', () => void openDetail(item.id, row));
+        row.addEventListener('keydown', event => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            void openDetail(item.id, row);
+        });
+        return row;
+    };
+    const tableBody = () => {
+        const existing = $('.defects-table tbody', results);
+        if (existing) return existing;
+        const table = element('table', 'defects-table');
+        const head = element('thead');
+        const heading = element('tr');
+        ['ID', 'РЭС', 'Объект', 'Плановый срок', 'Описание', 'Службы', 'Приоритет', 'Состояние']
+            .forEach(label => heading.append(element('th', '', label)));
+        head.append(heading);
+        const body = element('tbody');
+        table.append(head, body);
+        results.append(table);
+        return body;
+    };
+    const syncDisplayButtons = () => displayButtons.forEach(button =>
+        button.setAttribute('aria-pressed', String(button.dataset.defectsDisplay === state.display)));
+    syncDisplayButtons();
+    displayButtons.forEach(button => button.addEventListener('click', () => {
+        if (state.display === button.dataset.defectsDisplay) return;
+        state.display = button.dataset.defectsDisplay;
+        syncDisplayButtons();
+        void loadRegistry();
+    }));
+    sortSelect.addEventListener('change', () => void loadRegistry());
+
     const loadRegistry = async (reset = true) => {
         if (state.busy && !reset) return;
         const sequence = reset ? ++state.sequence : state.sequence;
@@ -226,13 +278,16 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         results.setAttribute('aria-busy', 'true');
         try {
             const query = new URLSearchParams({ ...queryFilters(), limit: '40', after_id: String(cursor) });
+            if (sortSelect.value) query.set('sort', sortSelect.value);
             const data = await request(api + '/?' + query);
             if (sequence !== state.sequence) return;
             if (reset) results.replaceChildren();
-            (data.items || []).forEach(item => results.append(renderRow(item)));
+            const target = state.display === 'table' ? tableBody() : results;
+            (data.items || []).forEach(item =>
+                target.append(state.display === 'table' ? renderTableRow(item) : renderRow(item)));
             state.cursor = Number(data.next_cursor || 0);
             moreButton.hidden = data.items.length < 40 || !state.cursor;
-            if (!results.children.length) {
+            if (!results.querySelector('[data-defect-id]')) {
                 results.append(element('p', 'defects-empty', 'По выбранным условиям записей нет'));
             }
             if (reset) await summaryLoad(sequence);
