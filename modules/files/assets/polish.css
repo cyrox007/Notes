@@ -14,3 +14,12 @@
 
 .file-manager__action-btn--share{color:var(--module-accent)}
 .file-manager-share-toast{position:fixed;right:18px;bottom:18px;z-index:2300;display:flex;align-items:center;gap:10px;max-width:min(440px,calc(100vw - 36px));padding:11px 12px;border:1px solid var(--ui-border);border-radius:11px;background:var(--ui-surface);box-shadow:var(--ui-shadow);font-size:12px;color:var(--ui-text)}.file-manager-share-toast button{border:0;background:transparent;color:var(--module-accent);font:inherit;font-weight:800;cursor:pointer}
+
+/* Каталог файлов: единые внутренние отступы и безопасное размещение счётчика. */
+.file-manager .file-manager-polish{grid-template-columns:minmax(0,1fr) minmax(180px,220px) auto auto;gap:12px;padding:16px;box-sizing:border-box;min-width:0}
+.file-manager .file-manager-polish>*{min-width:0}
+.file-manager .file-manager-polish input,.file-manager .file-manager-polish select{width:100%;max-width:100%;box-sizing:border-box}
+.file-manager .file-manager-polish__count{justify-self:end;white-space:normal;text-align:right}
+.file-manager[data-view="grid"] .file-manager__grid{gap:12px;padding:16px}
+@media(max-width:900px){.file-manager .file-manager-polish{grid-template-columns:minmax(0,1fr) minmax(160px,220px);gap:12px}.file-manager .file-manager-polish__count{grid-column:auto;justify-self:start;text-align:left}}
+@media(max-width:560px){.file-manager .file-manager-polish{grid-template-columns:minmax(0,1fr);padding:12px}.file-manager .file-manager-polish__count{grid-column:1}.file-manager[data-view="grid"] .file-manager__grid{padding:12px}}
