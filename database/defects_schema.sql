@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS `defects` (
 CREATE TABLE IF NOT EXISTS `defect_responsible_services` (
     `defect_id` BIGINT UNSIGNED NOT NULL,
     `service_id` BIGINT UNSIGNED NOT NULL,
+    `executor_name` VARCHAR(160) DEFAULT NULL,
     PRIMARY KEY (`defect_id`, `service_id`),
     KEY `idx_defect_responsible_service` (`service_id`, `defect_id`),
     CONSTRAINT `fk_defect_responsible_record` FOREIGN KEY (`defect_id`)
