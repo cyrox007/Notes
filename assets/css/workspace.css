@@ -361,3 +361,17 @@ html[data-theme="dark"] .sidebar__utility{color:var(--ui-text);}
 html[data-theme="dark"] .sidebar__utility[aria-current="page"]{background:rgb(49, 50, 51);color:rgb(237, 237, 237);border-color:var(--ui-border);box-shadow:rgb(72, 160, 199) 3px 0px inset;}
 html[data-theme="dark"] .sidebar__brand-copy strong{color:rgb(237, 237, 237);}
 html[data-theme="dark"] .sidebar__brand-copy small{color:var(--ui-primary);}
+
+/* Персональная сводка на главной вместо одного каталога разделов. */
+.workspace-home__overview{display:grid;gap:12px;margin:16px 0 24px}
+.workspace-home__overview .workspace-home__section-heading{align-items:center}
+.workspace-home__overview .workspace-home__section-heading a{color:var(--ui-primary);font-weight:700;font-size:13px}
+.workspace-home__overview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.workspace-home__overview-item{display:flex;align-items:center;gap:13px;min-width:0;padding:16px;border:1px solid var(--ui-border);border-radius:14px;background:var(--ui-surface);box-shadow:var(--ui-shadow-sm)}
+.workspace-home__overview-item:hover,.workspace-home__overview-item:focus-visible{border-color:var(--ui-primary);background:var(--ui-primary-soft)}
+.workspace-home__overview-value{flex:0 0 auto;min-width:44px;font-size:29px;font-weight:800;color:var(--ui-primary);font-variant-numeric:tabular-nums}
+.workspace-home__overview-item>span:nth-child(2){display:grid;gap:4px;min-width:0;flex:1}
+.workspace-home__overview-item strong{font-size:13px}
+.workspace-home__overview-item small{font-size:12px;color:var(--ui-muted)}
+.workspace-home__overview-item>.fa{color:var(--ui-subtle)}
+@media(max-width:800px){.workspace-home__overview-grid{grid-template-columns:1fr}.workspace-home__overview .workspace-home__section-heading{align-items:flex-start}}

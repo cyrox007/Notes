@@ -10,9 +10,36 @@ ob_start();
     <?= $csrf_input ?? '' ?>
     <header class="module-page-header">
         <h1>Наряды и допуски</h1>
-        <p>Журнал нарядов и распоряжений: выдача, допуски, перерывы, продления, закрытие и печать наряда в PDF.</p>
+        <p>Сначала выберите документ в журнале или создайте новый. Дальнейшие действия появятся в карточке документа.</p>
     </header>
     <p data-wp-feedback role="status" aria-live="polite" hidden></p>
+    <nav class="wp-journal__shortcuts" aria-label="Разделы журнала">
+        <a href="#wp-registry-title"><i class="fa fa-folder-open-o" aria-hidden="true"></i> Мои документы</a>
+        <?php if (!empty($can_manage_references)): ?>
+            <a href="#wp-management-title"><i class="fa fa-clipboard" aria-hidden="true"></i> Журнал выдачи</a>
+        <?php endif; ?>
+        <a href="#wp-form-title" class="wp-journal__shortcuts-primary"><i class="fa fa-plus" aria-hidden="true"></i> Создать документ</a>
+    </nav>
+    <section class="calendar-shell wp-journal__registry" aria-labelledby="wp-registry-title">
+        <h2 id="wp-registry-title">Мои документы за последний месяц</h2>
+        <div data-wp-list aria-live="polite"></div>
+        <button type="button" data-wp-more hidden>Показать ещё</button>
+    </section>
+    <?php if (!empty($can_manage_references)): ?>
+    <section class="calendar-shell wp-journal__registry" data-wp-management>
+        <h2 id="wp-management-title">Журнал на выдачу и первичный допуск</h2>
+        <p>Показываются документы разных авторов. Операции требуют разрешения на управление модулем.</p>
+        <label>Состояние
+            <select data-wp-management-state>
+                <option value="draft">Черновики для выдачи</option>
+                <option value="issued">Выданные документы</option>
+                <option value="closed">Закрытые</option>
+            </select>
+        </label>
+        <div data-wp-management-list aria-live="polite"></div>
+        <button type="button" data-wp-management-more hidden>Показать ещё</button>
+    </section>
+    <?php endif; ?>
     <section class="calendar-shell wp-journal__editor" aria-labelledby="wp-form-title">
         <h2 id="wp-form-title">Новый документ</h2>
         <form data-wp-form>
@@ -77,19 +104,6 @@ ob_start();
     </section>
 
     <?php if (!empty($can_manage_references)): ?>
-    <section class="calendar-shell wp-journal__registry" data-wp-management>
-        <h2>Журнал на выдачу и первичный допуск</h2>
-        <p>Показываются документы разных авторов. Операции требуют разрешения на управление модулем.</p>
-        <label>Состояние
-            <select data-wp-management-state>
-                <option value="draft">Черновики для выдачи</option>
-                <option value="issued">Выданные документы</option>
-                <option value="closed">Закрытые</option>
-            </select>
-        </label>
-        <div data-wp-management-list aria-live="polite"></div>
-        <button type="button" data-wp-management-more hidden>Показать ещё</button>
-    </section>
     <section class="calendar-shell wp-journal__editor" data-wp-lifecycle hidden aria-label="Выдача и первичный допуск">
         <h2 data-wp-lifecycle-title>Выдача документа</h2>
         <p>Время вводится по часовому поясу объекта, указанному над формой, а не по часам вашего устройства.</p>
@@ -433,11 +447,6 @@ ob_start();
         <button type="button" data-wp-template-more hidden>Показать ещё</button>
     </details>
     <?php endif; ?>
-    <section class="calendar-shell wp-journal__registry" aria-labelledby="wp-registry-title">
-        <h2 id="wp-registry-title">Мои документы за последний месяц</h2>
-        <div data-wp-list aria-live="polite"></div>
-        <button type="button" data-wp-more hidden>Показать ещё</button>
-    </section>
 </main>
 <?php
 $content = (string) ob_get_clean();

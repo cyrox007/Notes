@@ -7,6 +7,7 @@ $currentUser = isset($user) && is_array($user) ? $user : [];
 $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAccess : [];
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
+$summary = isset($home_summary) && is_array($home_summary) ? $home_summary : [];
 $displayName = trim((string) ($currentUser['firstname'] ?? ''));
 if ($displayName === '') {
     $displayName = (string) ($currentUser['username'] ?? '');
@@ -34,6 +35,40 @@ ob_start();
         </div>
     </header>
 
+    <?php if ($summary !== []): ?>
+    <section class="workspace-home__overview" aria-labelledby="home-overview-title">
+        <div class="workspace-home__section-heading">
+            <div><span>Личная сводка</span><h2 id="home-overview-title">Моё рабочее пространство</h2></div>
+            <?php if (!empty($access['profile'])): ?>
+                <a href="<?= $view->e($view->route('profile')) ?>">Подробнее в профиле</a>
+            <?php endif; ?>
+        </div>
+        <div class="workspace-home__overview-grid">
+            <?php if (!empty($access['tasks']) && isset($summary['open_tasks_count'])): ?>
+                <a href="<?= $view->e($view->route('tasks')) ?>" class="workspace-home__overview-item">
+                    <span class="workspace-home__overview-value"><?= (int) $summary['open_tasks_count'] ?></span>
+                    <span><strong>Задач в работе</strong><small>Всего задач: <?= (int) ($summary['tasks_count'] ?? 0) ?></small></span>
+                    <i class="fa fa-angle-right" aria-hidden="true"></i>
+                </a>
+            <?php endif; ?>
+            <?php if (!empty($access['notes']) && isset($summary['notes_count'])): ?>
+                <a href="<?= $view->e($view->route('notes')) ?>" class="workspace-home__overview-item">
+                    <span class="workspace-home__overview-value"><?= (int) $summary['notes_count'] ?></span>
+                    <span><strong>Моих заметок</strong><small>Записи и материалы</small></span>
+                    <i class="fa fa-angle-right" aria-hidden="true"></i>
+                </a>
+            <?php endif; ?>
+            <?php if (!empty($access['files']) && isset($summary['files_count'])): ?>
+                <a href="<?= $view->e($view->route('files')) ?>" class="workspace-home__overview-item">
+                    <span class="workspace-home__overview-value"><?= (int) $summary['files_count'] ?></span>
+                    <span><strong>Моих файлов</strong><small>Личное хранилище</small></span>
+                    <i class="fa fa-angle-right" aria-hidden="true"></i>
+                </a>
+            <?php endif; ?>
+        </div>
+    </section>
+    <?php endif; ?>
+
     <div class="workspace-home__section-heading">
         <div><span>Рабочее пространство</span><h2>Всё важное — под контролем</h2></div>
     </div>
@@ -50,6 +85,13 @@ ob_start();
             <a class="workspace-module workspace-module--tasks" href="<?= $view->e($view->route('tasks')) ?>">
                 <span class="workspace-module__icon"><i class="fa fa-check-square-o" aria-hidden="true"></i></span>
                 <span class="workspace-module__body"><strong>Задачи</strong><small>Канбан, сроки, приоритеты и подзадачи.</small></span>
+                <i class="fa fa-angle-right workspace-module__arrow" aria-hidden="true"></i>
+            </a>
+        <?php endif; ?>
+        <?php if (!empty($access['work_permits'])): ?>
+            <a class="workspace-module workspace-module--work-permits" href="<?= $view->e($view->route('work_permits')) ?>">
+                <span class="workspace-module__icon"><i class="fa fa-clipboard" aria-hidden="true"></i></span>
+                <span class="workspace-module__body"><strong>Наряды и допуски</strong><small>Мои документы, выдача и рабочие смены.</small></span>
                 <i class="fa fa-angle-right workspace-module__arrow" aria-hidden="true"></i>
             </a>
         <?php endif; ?>

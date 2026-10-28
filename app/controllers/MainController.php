@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\UserModel;
+use App\Services\WorkspaceHomeSummary;
 use Core\Controller;
 use Core\Request;
 
@@ -22,6 +23,7 @@ class MainController extends Controller
 
         $this->render_template('main_page/index', [
             'user' => get_object_vars($user),
+            'home_summary' => (new WorkspaceHomeSummary())->forUser((int) $user->id),
         ]);
 
         return null;

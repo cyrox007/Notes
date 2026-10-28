@@ -109,6 +109,16 @@ jobs:
             tests/integration/notes_files_staged_http_capacity_12.py
           php tests/integration/filespaces_http_seed_12.php > /tmp/fsp-http-fixture.json
           php tests/support/ci_license_fixture.php
+          # Диагностируем фактическую готовность схемы до обращения по HTTP.
+          # Печатаются только имена отсутствующих таблиц/столбцов.
+          php -r '
+            require_once "core/CliRuntime.php";
+            \Core\CliRuntime::loadEnvironment(getcwd());
+            require_once "core/RuntimeAutoloader.php";
+            \Core\RuntimeAutoloader::register(getcwd());
+            $state = \Core\SchemaReadiness::inspect(getcwd());
+            echo json_encode($state, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), PHP_EOL;
+          '
           # На одноразовом CI-исполнителе файлы находятся под /home/runner.
           # Для production это не образец назначения пользователя веб-службы.
           chmod 600 .env
@@ -172,7 +182,20 @@ jobs:
             sleep 0.25
           done
           curl -fsS 'http://127.0.0.1:18096/__fpm_status?json'
-          curl -fsS 'http://127.0.0.1:18096/auth/login/' >/dev/null
+          # После перезапуска PHP-FPM первое обращение может получить 503,
+          # хотя Nginx и страница статуса обработчиков уже отвечают.
+          ready=0
+          for i in {1..60}; do
+            if curl -fsS 'http://127.0.0.1:18096/auth/login/' >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$ready" != '1' ]]; then
+            echo 'CI: страница входа не стала доступна после запуска PHP-FPM' >&2
+            exit 1
+          fi
 
       - name: Раздельно профилировать SQL при чтении, скачивании и загрузке
         shell: bash
