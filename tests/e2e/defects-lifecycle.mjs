@@ -117,6 +117,9 @@ async function detail(page, id) {
 async function closeDefect(page, id, work, expectStatus = 200) {
     const form = page.locator('form[data-defects-close]');
     await form.locator('[name="completed_work"]').fill(work);
+    await form.locator('[name="completed_by_name"]').fill('Иванов Иван Иванович');
+    await form.locator('[name="closed_at"]').fill(new Date(Date.now() - 60000).toISOString().slice(0, 16));
+    await form.locator('[name="close_comment"]').fill('Испытательное закрытие');
     const pending = ajaxResponse(page, '/api/defects/' + id + '/close');
     await form.locator('button[type="submit"]').click();
     const response = await pending;
