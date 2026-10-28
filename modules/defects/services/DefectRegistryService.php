@@ -63,7 +63,7 @@ final class DefectRegistryService
         }
         $defect = $this->database->fetchOne(
             'SELECT d.id,d.object_id,d.description,d.priority,d.discovered_at,d.due_at,d.registered_by_name,
-                    d.registered_by_user_id,d.status,d.completed_work,d.closed_at,d.closed_by_user_id,d.version,
+                    d.registered_by_user_id,d.status,d.completed_work,d.closed_at,d.closed_by_user_id,d.version,d.created_at,
                     o.name AS object_name,c.name AS category_name,a.name AS area_name
              FROM defects d
              JOIN defect_objects o ON o.id=d.object_id
