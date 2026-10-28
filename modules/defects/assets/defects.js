@@ -437,12 +437,16 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
             addField('Описание', defect.description);
             addField('Приоритет', priorityText(defect.priority));
             addField('Обнаружен', dateText(defect.discovered_at));
+            addField('Зарегистрирован', dateText(defect.created_at));
             addField('Срок устранения', dateText(defect.due_at));
             addField('Зарегистрировал', defect.registered_by_name);
             addField('Состояние', defect.status === 'closed' ? 'Закрыт' : 'Открыт');
             addField('Ответственные службы', (defect.services || []).map(item => item.name).join(', '));
             if (defect.completed_work) addField('Выполненные работы', defect.completed_work);
-            closeForm.hidden = defect.status !== 'open';
+            closeForm.hidden = defect.status !== 'open' || isOverdue(defect);
+            if (isOverdue(defect)) {
+                addField('Ограничение', 'Срок истёк. Штатное закрытие недоступно; требуется решение ответственного лица.');
+            }
             closeForm.reset();
             closeError.hidden = true;
             detailLoading.hidden = true;
