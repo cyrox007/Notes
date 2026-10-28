@@ -70,6 +70,9 @@ jobs:
           php-version: '8.3'
           extensions: mysqli, pdo_mysql, mbstring
           coverage: none
+      - name: Подготовить MySQL для тестовых процедур и триггеров
+        run: |
+          php -r '$db = new mysqli("127.0.0.1", "root", "root", "workspace_test", 3306); $db->query("SET GLOBAL log_bin_trust_function_creators = ON");'
       - name: Проверить журналы и права
         env:
           TEST_DB_HOST: 127.0.0.1
