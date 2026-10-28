@@ -51,3 +51,12 @@
  .file-spaces-page.admin-page>.admin-panel-card{padding:12px}
  .file-spaces-page.admin-page>.admin-panel-card>.admin-panel-card__header{margin:-12px -12px 12px}
 }
+
+/* Shared objects contain full forms, rather than the personal grid's icon actions. */
+.file-spaces-page__catalog .file-manager__grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px;background:transparent}
+.file-spaces-page__catalog .file-manager__item{grid-template-rows:auto auto;align-content:start;cursor:default;border:1px solid var(--ui-border);border-radius:12px}
+.file-spaces-page__catalog .file-manager__item-meta{grid-column:2}
+.file-spaces-page__catalog .file-manager__item>form{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:end;gap:8px;min-width:0;margin-top:10px}
+.file-spaces-page__catalog .file-manager__item>form label{display:grid;gap:6px;flex:1 1 180px;min-width:0}
+.file-spaces-page__catalog .file-manager__item>form input:not([type=hidden]),.file-spaces-page__catalog .file-manager__item>form select{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+.file-spaces-page__catalog .file-manager__item>form button{flex:0 0 auto;width:auto;min-width:max-content;white-space:nowrap;justify-self:start}
