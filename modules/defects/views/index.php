@@ -160,6 +160,7 @@ ob_start();
                 </fieldset>
                 <div data-defects-create-error class="defects-form-error" role="alert" hidden></div>
                 <footer class="defects-form-actions defects-field-wide">
+                    <button type="reset" class="defects-button defects-button--secondary ui-button ui-button--secondary" data-defects-create-reset>Очистить</button>
                     <button type="button" class="defects-button defects-button--secondary ui-button ui-button--secondary" data-defects-create-cancel>Отмена</button>
                     <button type="submit" class="defects-button defects-button--primary ui-button ui-button--primary">Зарегистрировать</button>
                 </footer>
