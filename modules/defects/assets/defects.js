@@ -31,6 +31,10 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         service_id: $('[data-defects-filter-service]'),
         from: $('[data-defects-from]'),
         to: $('[data-defects-to]'),
+        registered_from: $('[data-defects-registered-from]'),
+        registered_to: $('[data-defects-registered-to]'),
+        due_from: $('[data-defects-due-from]'),
+        due_to: $('[data-defects-due-to]'),
     };
     const state = {
         status: 'open', cursor: 0, sequence: 0, busy: false,
