@@ -183,9 +183,10 @@ defectsAssert((int) $database->fetchValue(
 ) === 1, 'неуспешное закрытие изменило версию');
 $pdo->prepare('UPDATE defects SET due_at=? WHERE id=1')->execute([$first['due_at']]);
 
-$closed = $registry->close($first['id'], 1, 7, 'Заменён повреждённый изолятор', 'close_1234567890ABCDE', 'Иванов Иван', gmdate('c'), 'Проверено после ремонта');
+$actualClosedAt = gmdate('c');
+$closed = $registry->close($first['id'], 1, 7, 'Заменён повреждённый изолятор', 'close_1234567890ABCDE', 'Иванов Иван', $actualClosedAt, 'Проверено после ремонта');
 defectsAssert($closed['version'] === 2 && !$closed['replayed'], 'дефект должен закрыться с новой версией');
-$repeatClose = $registry->close($first['id'], 1, 7, 'Заменён повреждённый изолятор', 'close_1234567890ABCDE', 'Иванов Иван', gmdate('c'), 'Проверено после ремонта');
+$repeatClose = $registry->close($first['id'], 1, 7, 'Заменён повреждённый изолятор', 'close_1234567890ABCDE', 'Иванов Иван', $actualClosedAt, 'Проверено после ремонта');
 defectsAssert($repeatClose['replayed'] && $repeatClose['version'] === 2, 'повтор закрытия должен быть безопасным');
 $history = new \Modules\Defects\Services\DefectHistoryService($database);
 $events = $history->list('defect', $first['id'], 1);
