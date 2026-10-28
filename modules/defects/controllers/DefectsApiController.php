@@ -19,6 +19,7 @@ use Modules\Defects\Services\DefectHistoryService;
 use Modules\Defects\Services\DefectReportService;
 use Modules\Defects\Services\DefectRegistrationService;
 use Modules\Defects\Services\DefectRegistryService;
+use Modules\Defects\Services\DefectServiceAssignmentService;
 use Throwable;
 
 /**
@@ -269,6 +270,46 @@ final class DefectsApiController extends Controller
             }
             return ['defect' => $result];
         }, 201);
+    }
+
+    public function updateServices(Request $request, int $id): void
+    {
+        $this->handle($request, 'defects.manage', function (int $userId) use ($request, $id): array {
+            $data = $this->payload($request);
+            $items = $data['assignments'] ?? null;
+            if (!is_array($items) || !array_is_list($items)) {
+                throw new InvalidArgumentException('Укажите список служб и исполнителей');
+            }
+
+            $assignments = [];
+            foreach ($items as $item) {
+                if (!is_array($item) || array_is_list($item)) {
+                    throw new InvalidArgumentException('Неверный элемент списка служб');
+                }
+                $name = $item['executor_name'] ?? null;
+                if ($name !== null && !is_string($name)) {
+                    throw new InvalidArgumentException('Неверное ФИО исполнителя');
+                }
+                $assignments[] = [
+                    'service_id' => $this->integer($item['service_id'] ?? null, 'service_id'),
+                    'executor_name' => $name,
+                ];
+            }
+
+            $result = (new DefectServiceAssignmentService(DatabaseManager::getInstance()))->replace(
+                $id,
+                $this->integer($data['version'] ?? null, 'version'),
+                $userId,
+                $assignments,
+                $this->requiredString($data, 'command_id')
+            );
+            if (!$result['replayed']) {
+                $this->audit($userId, 'defects.services.updated', [
+                    'defect_id' => $id, 'version' => $result['version'],
+                ]);
+            }
+            return ['defect' => $result];
+        });
     }
 
     public function close(Request $request, int $id): void
