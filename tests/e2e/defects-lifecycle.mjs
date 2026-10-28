@@ -139,6 +139,14 @@ try {
     observe(page);
     await login(page, required('E2E_USER'));
     await openWorkspace(page);
+    await page.locator('[data-defects-display="table"]').click();
+    await page.locator('.defects-table th', { hasText: 'Плановый срок' }).waitFor({ state: 'visible' });
+    const sortedRequest = ajaxResponse(page, 'sort=due_desc', 'GET');
+    await page.locator('[data-defects-sort]').selectOption('due_desc');
+    check((await sortedRequest).status() === 200, 'Сортировка реестра завершилась ошибкой');
+    await page.locator('[data-defects-loading]').waitFor({ state: 'hidden', timeout: 15000 });
+    await page.locator('[data-defects-display="cards"]').click();
+    await page.locator('.defects-table').waitFor({ state: 'detached', timeout: 15000 });
 
     const marker = Date.now();
     const first = await createDefect(page, 'Браузерная проверка ' + marker + ' — повреждён изолятор');

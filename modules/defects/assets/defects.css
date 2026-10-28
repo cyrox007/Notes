@@ -56,3 +56,22 @@
 .defects-row--urgent{background:color-mix(in srgb,var(--ui-warning-soft) 76%,transparent);box-shadow:inset 4px 0 0 var(--ui-warning)}
 .defects-row--overdue{background:color-mix(in srgb,var(--ui-danger-soft) 74%,transparent);box-shadow:inset 4px 0 0 var(--ui-danger)}
 .defects-row--overdue .defects-row__title{color:var(--ui-danger)}
+
+/* Полная таблица реестра с доступной горизонтальной прокруткой на узком экране. */
+.defects-registry__display{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px;padding:12px 18px}
+.defects-registry__switch{display:flex;flex-wrap:wrap;gap:7px}
+.defects-registry__switch [aria-pressed="true"]{border-color:var(--df-border);background:var(--df-soft);font-weight:800}
+.defects-registry__display label{min-width:min(260px,100%);font-size:12px}
+.defects-results:has(.defects-table){display:block;overflow-x:auto}
+.defects-table{width:100%;min-width:980px;border-collapse:collapse;font-size:12px}
+.defects-table th{text-align:left;background:var(--df-soft);color:var(--df-muted);font-weight:750;white-space:nowrap}
+.defects-table th,.defects-table td{padding:12px;border-top:1px solid var(--df-border);vertical-align:top}
+.defects-table td:nth-child(5){min-width:180px;max-width:300px;overflow-wrap:anywhere}
+.defects-table td:nth-child(6){min-width:130px;overflow-wrap:anywhere}
+.defects-table .defects-row{display:table-row;width:auto;cursor:pointer;padding:0;border:0}
+.defects-table .defects-row:hover,.defects-table .defects-row:focus-visible{background:var(--df-soft);outline:2px solid var(--df-border);outline-offset:-2px}
+.defects-table .defects-row:focus-visible{position:relative}
+@media(max-width:760px){
+    .defects-registry__display{align-items:stretch;flex-direction:column;padding:12px}
+    .defects-registry__display label{width:100%}
+}

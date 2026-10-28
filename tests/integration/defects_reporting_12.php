@@ -37,6 +37,7 @@ $pdo->exec('CREATE TABLE defect_objects (id INTEGER PRIMARY KEY,category_id INTE
 $pdo->exec('CREATE TABLE defects (id INTEGER PRIMARY KEY,object_id INTEGER,description TEXT,
     priority TEXT,discovered_at TEXT,due_at TEXT,registered_by_name TEXT,status TEXT,version INTEGER,closed_at TEXT,created_at TEXT)');
 $pdo->exec('CREATE TABLE defect_responsible_services (defect_id INTEGER,service_id INTEGER)');
+$pdo->exec('CREATE TABLE defect_services (id INTEGER PRIMARY KEY,name TEXT)');
 $pdo->exec("INSERT INTO defect_areas VALUES (1,'Северный РЭС'),(2,'Южный РЭС')");
 $pdo->exec("INSERT INTO defect_object_categories VALUES (1,1,'Линии'),(2,2,'Подстанции')");
 $pdo->exec("INSERT INTO defect_objects VALUES (1,1,'ЛЭП-1'),(2,2,'ТП-2')");
@@ -45,6 +46,7 @@ $pdo->exec("INSERT INTO defects VALUES
     (2,1,'Замена','normal','2020-02-01 12:00:00','2020-03-02 12:00:00','Петров','closed',2,'2020-02-04 12:00:00','2020-02-03 10:00:00'),
     (3,2,'Проверка','first','2020-02-02 12:00:00','2020-02-09 12:00:00','Сидоров','open',1,NULL,'2020-02-05 10:00:00')");
 $pdo->exec('INSERT INTO defect_responsible_services VALUES (1,10),(2,10),(3,20)');
+$pdo->exec("INSERT INTO defect_services VALUES (10,'Электросеть'),(20,'Ремонтная служба')");
 $service = new \Modules\Defects\Services\DefectReportService(
     \Core\DatabaseManager::forConnection($pdo)
 );
@@ -54,6 +56,13 @@ assertDefectReport(count($result['items']) === 2 && $result['next_cursor'] === 2
 assertDefectReport(count($service->search(['status' => 'all'], 2, 2)['items']) === 1, 'курсор пропустил запись');
 assertDefectReport(count($service->search(['status' => 'open'])['items']) === 2, 'фильтр открытых не работает');
 assertDefectReport(count($service->search(['status' => 'all', 'service_id' => 10])['items']) === 2, 'фильтр служб не работает');
+$firstSorted = $service->search(['status' => 'all', 'sort' => 'due_desc'], 2);
+assertDefectReport(array_column($firstSorted['items'], 'id') === [2, 3], 'сортировка по сроку неверна');
+assertDefectReport($firstSorted['next_cursor'] === 2, 'неверный курсор сортировки');
+$secondSorted = $service->search(['status' => 'all', 'sort' => 'due_desc'], 2, 2);
+assertDefectReport(array_column($secondSorted['items'], 'id') === [1], 'вторая страница сортировки неверна');
+assertDefectReport(($firstSorted['items'][0]['service_names'] ?? '') === 'Электросеть', 'ответственные службы отсутствуют в таблице');
+assertDefectReport(array_column($service->search(['status' => 'all', 'sort' => 'id_desc'])['items'], 'id') === [3, 2, 1], 'обратная сортировка по номеру неверна');
 assertDefectReport(count($service->search(['status' => 'all', 'priority' => 'urgent'])['items']) === 1, 'фильтр приоритета не работает');
 assertDefectReport(count($service->search(['status' => 'all', 'area_id' => 2])['items']) === 1, 'фильтр РЭС не работает');
 assertDefectReport(count($service->search(['status' => 'all', 'object_id' => 1])['items']) === 2, 'фильтр объекта не работает');
@@ -86,6 +95,7 @@ assertDefectReport($empty['total'] === 0 && $empty['overdue'] === 0
     'пустая сводка должна возвращать нулевые итоги');
 
 foreach ([
+    ['sort' => 'd.id; DROP TABLE defects'],
     ['status' => 'unknown'],
     ['priority' => 'invalid'],
     ['area_id' => '-1'],

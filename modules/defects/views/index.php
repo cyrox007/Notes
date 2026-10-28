@@ -37,6 +37,22 @@ ob_start();
             <button class="ui-button ui-button--secondary" type="button" data-defects-tab="closed" aria-pressed="false">Закрытые</button>
             <button class="ui-button ui-button--secondary" type="button" data-defects-tab="all" aria-pressed="false">Все</button>
         </div>
+        <div class="defects-registry__display">
+            <div class="defects-registry__switch" role="group" aria-label="Вид реестра">
+                <button type="button" class="ui-button ui-button--secondary" data-defects-display="cards" aria-pressed="true">Карточки</button>
+                <button type="button" class="ui-button ui-button--secondary" data-defects-display="table" aria-pressed="false">Таблица</button>
+            </div>
+            <label>Сортировка
+                <select data-defects-sort>
+                    <option value="">По номеру: сначала ранние</option>
+                    <option value="id_desc">По номеру: сначала новые</option>
+                    <option value="due_asc">Срок: сначала ближайшие</option>
+                    <option value="due_desc">Срок: сначала поздние</option>
+                    <option value="area_asc">По названию РЭС</option>
+                    <option value="object_asc">По названию объекта</option>
+                </select>
+            </label>
+        </div>
         <details class="defects-filters" data-defects-filters>
             <summary><i class="fa fa-sliders" aria-hidden="true"></i> Дополнительные фильтры</summary>
             <div class="defects-filter-grid">

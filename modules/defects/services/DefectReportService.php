@@ -29,19 +29,42 @@ final class DefectReportService
         }
 
         [$where, $params] = $this->conditions($filters);
-        $where[] = 'd.id > :after_id';
-        $params['after_id'] = $afterId;
+        $sort = $filters['sort'] ?? '';
+        $sortColumns = [
+            'id_desc' => 'd.id DESC',
+            'due_asc' => 'd.due_at ASC, d.id ASC',
+            'due_desc' => 'd.due_at DESC, d.id ASC',
+            'area_asc' => 'a.name ASC, d.id ASC',
+            'object_asc' => 'o.name ASC, d.id ASC',
+        ];
+        if (!is_string($sort) || ($sort !== '' && !isset($sortColumns[$sort]))) {
+            throw new InvalidArgumentException('Недопустимый порядок сортировки');
+        }
 
+        // Для прежних клиентов сохраняем постраничный курсор по идентификатору.
+        // При сортировке по другим полям курсор означает смещение в наборе.
+        if ($sort === '') {
+            $where[] = 'd.id > :after_id';
+            $params['after_id'] = $afterId;
+        }
+        $orderBy = $sort === '' ? 'd.id ASC' : $sortColumns[$sort];
+        $offset = $sort === '' ? '' : ' OFFSET ' . $afterId;
         $rows = $this->database->fetchAll(
             'SELECT d.id,d.object_id,d.description,d.priority,d.discovered_at,d.due_at,
                     d.registered_by_name,d.created_at,d.status,d.version,d.closed_at,
-                    o.name AS object_name,c.name AS category_name,a.name AS area_name
+                    o.name AS object_name,c.name AS category_name,a.name AS area_name,
+                    (SELECT GROUP_CONCAT(s.name)
+                       FROM defect_responsible_services ds
+                       JOIN defect_services s ON s.id=ds.service_id
+                       WHERE ds.defect_id=d.id) AS service_names
              ' . $this->relations()
             . ' WHERE ' . implode(' AND ', $where)
-            . ' ORDER BY d.id ASC LIMIT ' . $limit,
+            . ' ORDER BY ' . $orderBy . ' LIMIT ' . $limit . $offset,
             $params
         );
-        return ['items' => $rows, 'next_cursor' => $rows === [] ? null : (int) end($rows)['id']];
+        $next = $rows === [] ? null : ($sort === ''
+            ? (int) end($rows)['id'] : $afterId + count($rows));
+        return ['items' => $rows, 'next_cursor' => $next];
     }
 
     /** @param array<string,mixed> $filters
