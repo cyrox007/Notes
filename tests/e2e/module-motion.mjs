@@ -50,7 +50,7 @@ try {
         await summary.click();
         await page.waitForTimeout(45);
         await summary.click();
-        await page.waitForTimeout(350);
+        await page.waitForFunction(() => document.querySelector('details').getAnimations().length === 0);
         assert.equal(await details.getAttribute('open'), null, 'Fast reversal must finish closed');
         const action = actualWorkPermits ? page.locator('.wp-journal__shortcuts a').first() : page.locator('button');
         await action.hover();

@@ -376,7 +376,7 @@ html[data-theme="dark"] .sidebar__brand-copy small{color:var(--ui-primary);}
 .workspace-home__overview-item>.fa{color:var(--ui-subtle)}
 @media(max-width:800px){.workspace-home__overview-grid{grid-template-columns:1fr}.workspace-home__overview .workspace-home__section-heading{align-items:flex-start}}
 /* Storage locations stay together; administration is a separate action. */
-html{scrollbar-gutter:stable}
+@media(min-width:901px){html{scrollbar-gutter:stable}}
 .file-manager .file-manager__toolbar.file-storage-tabs{display:flex;flex-direction:row;justify-content:flex-start;flex-wrap:wrap;gap:4px;padding:6px;border:0;background:transparent;box-shadow:none}
 .file-storage-tabs .file-manager__btn{min-height:36px;padding:8px 14px;border-color:transparent;border-radius:9px;background:transparent;transition:background-color .2s ease,color .2s ease,box-shadow .2s ease,transform .2s ease}
 .file-storage-tabs .file-manager__btn[aria-current=page]{background:var(--ui-action,#1677ff);color:#fff;box-shadow:0 3px 10px #1677ff26}

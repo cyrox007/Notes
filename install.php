@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-if (PHP_VERSION_ID < 80200) {
+if (PHP_VERSION_ID < 80300) {
     http_response_code(500);
     echo '<!doctype html><html lang="ru"><meta charset="utf-8"><title>Несовместимый PHP</title>'
-        . '<body><h1>Требуется PHP 8.2 или новее</h1><p>Сейчас сервер использует PHP '
+        . '<body><h1>Требуется PHP 8.3 или новее</h1><p>Сейчас сервер использует PHP '
         . htmlspecialchars(PHP_VERSION, ENT_QUOTES, 'UTF-8')
-        . '. Выберите PHP 8.2+ в панели хостинга и повторите установку.</p></body></html>';
+        . '. Выберите PHP 8.3+ в панели хостинга и повторите установку.</p></body></html>';
     exit;
 }
 
