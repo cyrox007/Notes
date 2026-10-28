@@ -3,6 +3,7 @@
 
 import argparse
 import collections
+import datetime
 import json
 import os
 from pathlib import Path
@@ -156,6 +157,9 @@ def main():
         identifier = int(created["defect"]["id"])
         command = {
             "version": 1, "completed_work": "Испытательное устранение в SQL-профиле",
+            "completed_by_name": "Испытатель SQL",
+            "closed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+            "close_comment": "Контроль SQL-команд",
             "command_id": uuid.uuid4().hex,
         }
         started = stamp()

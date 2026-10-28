@@ -184,9 +184,12 @@ ob_start();
                     <button type="button" class="defects-button defects-button--secondary ui-button ui-button--secondary" data-defects-history-more hidden>Ранее не показанные события</button>
                     <form data-defects-close class="defects-close-form" hidden>
                         <h3>Закрыть дефект</h3>
+                        <label>Фактическая дата и время закрытия <input type="datetime-local" name="closed_at" required></label>
+                        <label>ФИО выполнившего работы <input name="completed_by_name" maxlength="160" required></label>
                         <label>Выполненные работы
                             <textarea name="completed_work" minlength="1" maxlength="10000" rows="5" required placeholder="Опишите, как устранён дефект"></textarea>
                         </label>
+                        <label>Комментарий (необязательно) <textarea name="close_comment" maxlength="2000" rows="2"></textarea></label>
                         <p>После закрытия запись останется в истории.</p>
                         <div data-defects-close-error class="defects-form-error" role="alert" hidden></div>
                         <button type="submit" class="defects-button defects-button--primary ui-button ui-button--primary">Подтвердить закрытие</button>

@@ -126,6 +126,9 @@ def create_close(opener, origin, token, fixture, marker, suffix, record):
            "Регистрация не создала уникальную запись")
     reply, ms = post_json(opener, origin, token, f"/api/defects/{ident}/close", {
         "version": 1, "completed_work": "Испытательное устранение " + marker,
+        "completed_by_name": "Испытатель нагрузки",
+        "closed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+        "close_comment": "Контроль закрытия в нагрузочном сценарии",
         "command_id": uuid.uuid4().hex,
     })
     record("закрытие", 200, ms)
@@ -246,11 +249,17 @@ def conflict_and_replay(origin, sessions, fixture, marker):
     close1 = {
         "version": 1,
         "completed_work": "Закрыл первый испытатель " + marker,
+        "completed_by_name": "Испытатель первый",
+        "closed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+        "close_comment": "Конкурентное закрытие",
         "command_id": uuid.uuid4().hex,
     }
     close2 = {
         "version": 1,
         "completed_work": "Закрыл второй испытатель " + marker,
+        "completed_by_name": "Испытатель второй",
+        "closed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+        "close_comment": "Конкурентное закрытие",
         "command_id": uuid.uuid4().hex,
     }
 

@@ -84,7 +84,8 @@ final class DefectRegistryService
     }
 
     /** @return array{id:int,version:int,replayed:bool} */
-    public function close(int $id, int $expectedVersion, int $userId, string $work, string $commandId): array
+    public function close(int $id, int $expectedVersion, int $userId, string $work, string $commandId,
+        string $completedByName = '', string $actualClosedAt = '', string $comment = ''): array
     {
         if ($id < 1 || $expectedVersion < 1 || $userId < 1) {
             throw new InvalidArgumentException('Неверная запись, версия или пользователь');
@@ -96,8 +97,25 @@ final class DefectRegistryService
         if (preg_match('/^[A-Za-z0-9_-]{16,96}$/D', $commandId) !== 1) {
             throw new InvalidArgumentException('Недопустимый идентификатор команды');
         }
+        $completedByName = trim($completedByName);
+        $comment = trim($comment);
+        if ($completedByName === '' || mb_strlen($completedByName) > 160 || mb_strlen($comment) > 2000) {
+            throw new InvalidArgumentException('Укажите ФИО исполнителя (до 160 символов) и комментарий до 2000 символов');
+        }
+        try {
+            $date = new \DateTimeImmutable($actualClosedAt);
+        } catch (\Exception) {
+            throw new InvalidArgumentException('Неверная фактическая дата закрытия');
+        }
+        if (!preg_match('/(?:Z|[+-][0-9]{2}:[0-9]{2})$/', $actualClosedAt)) {
+            throw new InvalidArgumentException('Дата закрытия должна содержать часовой пояс');
+        }
+        $closedAt = $date->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+        if ($date->getTimestamp() > time()) {
+            throw new InvalidArgumentException('Нельзя указать закрытие в будущем');
+        }
         $fingerprint = hash('sha256', json_encode(
-            [$id, $expectedVersion, $userId, $work], JSON_THROW_ON_ERROR
+            [$id, $expectedVersion, $userId, $work, $completedByName, $closedAt, $comment], JSON_THROW_ON_ERROR
         ));
         $existing = $this->closedCommand($commandId, $fingerprint);
         if ($existing !== null) {
@@ -113,7 +131,7 @@ final class DefectRegistryService
                  WHERE id=:id AND version=:version AND status='open' AND due_at > :now_utc",
                 [
                     'work' => $work, 'user_id' => $userId,
-                    'closed_at' => gmdate('Y-m-d H:i:s'),
+                    'closed_at' => $closedAt,
                     'now_utc' => gmdate('Y-m-d H:i:s'),
                     'command_id' => $commandId, 'hash' => $fingerprint,
                     'id' => $id, 'version' => $expectedVersion,
@@ -136,6 +154,9 @@ final class DefectRegistryService
                 'version_before' => $expectedVersion,
                 'version_after' => $expectedVersion + 1,
                 'completed_work' => $work,
+                'completed_by_name' => $completedByName,
+                'closed_at' => $closedAt,
+                'close_comment' => $comment,
             ], $commandId);
 
             $this->database->endTransaction();
