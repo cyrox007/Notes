@@ -22,6 +22,13 @@ ob_start();
     </nav>
     <section class="calendar-shell wp-journal__registry" aria-labelledby="wp-registry-title">
         <h2 id="wp-registry-title">Мои документы за последний месяц</h2>
+        <label>Показывать
+            <select data-wp-personal-state>
+                <option value="active">Действующие</option>
+                <option value="closed">Закрытые</option>
+                <option value="all">Все</option>
+            </select>
+        </label>
         <div data-wp-list aria-live="polite" aria-busy="true"><p>Загружаем документы…</p></div>
         <button class="ui-button ui-button--secondary" type="button" data-wp-more hidden>Показать ещё</button>
     </section>
@@ -31,9 +38,11 @@ ob_start();
         <p>Показываются документы разных авторов. Операции требуют разрешения на управление модулем.</p>
         <label>Состояние
             <select data-wp-management-state>
+                <option value="active">Все действующие</option>
                 <option value="draft">Черновики для выдачи</option>
                 <option value="issued">Выданные документы</option>
                 <option value="closed">Закрытые</option>
+                <option value="all">Все, включая закрытые</option>
             </select>
         </label>
         <div data-wp-management-list aria-live="polite" aria-busy="true"><p>Загружаем журнал…</p></div>
