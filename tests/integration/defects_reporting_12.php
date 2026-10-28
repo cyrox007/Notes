@@ -35,15 +35,15 @@ $pdo->exec('CREATE TABLE defect_areas (id INTEGER PRIMARY KEY,name TEXT)');
 $pdo->exec('CREATE TABLE defect_object_categories (id INTEGER PRIMARY KEY,area_id INTEGER,name TEXT)');
 $pdo->exec('CREATE TABLE defect_objects (id INTEGER PRIMARY KEY,category_id INTEGER,name TEXT)');
 $pdo->exec('CREATE TABLE defects (id INTEGER PRIMARY KEY,object_id INTEGER,description TEXT,
-    priority TEXT,discovered_at TEXT,due_at TEXT,registered_by_name TEXT,status TEXT,version INTEGER,closed_at TEXT)');
+    priority TEXT,discovered_at TEXT,due_at TEXT,registered_by_name TEXT,status TEXT,version INTEGER,closed_at TEXT,created_at TEXT)');
 $pdo->exec('CREATE TABLE defect_responsible_services (defect_id INTEGER,service_id INTEGER)');
 $pdo->exec("INSERT INTO defect_areas VALUES (1,'Северный РЭС'),(2,'Южный РЭС')");
 $pdo->exec("INSERT INTO defect_object_categories VALUES (1,1,'Линии'),(2,2,'Подстанции')");
 $pdo->exec("INSERT INTO defect_objects VALUES (1,1,'ЛЭП-1'),(2,2,'ТП-2')");
 $pdo->exec("INSERT INTO defects VALUES
-    (1,1,'Повреждение','urgent','2020-01-01 12:00:00','2020-01-02 12:00:00','Иванов','open',1,NULL),
-    (2,1,'Замена','normal','2020-02-01 12:00:00','2020-03-02 12:00:00','Петров','closed',2,'2020-02-04 12:00:00'),
-    (3,2,'Проверка','first','2020-02-02 12:00:00','2020-02-09 12:00:00','Сидоров','open',1,NULL)");
+    (1,1,'Повреждение','urgent','2020-01-01 12:00:00','2020-01-02 12:00:00','Иванов','open',1,NULL,'2020-01-03 10:00:00'),
+    (2,1,'Замена','normal','2020-02-01 12:00:00','2020-03-02 12:00:00','Петров','closed',2,'2020-02-04 12:00:00','2020-02-03 10:00:00'),
+    (3,2,'Проверка','first','2020-02-02 12:00:00','2020-02-09 12:00:00','Сидоров','open',1,NULL,'2020-02-05 10:00:00')");
 $pdo->exec('INSERT INTO defect_responsible_services VALUES (1,10),(2,10),(3,20)');
 $service = new \Modules\Defects\Services\DefectReportService(
     \Core\DatabaseManager::forConnection($pdo)
@@ -59,6 +59,16 @@ assertDefectReport(count($service->search(['status' => 'all', 'area_id' => 2])['
 assertDefectReport(count($service->search(['status' => 'all', 'object_id' => 1])['items']) === 2, 'фильтр объекта не работает');
 assertDefectReport(count($service->search(['status' => 'all', 'from' => '2020-02-01', 'to' => '2020-02-01'])['items']) === 1,
     'границы периода неверны');
+assertDefectReport(count($service->search(['status'=>'all',
+    'registered_from'=>'2020-02-03','registered_to'=>'2020-02-03'])['items']) === 1,
+    'даты регистрации должны фильтроваться отдельно от обнаружения');
+assertDefectReport(count($service->search(['status'=>'all',
+    'due_from'=>'2020-02-09','due_to'=>'2020-02-09'])['items']) === 1,
+    'фильтр планового срока не должен использовать дату обнаружения');
+assertDefectReport(count($service->search(['status'=>'all',
+    'from'=>'2020-02-01','to'=>'2020-02-01',
+    'registered_from'=>'2020-02-03','registered_to'=>'2020-02-03'])['items']) === 1,
+    'одновременные независимые фильтры должны работать вместе');
 
 $readsBefore = $pdo->selectStatements;
 $summary = $service->summary(['status' => 'all'], 0, 1);
@@ -81,6 +91,8 @@ foreach ([
     ['area_id' => '-1'],
     ['from' => '2020-02-30'],
     ['from' => '2020-02-02', 'to' => '2020-02-01'],
+    ['registered_from' => '2020-02-30'],
+    ['due_from' => '2020-02-10', 'due_to' => '2020-02-01'],
 ] as $bad) {
     $rejected = false;
     try {
