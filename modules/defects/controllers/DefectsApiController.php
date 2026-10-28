@@ -53,7 +53,8 @@ final class DefectsApiController extends Controller
     private function reportFilters(Request $request): array
     {
         $filters = [];
-        foreach (['status', 'priority', 'area_id', 'object_id', 'service_id', 'from', 'to'] as $key) {
+        foreach (['status', 'priority', 'area_id', 'object_id', 'service_id', 'from', 'to',
+                 'registered_from', 'registered_to', 'due_from', 'due_to'] as $key) {
             $value = $request->get($key);
             if ($value !== null) {
                 $filters[$key] = $value;
