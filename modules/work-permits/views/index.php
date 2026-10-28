@@ -6,7 +6,7 @@ declare(strict_types=1);
 $baseUrl = rtrim((string) ($base_url ?? ''), '/');
 ob_start();
 ?>
-<main class="wp-journal" data-work-permits data-base-url="<?= $view->e($baseUrl) ?>" data-wp-can-manage="<?= !empty($can_manage_references) ? '1' : '0' ?>">
+<main class="wp-journal ui-form" data-work-permits data-base-url="<?= $view->e($baseUrl) ?>" data-wp-can-manage="<?= !empty($can_manage_references) ? '1' : '0' ?>">
     <?= $csrf_input ?? '' ?>
     <header class="module-page-header">
         <h1>Наряды и допуски</h1>
@@ -14,16 +14,16 @@ ob_start();
     </header>
     <p data-wp-feedback role="status" aria-live="polite" hidden></p>
     <nav class="wp-journal__shortcuts" aria-label="Разделы журнала">
-        <a href="#wp-registry-title"><i class="fa fa-folder-open-o" aria-hidden="true"></i> Мои документы</a>
+        <a class="ui-button ui-button--secondary" href="#wp-registry-title"><i class="fa fa-folder-open-o" aria-hidden="true"></i> Мои документы</a>
         <?php if (!empty($can_manage_references)): ?>
-            <a href="#wp-management-title"><i class="fa fa-clipboard" aria-hidden="true"></i> Журнал выдачи</a>
+            <a class="ui-button ui-button--secondary" href="#wp-management-title"><i class="fa fa-clipboard" aria-hidden="true"></i> Журнал выдачи</a>
         <?php endif; ?>
-        <a href="#wp-form-title" class="wp-journal__shortcuts-primary"><i class="fa fa-plus" aria-hidden="true"></i> Создать документ</a>
+        <a href="#wp-form-title" class="wp-journal__shortcuts-primary ui-button ui-button--primary"><i class="fa fa-plus" aria-hidden="true"></i> Создать документ</a>
     </nav>
     <section class="calendar-shell wp-journal__registry" aria-labelledby="wp-registry-title">
         <h2 id="wp-registry-title">Мои документы за последний месяц</h2>
-        <div data-wp-list aria-live="polite"></div>
-        <button type="button" data-wp-more hidden>Показать ещё</button>
+        <div data-wp-list aria-live="polite" aria-busy="true"><p>Загружаем документы…</p></div>
+        <button class="ui-button ui-button--secondary" type="button" data-wp-more hidden>Показать ещё</button>
     </section>
     <?php if (!empty($can_manage_references)): ?>
     <section class="calendar-shell wp-journal__registry" data-wp-management>
@@ -36,8 +36,8 @@ ob_start();
                 <option value="closed">Закрытые</option>
             </select>
         </label>
-        <div data-wp-management-list aria-live="polite"></div>
-        <button type="button" data-wp-management-more hidden>Показать ещё</button>
+        <div data-wp-management-list aria-live="polite" aria-busy="true"><p>Загружаем журнал…</p></div>
+        <button class="ui-button ui-button--secondary" type="button" data-wp-management-more hidden>Показать ещё</button>
     </section>
     <?php endif; ?>
     <section class="calendar-shell wp-journal__editor" aria-labelledby="wp-form-title">
@@ -60,12 +60,12 @@ ob_start();
             </label>
             <div class="wp-journal__template-picker wp-journal__wide" data-wp-job-picker="new">
                 <label>Шаблон задания <select data-wp-job-choice><option value="">Выберите организацию</option></select></label>
-                <button type="button" data-wp-apply-job>Подставить задание</button>
+                <button class="ui-button ui-button--secondary" type="button" data-wp-apply-job>Подставить задание</button>
             </div>
             <label class="wp-journal__wide">Задание на производство работ
                 <textarea name="work_description" maxlength="10000" rows="4" required></textarea>
             </label>
-            <button type="submit" data-wp-submit>Сохранить черновик</button>
+            <button class="ui-button ui-button--primary" type="submit" data-wp-submit>Сохранить черновик</button>
         </form>
         <p>Номер присваивается сервером. Черновик ещё не является выданным нарядом или распоряжением.</p>
     </section>
@@ -79,12 +79,12 @@ ob_start();
             <label>Объект <select name="facility_id" data-wp-edit-facility required><option value="">Выберите объект</option></select></label>
             <div class="wp-journal__template-picker wp-journal__wide" data-wp-job-picker="edit">
                 <label>Шаблон задания <select data-wp-job-choice><option value="">Выберите организацию</option></select></label>
-                <button type="button" data-wp-apply-job>Подставить задание</button>
+                <button class="ui-button ui-button--secondary" type="button" data-wp-apply-job>Подставить задание</button>
             </div>
             <label class="wp-journal__wide">Задание <textarea name="work_description" maxlength="10000" rows="4" required></textarea></label>
             <div class="wp-journal__template-picker wp-journal__wide" data-wp-crew-picker>
                 <label>Шаблон бригады <select data-wp-crew-choice><option value="">Выберите организацию</option></select></label>
-                <button type="button" data-wp-apply-crew>Подставить состав бригады</button>
+                <button class="ui-button ui-button--secondary" type="button" data-wp-apply-crew>Подставить состав бригады</button>
             </div>
             <fieldset class="wp-journal__wide wp-journal__crew">
                 <legend>Состав бригады</legend>
@@ -97,8 +97,8 @@ ob_start();
                 <label>Члены бригады (множественный выбор) <select name="member_ids" data-wp-members multiple size="6"></select></label>
             </fieldset>
             <div class="wp-journal__actions wp-journal__wide">
-                <button type="submit" data-wp-edit-submit>Сохранить изменения</button>
-                <button type="button" data-wp-edit-cancel>Отменить</button>
+                <button class="ui-button ui-button--primary" type="submit" data-wp-edit-submit>Сохранить изменения</button>
+                <button class="ui-button ui-button--secondary" type="button" data-wp-edit-cancel>Отменить</button>
             </div>
         </form>
     </section>
@@ -119,7 +119,7 @@ ob_start();
                 <label>Шаблон условий производства работ
                     <select data-wp-issue-choice><option value="">Выберите организацию</option></select>
                 </label>
-                <button type="button" data-wp-issue-apply>Подставить условия</button>
+                <button class="ui-button ui-button--secondary" type="button" data-wp-issue-apply>Подставить условия</button>
             </div>
             <label class="wp-journal__wide">Условия производства работ
                 <textarea name="work_conditions" maxlength="6000" rows="4"></textarea>
@@ -128,7 +128,7 @@ ob_start();
                 <label>Шаблон отдельных указаний
                     <select data-wp-issue-choice><option value="">Выберите организацию</option></select>
                 </label>
-                <button type="button" data-wp-issue-apply>Подставить указания</button>
+                <button class="ui-button ui-button--secondary" type="button" data-wp-issue-apply>Подставить указания</button>
             </div>
             <label class="wp-journal__wide">Отдельные указания
                 <textarea name="special_instructions" maxlength="4000" rows="3"></textarea>
@@ -137,11 +137,11 @@ ob_start();
                 <legend>Меры безопасности и подготовка рабочего места</legend>
                 <p>Укажите отдельные мероприятия. Если отключения не нужны, явно опишите почему.</p>
                 <div data-wp-measure-list></div>
-                <button type="button" data-wp-add-measure>Добавить мероприятие</button>
+                <button class="ui-button ui-button--secondary" type="button" data-wp-add-measure>Добавить мероприятие</button>
             </fieldset>
             <div class="wp-journal__actions wp-journal__wide">
-                <button type="submit" data-wp-issue-submit>Выдать документ</button>
-                <button type="button" data-wp-lifecycle-cancel>Отмена</button>
+                <button class="ui-button ui-button--primary" type="submit" data-wp-issue-submit>Выдать документ</button>
+                <button class="ui-button ui-button--secondary" type="button" data-wp-lifecycle-cancel>Отмена</button>
             </div>
         </form>
         <form data-wp-admission-form hidden>
@@ -167,8 +167,8 @@ ob_start();
                 Целевой инструктаж фактически проведён и получен
             </label>
             <div class="wp-journal__actions wp-journal__wide">
-                <button type="submit" data-wp-admission-submit>Зафиксировать первый допуск</button>
-                <button type="button" data-wp-lifecycle-cancel>Отмена</button>
+                <button class="ui-button ui-button--primary" type="submit" data-wp-admission-submit>Зафиксировать первый допуск</button>
+                <button class="ui-button ui-button--secondary" type="button" data-wp-lifecycle-cancel>Отмена</button>
             </div>
         </form>
     </section>
@@ -196,7 +196,7 @@ ob_start();
             <label class="wp-journal__wide"><input type="checkbox" name="crew_withdrawn" required>
                 Бригада выведена с рабочего места
             </label>
-            <button type="submit">Зафиксировать окончание работ</button>
+            <button class="ui-button ui-button--primary" type="submit">Зафиксировать окончание работ</button>
         </form>
         <form data-wp-final-close-form hidden>
             <h3 data-wp-final-close-label>Окончательно закрыть документ</h3>
@@ -215,9 +215,9 @@ ob_start();
             <label class="wp-journal__wide"><input type="checkbox" name="documents_handed_over" required>
                 Оформленные документы переданы
             </label>
-            <button type="submit" data-wp-final-close-submit>Закрыть документ</button>
+            <button class="ui-button ui-button--primary" type="submit" data-wp-final-close-submit>Закрыть документ</button>
         </form>
-        <button type="button" data-wp-closure-cancel>Вернуться в журнал</button>
+        <button class="ui-button ui-button--secondary" type="button" data-wp-closure-cancel>Вернуться в журнал</button>
     </section>
     <?php endif; ?>
 
@@ -238,7 +238,7 @@ ob_start();
             <label class="wp-journal__wide">Члены бригады (несколько значений)
                 <select name="member_ids" data-wp-amendment-members multiple size="7" required></select>
             </label>
-            <button type="submit">Сохранить состав бригады</button>
+            <button class="ui-button ui-button--primary" type="submit">Сохранить состав бригады</button>
         </form>
         <form data-wp-extension>
             <h3>Продлить срок наряда</h3>
@@ -254,9 +254,9 @@ ob_start();
             <label>Выдавший наряд
                 <select name="issuer_employee_id" data-wp-extension-issuer required></select>
             </label>
-            <button type="submit">Зарегистрировать продление</button>
+            <button class="ui-button ui-button--primary" type="submit">Зарегистрировать продление</button>
         </form>
-        <button type="button" data-wp-amendments-close>Закрыть карточку</button>
+        <button class="ui-button ui-button--secondary" type="button" data-wp-amendments-close>Закрыть карточку</button>
     </section>
     <?php endif; ?>
 
@@ -293,7 +293,7 @@ ob_start();
             <label class="wp-journal__wide"><input type="checkbox" name="permission_confirmed" required>
                 Разрешение фактически передано и получено
             </label>
-            <button type="submit">Зарегистрировать разрешение</button>
+            <button class="ui-button ui-button--primary" type="submit">Зарегистрировать разрешение</button>
         </form>
         <form data-wp-target-briefing>
             <h3 class="wp-journal__wide">Индивидуальный целевой инструктаж</h3>
@@ -320,9 +320,9 @@ ob_start();
             <label class="wp-journal__wide"><input type="checkbox" name="briefing_confirmed" required>
                 Инструктаж фактически проведён этому работнику
             </label>
-            <button type="submit">Зарегистрировать инструктаж</button>
+            <button class="ui-button ui-button--primary" type="submit">Зарегистрировать инструктаж</button>
         </form>
-        <button type="button" data-wp-safety-close>Закрыть карточку</button>
+        <button class="ui-button ui-button--secondary" type="button" data-wp-safety-close>Закрыть карточку</button>
     </section>
     <?php endif; ?>
 
@@ -354,7 +354,7 @@ ob_start();
             <label class="wp-journal__wide"><input type="checkbox" name="briefing_confirmed" required>
                 Инструктаж в эту смену фактически проведён
             </label>
-            <button type="submit" data-wp-period-submit>Записать допуск</button>
+            <button class="ui-button ui-button--primary" type="submit" data-wp-period-submit>Записать допуск</button>
         </form>
         <form data-wp-period-stop hidden>
             <h3>Остановка работ</h3>
@@ -373,9 +373,9 @@ ob_start();
             <label class="wp-journal__wide"><input type="checkbox" name="work_stopped" required>
                 Работы фактически остановлены, рабочее место приведено в безопасное состояние
             </label>
-            <button type="submit" data-wp-period-submit>Зафиксировать остановку</button>
+            <button class="ui-button ui-button--primary" type="submit" data-wp-period-submit>Зафиксировать остановку</button>
         </form>
-        <button type="button" data-wp-period-close>Закрыть карточку</button>
+        <button class="ui-button ui-button--secondary" type="button" data-wp-period-close>Закрыть карточку</button>
     </section>
     <?php endif; ?>
 
@@ -411,11 +411,11 @@ ob_start();
                     <?php endforeach; ?>
                 </select>
             </label>
-            <button type="submit">Добавить</button>
+            <button class="ui-button ui-button--primary" type="submit">Добавить</button>
         </form>
         <label><input type="checkbox" data-wp-show-archive> Показать архивные записи</label>
         <div data-wp-reference-list aria-live="polite"></div>
-        <button type="button" data-wp-reference-more hidden>Показать ещё</button>
+        <button class="ui-button ui-button--secondary" type="button" data-wp-reference-more hidden>Показать ещё</button>
     </details>
     <?php endif; ?>
     <?php if (!empty($can_manage_references)): ?>
@@ -435,16 +435,18 @@ ob_start();
                 </select>
             </label>
             <label>Название шаблона <input name="name" maxlength="160" required></label>
-            <label data-wp-template-description><span data-wp-template-text-label>Содержание задания</span>
-                <textarea name="work_description" maxlength="10000" rows="3"></textarea>
-                <button type="button" data-wp-copy-job>Взять задание из открытой формы</button>
-            </label>
+            <div class="wp-journal__template-description" data-wp-template-description>
+                <label><span data-wp-template-text-label>Содержание задания</span>
+                    <textarea name="work_description" maxlength="10000" rows="3"></textarea>
+                </label>
+                <button class="ui-button ui-button--secondary" type="button" data-wp-copy-job>Взять задание из открытой формы</button>
+            </div>
             <p data-wp-template-crew-hint hidden>Для шаблона бригады сначала откройте собственный черновик, назначьте сотрудников и выберите ту же организацию.</p>
-            <button type="submit">Сохранить новый шаблон</button>
+            <button class="ui-button ui-button--primary" type="submit">Сохранить новый шаблон</button>
         </form>
         <label><input type="checkbox" data-wp-template-archived> Показывать также архивные шаблоны</label>
         <div data-wp-template-list aria-live="polite"></div>
-        <button type="button" data-wp-template-more hidden>Показать ещё</button>
+        <button class="ui-button ui-button--secondary" type="button" data-wp-template-more hidden>Показать ещё</button>
     </details>
     <?php endif; ?>
 </main>

@@ -30,6 +30,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
 
         const node = (name, text) => {
             const element = document.createElement(name);
+            if (name === 'button') element.className = 'ui-button ui-button--secondary';
             element.textContent = String(text);
             return element;
         };
@@ -111,6 +112,9 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
                 more.hidden = !state.cursor;
                 if (!list.children.length) list.appendChild(node('p', 'За последний месяц черновиков нет.'));
             } catch (error) {
+                if (list.getAttribute('aria-busy') === 'true' && !list.querySelector('article')) {
+                    list.replaceChildren(node('p', 'Не удалось загрузить документы. Обновите страницу.'));
+                }
                 notify(error instanceof Error ? error.message : 'Ошибка загрузки журнала', true);
             } finally {
                 state.busy = false;

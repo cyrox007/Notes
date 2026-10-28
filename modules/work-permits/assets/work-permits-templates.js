@@ -209,6 +209,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-templates.
 
             const act = (label, action) => {
                 const button = document.createElement('button');
+            button.className = 'ui-button ui-button--secondary';
                 button.type = 'button';
                 button.textContent = label;
                 pageScope.listen(button, 'click', async () => {

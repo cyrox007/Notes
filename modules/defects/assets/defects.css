@@ -5,8 +5,11 @@
 .defects-workspace :is(.defects-button,.defects-icon-button,.defects-segments button):not(:disabled):active{transform:translateY(0) scale(.98);box-shadow:none}
 .defects-workspace summary{user-select:none;transition:color .2s ease}
 .defects-workspace summary:hover{color:var(--df-action)}
-.defects-workspace summary::after{content:'⌄';display:inline-block;margin-left:10px;transition:transform .28s ease}
-.defects-workspace details[open]>summary::after{transform:rotate(180deg)}
+.defects-workspace summary{display:flex;align-items:center;gap:8px;list-style:none}
+.defects-workspace summary::-webkit-details-marker{display:none}
+.defects-workspace summary::marker{content:''}
+.defects-workspace summary::after{content:'';width:7px;height:7px;flex:none;border-right:2px solid currentColor;border-bottom:2px solid currentColor;margin:0 5px 4px auto;transform:rotate(45deg);transition:transform .28s ease}
+.defects-workspace details[open]>summary::after{transform:rotate(225deg)}
 @media(prefers-reduced-motion:reduce){.defects-workspace :is(button,a,summary,summary::after){transition:none!important;transform:none!important}}
 .defects-workspace .calendar-shell{margin-top:16px;border:1px solid var(--df-border);border-radius:16px;background:var(--df-surface);box-shadow:0 12px 32px rgba(20,34,55,.055);overflow:hidden}
 .defects-workspace .defects-administration{overflow:visible}

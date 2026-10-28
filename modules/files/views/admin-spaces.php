@@ -46,7 +46,7 @@ $basePath = isset($base_path) ? (string) $base_path : '';
 $workspaceVersion = isset($version) ? (string) $version : '';
 ob_start();
 ?>
-<section class="admin-page file-spaces-page">
+<section class="admin-page file-spaces-page ui-form">
     <header class="admin-page__hero">
         <div>
             <span class="admin-page__eyebrow">Файловые пространства · 1.2</span>
@@ -78,7 +78,7 @@ ob_start();
             <label>Название группы
                 <input type="text" name="name" maxlength="120" required placeholder="Например, Бухгалтерия">
             </label>
-            <button type="submit" class="admin-action admin-action--primary">Создать группу</button>
+            <button type="submit" class="admin-action admin-action--primary ui-button ui-button--primary">Создать группу</button>
         </form>
         <?php foreach ($groups as $group): ?>
             <?php $gid = (int) $group['id']; ?>
@@ -113,7 +113,7 @@ ob_start();
                             <option value="remove">Исключить</option>
                         </select>
                     </label>
-                    <button type="submit" class="admin-action admin-action--primary">Применить</button>
+                    <button type="submit" class="admin-action admin-action--primary ui-button ui-button--primary">Применить</button>
                 </form>
                 <form action="<?= $view->e($view->route('files_admin_group_delete')) ?>"
                       method="post" data-filespace-action
@@ -122,7 +122,7 @@ ob_start();
                     <input type="hidden" name="group_id" value="<?= $gid ?>">
                     <input type="hidden" name="expected_version" value="<?= (int) $group['version'] ?>">
                     <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
-                    <button type="submit" class="admin-action admin-action--secondary">Удалить группу</button>
+                    <button type="submit" class="admin-action admin-action--secondary ui-button ui-button--primary">Удалить группу</button>
                 </form>
             </details>
         <?php endforeach; ?>
@@ -226,7 +226,7 @@ ob_start();
                     </select>
                 </label>
             <?php endif; ?>
-            <button type="submit" class="admin-action admin-action--primary">Сохранить правило</button>
+            <button type="submit" class="admin-action admin-action--primary ui-button ui-button--primary">Сохранить правило</button>
         </form>
 
         <details class="admin-panel-card">
@@ -274,7 +274,7 @@ ob_start();
                     </select>
                 </label>
                 <p>Не более 25 получателей и 100 правил за одну операцию.</p>
-                <button type="submit" class="admin-action admin-action--primary">Применить ко всем выбранным</button>
+                <button type="submit" class="admin-action admin-action--primary ui-button ui-button--primary">Применить ко всем выбранным</button>
             </form>
         </details>
     </section>
@@ -295,7 +295,7 @@ ob_start();
                     <?php endforeach; ?>
                 </select>
             </label>
-            <button type="submit" class="admin-action admin-action--secondary">Показать права</button>
+            <button type="submit" class="admin-action admin-action--secondary ui-button ui-button--primary">Показать права</button>
         </form>
         <?php if ($decisions): ?>
             <table>
@@ -331,7 +331,7 @@ ob_start();
                 <input type="number" name="days" min="1" max="3650"
                        value="<?= (int) ($admin['retention_days'] ?? 30) ?>" required>
             </label>
-            <button type="submit" class="admin-action admin-action--primary">Сохранить срок</button>
+            <button type="submit" class="admin-action admin-action--primary ui-button ui-button--primary">Сохранить срок</button>
         </form>
     </section>
 </section>

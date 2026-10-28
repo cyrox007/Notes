@@ -108,6 +108,7 @@ jobs:
             tests/integration/notes_staged_http_capacity_12.py \
             tests/integration/notes_files_staged_http_capacity_12.py
           php tests/integration/filespaces_http_seed_12.php > /tmp/fsp-http-fixture.json
+          mysql -h127.0.0.1 -uroot fsp_http_load < database/migrations/20261021_notification_action_tokens.sql
           php tests/support/ci_license_fixture.php
           # Диагностируем фактическую готовность схемы до обращения по HTTP.
           # Печатаются только имена отсутствующих таблиц/столбцов.

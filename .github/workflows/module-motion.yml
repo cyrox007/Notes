@@ -2,10 +2,10 @@ name: New module motion
 on:
   pull_request:
     branches: ['1.2']
-    paths: ['assets/js/usability-actions.js', 'assets/js/page-runtime.js', 'modules/defects/assets/defects.css', 'modules/work-permits/assets/work-permits.css', 'tests/e2e/module-motion.mjs', '.github/workflows/module-motion.yml']
+    paths: ['assets/css/workspace.css', 'modules/files/views/**', 'modules/work-permits/views/**', 'modules/defects/views/**', 'tests/fixtures/work-permits-layout.php', 'tests/e2e/shared-components.mjs', 'assets/js/usability-actions.js', 'assets/js/page-runtime.js', 'modules/defects/assets/defects.css', 'modules/work-permits/assets/work-permits.css', 'tests/e2e/module-motion.mjs', '.github/workflows/module-motion.yml']
   push:
     branches: ['1.2']
-    paths: ['assets/js/usability-actions.js', 'assets/js/page-runtime.js', 'modules/defects/assets/defects.css', 'modules/work-permits/assets/work-permits.css', 'tests/e2e/module-motion.mjs', '.github/workflows/module-motion.yml']
+    paths: ['assets/css/workspace.css', 'modules/files/views/**', 'modules/work-permits/views/**', 'modules/defects/views/**', 'tests/fixtures/work-permits-layout.php', 'tests/e2e/shared-components.mjs', 'assets/js/usability-actions.js', 'assets/js/page-runtime.js', 'modules/defects/assets/defects.css', 'modules/work-permits/assets/work-permits.css', 'tests/e2e/module-motion.mjs', '.github/workflows/module-motion.yml']
 permissions:
   contents: read
 jobs:
@@ -17,6 +17,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
       - run: npm install --no-save playwright@1.55.0
       - run: npx playwright install --with-deps chromium
       - run: node tests/e2e/module-motion.mjs
+      - run: node tests/e2e/shared-components.mjs

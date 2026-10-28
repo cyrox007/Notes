@@ -39,12 +39,12 @@ ob_start();
 <section class="module-page-header module-page-header--files">
     <div><h1>Общие файлы</h1><p>Общее файловое пространство с правами доступа к каждой папке.</p></div>
 </section>
-<div class="file-manager file-spaces-page">
-    <nav class="file-manager__toolbar" aria-label="Файловые пространства">
+<div class="file-manager file-spaces-page ui-form">
+    <nav class="file-manager__toolbar file-storage-tabs" aria-label="Файловые пространства">
         <a class="file-manager__btn file-manager__btn--secondary" href="<?= $view->e($view->route('files')) ?>">Мои файлы</a>
-        <span class="file-manager__btn file-manager__btn--primary">Общие файлы</span>
+        <span class="file-manager__btn file-manager__btn--primary" aria-current="page">Общие файлы</span>
         <?php if (!empty($can_admin_files)): ?>
-            <a class="file-manager__btn file-manager__btn--secondary" href="<?= $view->e($view->route('files_admin')) ?>">Управление доступом</a>
+            <a class="file-manager__btn file-manager__btn--secondary file-storage-tabs__manage" href="<?= $view->e($view->route('files_admin')) ?>">Управление доступом</a>
         <?php endif; ?>
     </nav>
     <div class="file-manager__toolbar">
@@ -62,10 +62,10 @@ ob_start();
         </div>
     </div>
     <nav class="file-spaces-page__shortcuts" aria-label="Действия с общими файлами">
-        <a href="#filespace-catalog">Каталог</a>
-        <?php if ($canUpload): ?><a href="#filespace-upload">Загрузить файл</a><?php endif; ?>
-        <?php if ($canCreate): ?><a href="#filespace-create">Создать папку</a><?php endif; ?>
-        <?php if ($canManage): ?><a href="#filespace-permissions">Права этой папки</a><?php endif; ?>
+        <a class="ui-button ui-button--secondary" href="#filespace-catalog">Каталог</a>
+        <?php if ($canUpload): ?><a class="ui-button ui-button--secondary" href="#filespace-upload">Загрузить файл</a><?php endif; ?>
+        <?php if ($canCreate): ?><a class="ui-button ui-button--secondary" href="#filespace-create">Создать папку</a><?php endif; ?>
+        <?php if ($canManage): ?><a class="ui-button ui-button--secondary" href="#filespace-permissions">Права этой папки</a><?php endif; ?>
     </nav>
     <div class="file-manager__content file-spaces-page__catalog" id="filespace-catalog">
         <?php if ($items === []): ?>
@@ -102,7 +102,7 @@ ob_start();
                                 <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
                                 <label>Новое название <input type="text" name="name" maxlength="255"
                                         value="<?= $view->e($item['name']) ?>" required></label>
-                                <button type="submit" class="file-manager__btn file-manager__btn--secondary">Переименовать</button>
+                                <button type="submit" class="file-manager__btn file-manager__btn--secondary ui-button ui-button--primary">Переименовать</button>
                             </form>
                         <?php endif; ?>
                         <?php if (!empty($item['can_move'])): ?>
@@ -123,7 +123,7 @@ ob_start();
                                         <?php endforeach; ?>
                                     </select>
                                 </label>
-                                <button type="submit" class="file-manager__btn file-manager__btn--secondary">Переместить</button>
+                                <button type="submit" class="file-manager__btn file-manager__btn--secondary ui-button ui-button--primary">Переместить</button>
                             </form>
                         <?php endif; ?>
                         <?php if (!empty($item['can_replace'])): ?>
@@ -135,7 +135,7 @@ ob_start();
                                 <input type="hidden" name="expected_parent_version" value="<?= $folderVersion ?>">
                                 <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
                                 <label>Заменить содержимое <input type="file" name="file" required></label>
-                                <button type="submit" class="file-manager__btn file-manager__btn--secondary">Заменить</button>
+                                <button type="submit" class="file-manager__btn file-manager__btn--secondary ui-button ui-button--primary">Заменить</button>
                             </form>
                         <?php endif; ?>
                         <?php if (!empty($item['can_delete'])): ?>
@@ -146,7 +146,7 @@ ob_start();
                                 <input type="hidden" name="expected_version" value="<?= (int) $item['version'] ?>">
                                 <input type="hidden" name="expected_parent_version" value="<?= $folderVersion ?>">
                                 <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
-                                <button type="submit" class="file-manager__btn file-manager__btn--secondary">В корзину</button>
+                                <button type="submit" class="file-manager__btn file-manager__btn--secondary ui-button ui-button--primary">В корзину</button>
                             </form>
                         <?php endif; ?>
                     </div>
@@ -179,7 +179,7 @@ ob_start();
                 <input type="hidden" name="expected_version" value="<?= $folderVersion ?>">
                 <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
                 <label>Файл <input type="file" name="file" required></label>
-                <button type="submit" class="file-manager__btn file-manager__btn--primary">Загрузить</button>
+                <button type="submit" class="file-manager__btn file-manager__btn--primary ui-button ui-button--primary">Загрузить</button>
             </form>
         </section>
     <?php endif; ?>
@@ -194,7 +194,7 @@ ob_start();
                 <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
                 <label for="filespace-folder-name">Название</label>
                 <input id="filespace-folder-name" name="name" type="text" maxlength="255" required>
-                <button class="file-manager__btn file-manager__btn--primary" type="submit">Создать</button>
+                <button class="file-manager__btn file-manager__btn--primary ui-button ui-button--primary" type="submit">Создать</button>
             </form>
         </section>
     <?php endif; ?>
@@ -221,7 +221,7 @@ ob_start();
                         <input type="hidden" name="expected_version" value="<?= (int) $discarded['version'] ?>">
                         <input type="hidden" name="expected_parent_version" value="<?= (int) $discarded['parent_version'] ?>">
                         <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
-                        <button type="submit" class="file-manager__btn file-manager__btn--secondary">Восстановить</button>
+                        <button type="submit" class="file-manager__btn file-manager__btn--secondary ui-button ui-button--primary">Восстановить</button>
                     </form>
                 </div>
             <?php endforeach; ?>
@@ -296,7 +296,7 @@ ob_start();
                         </select>
                     </label>
                 <?php endif; ?>
-                <button type="submit" class="file-manager__btn file-manager__btn--primary">Сохранить правило</button>
+                <button type="submit" class="file-manager__btn file-manager__btn--primary ui-button ui-button--primary">Сохранить правило</button>
             </form>
         </details>
     <?php endif; ?>

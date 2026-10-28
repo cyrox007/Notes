@@ -5,15 +5,16 @@
 .wp-journal__editor label{display:grid;gap:6px;font-weight:600;font-size:13px;color:var(--ui-text)}
 .wp-journal input,.wp-journal textarea,.wp-journal select{box-sizing:border-box;width:100%;padding:10px;border:1px solid var(--ui-border);border-radius:8px;background:var(--ui-surface);color:var(--ui-text)}
 .wp-journal__wide{grid-column:1/-1}
-.wp-journal button{justify-self:start;padding:10px 16px;border:1px solid var(--ui-border);border-radius:8px;background:var(--ui-primary);color:white;cursor:pointer}
-.wp-journal button:disabled{opacity:.6;cursor:wait}
-.wp-journal :is(button,.wp-journal__quick-nav a){transition:background-color .2s ease,border-color .2s ease,box-shadow .2s ease,transform .2s ease}
-@media(hover:hover){.wp-journal :is(button:not(:disabled),.wp-journal__quick-nav a):hover{transform:translateY(-2px);box-shadow:0 5px 14px color-mix(in srgb,var(--ui-primary,#4f46e5) 22%,transparent);filter:brightness(1.08)}}
-.wp-journal button:not(:disabled):active{transform:translateY(0) scale(.98);box-shadow:none}
+.wp-journal form button{align-self:end;height:auto;min-height:40px;max-width:100%}
+.wp-journal__template-description,.wp-journal__template-description>label{display:grid;gap:6px}
+.wp-journal__template-description>button{justify-self:start}
 .wp-journal summary{cursor:pointer;user-select:none;transition:color .2s ease}
 .wp-journal summary:hover{color:var(--ui-primary,#4f46e5)}
-.wp-journal summary::after{content:'⌄';display:inline-block;margin-left:10px;transition:transform .28s ease}
-.wp-journal details[open]>summary::after{transform:rotate(180deg)}
+.wp-journal summary{display:flex;align-items:center;gap:8px;list-style:none}
+.wp-journal summary::-webkit-details-marker{display:none}
+.wp-journal summary::marker{content:''}
+.wp-journal summary::after{content:'';width:7px;height:7px;flex:none;border-right:2px solid currentColor;border-bottom:2px solid currentColor;margin:0 5px 4px auto;transform:rotate(45deg);transition:transform .28s ease}
+.wp-journal details[open]>summary::after{transform:rotate(225deg)}
 @media(prefers-reduced-motion:reduce){.wp-journal :is(button,a,summary,summary::after){transition:none!important;transform:none!important}}
 .wp-journal__row{display:grid;gap:5px;padding:14px 0;border-bottom:1px solid var(--ui-border)}
 .wp-journal__row:last-child{border-bottom:0}
@@ -117,3 +118,6 @@
 .wp-journal__registry p{color:var(--ui-muted);font-size:13px;line-height:1.45}
 .wp-journal section[id],.wp-journal h2[id]{scroll-margin-top:90px}
 @media(max-width:640px){.wp-journal{padding:12px;gap:12px}.wp-journal__shortcuts{display:grid;grid-template-columns:1fr}.wp-journal__shortcuts a{justify-content:flex-start}}
+.wp-journal :is([data-wp-list],[data-wp-management-list]){min-height:52px}
+.wp-journal :is([data-wp-list],[data-wp-management-list])>p{margin:0;padding:12px 0;line-height:24px;color:var(--ui-muted)}
+@media(prefers-reduced-motion:reduce){.wp-journal :is(button,.wp-journal__shortcuts a){transition:none!important;transform:none!important;filter:none!important}}

@@ -370,7 +370,13 @@
 
 // Animate the real details height so the following table moves with the form.
 window.wspace.page.register('assets/js/admin-create-user-motion', (scope) => {
-document.querySelectorAll('details.admin-create-user, .defects-workspace details, .wp-journal details').forEach((details) => {
+scope.listen(document, 'click', event => {
+    if (event.target.closest?.('.ui-button[aria-disabled="true"],.ui-button[aria-busy="true"]')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+    }
+}, true);
+document.querySelectorAll('details.admin-create-user, .defects-workspace details, .wp-journal details, .file-spaces-page details').forEach((details) => {
     const summary = details.querySelector('summary');
     let animation;
     let expanded = details.open;
@@ -412,4 +418,14 @@ document.querySelectorAll('details.admin-create-user, .defects-workspace details
     });
 });
 
+document.querySelectorAll('.file-spaces-page__shortcuts a[href^="#"]').forEach(link => {
+    scope.listen(link, 'click', event => {
+        const target = document.getElementById(link.hash.slice(1));
+        if (!target) return;
+        event.preventDefault();
+        const disclosure = target.matches('details') ? target : target.closest('details');
+        if (disclosure && !disclosure.open) disclosure.querySelector('summary')?.click();
+        target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
+    });
+});
 });

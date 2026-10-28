@@ -507,14 +507,14 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
             row.append(title, actions);
 
             if (item.is_archived) {
-                const restore = element('button', 'defects-button defects-button--secondary', 'Восстановить');
+                const restore = element('button', 'defects-button defects-button--secondary ui-button ui-button--secondary', 'Восстановить');
                 restore.type = 'button';
                 restore.addEventListener('click', () => void mutate(row, item, 'restore'));
                 actions.append(restore);
                 return row;
             }
 
-            const edit = element('button', 'defects-button defects-button--secondary', 'Переименовать');
+            const edit = element('button', 'defects-button defects-button--secondary ui-button ui-button--secondary', 'Переименовать');
             edit.type = 'button';
             edit.addEventListener('click', () => {
                 if (row.querySelector('form')) return;
@@ -525,9 +525,9 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
                 input.value = item.name;
                 input.maxLength = adminKind.value === 'objects' ? 180 : 160;
                 input.required = true;
-                const save = element('button', 'defects-button defects-button--primary', 'Сохранить');
+                const save = element('button', 'defects-button defects-button--primary ui-button ui-button--primary', 'Сохранить');
                 save.type = 'submit';
-                const cancel = element('button', 'defects-button defects-button--secondary', 'Отмена');
+                const cancel = element('button', 'defects-button defects-button--secondary ui-button ui-button--secondary', 'Отмена');
                 cancel.type = 'button';
                 cancel.addEventListener('click', () => {
                     editor.remove();
@@ -545,17 +545,17 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
                 input.focus();
             });
 
-            const archive = element('button', 'defects-button defects-button--secondary', 'В архив');
+            const archive = element('button', 'defects-button defects-button--secondary ui-button ui-button--secondary', 'В архив');
             archive.type = 'button';
             archive.addEventListener('click', () => {
                 if (actions.querySelector('[data-confirm-archive]')) return;
                 archive.hidden = true;
                 const warning = element('span', 'defects-reference-confirm', 'Подтвердить архивирование?');
                 warning.dataset.confirmArchive = 'true';
-                const yes = element('button', 'defects-button defects-button--secondary', 'Подтвердить');
+                const yes = element('button', 'defects-button defects-button--secondary ui-button ui-button--secondary', 'Подтвердить');
                 yes.type = 'button';
                 yes.addEventListener('click', () => void mutate(row, item, 'archive'));
-                const no = element('button', 'defects-button defects-button--secondary', 'Отмена');
+                const no = element('button', 'defects-button defects-button--secondary ui-button ui-button--secondary', 'Отмена');
                 no.type = 'button';
                 no.addEventListener('click', () => {
                     warning.remove(); yes.remove(); no.remove(); archive.hidden = false;
