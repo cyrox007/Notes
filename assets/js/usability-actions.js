@@ -423,9 +423,13 @@ document.querySelectorAll('.file-spaces-page__shortcuts a[href^="#"]').forEach(l
         const target = document.getElementById(link.hash.slice(1));
         if (!target) return;
         event.preventDefault();
+        event.stopPropagation();
         const disclosure = target.matches('details') ? target : target.closest('details');
         if (disclosure && !disclosure.open) disclosure.querySelector('summary')?.click();
         target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
-    });
+        const control = target.querySelector('input:not([type=hidden]), select, textarea, summary');
+        if (control) control.focus({ preventScroll: true });
+        else { target.tabIndex = -1; target.focus({ preventScroll: true }); }
+    }, true);
 });
 });
