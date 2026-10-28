@@ -75,3 +75,13 @@
     .defects-registry__display{align-items:stretch;flex-direction:column;padding:12px}
     .defects-registry__display label{width:100%}
 }
+
+/* Назначения служб: форма остаётся читаемой на телефоне и в узкой панели. */
+.defects-services-editor{display:grid;gap:11px;margin:16px 0;padding:14px;border:1px solid var(--df-border);border-radius:12px}
+.defects-services-editor h3,.defects-services-editor p{margin:0}
+.defects-services-editor p{font-size:12px;color:var(--df-muted)}
+.defects-services-editor__rows{display:grid;gap:10px;max-height:340px;overflow:auto}
+.defects-services-editor__entry{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:center;padding:10px;border:1px solid var(--df-border);border-radius:9px}
+.defects-services-editor__entry label:first-child{flex-direction:row;align-items:center}
+.defects-services-editor__entry input[type=checkbox]{flex:none;margin:0}
+@media(max-width:580px){.defects-services-editor__entry{grid-template-columns:minmax(0,1fr)}}

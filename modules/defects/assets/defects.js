@@ -24,6 +24,10 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
     const services = $('[data-defects-services]');
     const referenceForm = $('[data-defects-reference]');
     const closeForm = $('[data-defects-close]');
+    const serviceEditForm = $('[data-defects-services-edit]');
+    const serviceEditRows = $('[data-defects-edit-services]');
+    const serviceEditError = $('[data-defects-edit-error]');
+    const serviceEditAllowed = Boolean(serviceEditForm && !serviceEditForm.hidden);
     const displayButtons = Array.from(root.querySelectorAll('[data-defects-display]'));
     const sortSelect = $('[data-defects-sort]');
     const filters = {
@@ -42,7 +46,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         status: 'open', cursor: 0, sequence: 0, busy: false,
         selectedId: null, detail: null, detailSequence: 0,
         historyCursor: 0, creationCommand: null, closeCommand: null,
-        previousFocus: null, historyLoading: false,
+        previousFocus: null, historyLoading: false, serviceEditCommand: null,
         display: window.matchMedia('(max-width: 760px)').matches ? 'cards' : 'table',
     };
 
@@ -429,6 +433,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         detailFields.append(element('dt', '', label), element('dd', '', value == null ? '—' : String(value)));
     };
     const historyLabel = (event) => {
+        if (event.event_type === 'updated' && event.details?.action === 'responsible_services') return 'Изменены службы и исполнители';
         if (event.event_type === 'created') return 'Зарегистрирован дефект';
         if (event.event_type === 'closed') return 'Дефект закрыт';
         return 'Изменение';
@@ -447,6 +452,10 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
                 if (details.completed_by_name) li.append(element('p', '', 'Исполнитель: ' + details.completed_by_name));
                 if (details.closed_at) li.append(element('p', '', 'Фактическое закрытие: ' + dateText(details.closed_at)));
                 if (details.close_comment) li.append(element('p', '', 'Комментарий: ' + details.close_comment));
+            }
+            if (details.action === 'responsible_services') {
+                const list = (details.after || []).map(item => 'служба №' + item.service_id + ': ' + (item.executor_name || 'исполнитель не назначен'));
+                li.append(element('p', '', 'Новые назначения: ' + list.join('; ')));
             }
             historyList.append(li);
         });
@@ -476,10 +485,65 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
             }
         }
     };
+    const renderServiceEditor = async (defect, sequence) => {
+        if (!serviceEditAllowed) return;
+        serviceEditForm.hidden = defect.status !== 'open';
+        serviceEditRows.replaceChildren();
+        serviceEditError.hidden = true;
+        state.serviceEditCommand = null;
+        if (serviceEditForm.hidden) return;
+
+        // Дозагружаем весь справочник, иначе службы за первой сотней недоступны.
+        const rows = [];
+        let cursor = 0;
+        for (let page = 0; page < 100; page += 1) {
+            const query = new URLSearchParams({
+                kind: 'services', limit: '100', after_id: String(cursor),
+            });
+            const batch = (await request(api + '/references?' + query)).items || [];
+            rows.push(...batch);
+            if (batch.length < 100) break;
+            const lastId = Number(batch[batch.length - 1].id);
+            if (!Number.isSafeInteger(lastId) || lastId <= cursor || page === 99) {
+                throw new Error('Не удалось загрузить полный список служб');
+            }
+            cursor = lastId;
+        }
+        if (sequence !== state.detailSequence) return;
+        const current = new Map((defect.services || []).map(item => [Number(item.id), item]));
+        const all = new Map(rows.map(item => [Number(item.id), item]));
+        (defect.services || []).forEach(item => all.set(Number(item.id), item));
+
+        all.forEach((item, id) => {
+            const entry = element('div', 'defects-services-editor__entry');
+            entry.dataset.serviceId = String(id);
+            const chooser = element('label');
+            const enabled = document.createElement('input');
+            enabled.type = 'checkbox';
+            enabled.checked = current.has(id);
+            chooser.append(enabled, document.createTextNode(item.name));
+            const executorLabel = element('label', '', 'ФИО исполнителя');
+            const executor = document.createElement('input');
+            executor.type = 'text';
+            executor.maxLength = 160;
+            executor.placeholder = 'Пока не назначен';
+            executor.value = String(current.get(id)?.executor_name || '');
+            executor.disabled = !enabled.checked;
+            enabled.addEventListener('change', () => {
+                executor.disabled = !enabled.checked;
+                state.serviceEditCommand = null;
+            });
+            executorLabel.append(executor);
+            entry.append(chooser, executorLabel);
+            serviceEditRows.append(entry);
+        });
+    };
+
     const openDetail = async (id, opener) => {
         const sequence = ++state.detailSequence;
         state.selectedId = Number(id);
         state.closeCommand = null;
+        state.serviceEditCommand = null;
         state.historyCursor = 0;
         detailTitle.textContent = 'Дефект №' + id;
         detailLoading.textContent = 'Загрузка карточки…';
@@ -501,7 +565,8 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
             addField('Срок устранения', dateText(defect.due_at));
             addField('Зарегистрировал', defect.registered_by_name);
             addField('Состояние', defect.status === 'closed' ? 'Закрыт' : 'Открыт');
-            addField('Ответственные службы', (defect.services || []).map(item => item.name).join(', '));
+            addField('Ответственные службы', (defect.services || []).map(item =>
+                item.name + ' — ' + (item.executor_name || 'исполнитель не назначен')).join('; '));
             if (defect.completed_work) addField('Выполненные работы', defect.completed_work);
             closeForm.hidden = defect.status !== 'open' || isOverdue(defect);
             if (isOverdue(defect)) {
@@ -509,6 +574,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
             }
             closeForm.reset();
             closeError.hidden = true;
+            await renderServiceEditor(defect, sequence);
             detailLoading.hidden = true;
             detailContent.hidden = false;
             await loadHistory(id, sequence, true);
@@ -529,6 +595,48 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
     historyMore.addEventListener('click', () => {
         if (state.selectedId) void loadHistory(state.selectedId, state.detailSequence);
     });
+    if (serviceEditAllowed) {
+        serviceEditForm.addEventListener('input', () => { state.serviceEditCommand = null; });
+        $('[data-defects-services-refresh]').addEventListener('click', () => {
+            if (state.selectedId) void openDetail(state.selectedId);
+        });
+        serviceEditForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            if (!state.detail || !state.selectedId || !serviceEditForm.reportValidity()) return;
+            const assignments = Array.from(serviceEditRows.querySelectorAll('[data-service-id]'))
+                .filter(entry => $('input[type="checkbox"]', entry).checked)
+                .map(entry => ({
+                    service_id: Number(entry.dataset.serviceId),
+                    executor_name: $('input[type="text"]', entry).value.trim(),
+                }));
+            if (assignments.length < 1) {
+                serviceEditError.textContent = 'Выберите хотя бы одну ответственную службу';
+                serviceEditError.hidden = false;
+                return;
+            }
+            const button = $('[type="submit"]', serviceEditForm);
+            button.disabled = true;
+            serviceEditError.hidden = true;
+            state.serviceEditCommand ||= newCommand();
+            const id = state.selectedId;
+            try {
+                await request(api + '/' + id + '/services', {
+                    version: Number(state.detail.version),
+                    command_id: state.serviceEditCommand,
+                    assignments,
+                });
+                state.serviceEditCommand = null;
+                await openDetail(id);
+                await loadRegistry();
+                feedbackMessage('Назначения по дефекту №' + id + ' сохранены');
+            } catch (error) {
+                serviceEditError.textContent = errorText(error) + '. Обновите карточку при конфликте версий.';
+                serviceEditError.hidden = false;
+            } finally {
+                button.disabled = false;
+            }
+        });
+    }
     closeForm.addEventListener('input', () => { state.closeCommand = null; });
     closeForm.addEventListener('submit', async event => {
         event.preventDefault();

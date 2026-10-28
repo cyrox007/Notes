@@ -195,6 +195,16 @@ ob_start();
                 <div data-defects-detail-loading class="defects-progress" role="status">Загрузка карточки…</div>
                 <div data-defects-detail-content hidden>
                     <dl class="defects-detail-list" data-defects-detail-fields></dl>
+                    <form data-defects-services-edit class="defects-services-editor" <?= empty($can_manage_defects) ? 'hidden' : '' ?>>
+                        <h3>Службы и назначенные исполнители</h3>
+                        <p>Для каждой службы можно назначить своего исполнителя. Пустое ФИО означает, что исполнитель ещё не назначен.</p>
+                        <div data-defects-edit-services class="defects-services-editor__rows"></div>
+                        <div data-defects-edit-error class="defects-form-error" role="alert" hidden></div>
+                        <div class="defects-form-actions">
+                            <button type="button" class="defects-button defects-button--secondary ui-button ui-button--secondary" data-defects-services-refresh>Обновить карточку</button>
+                            <button type="submit" class="defects-button defects-button--primary ui-button ui-button--primary">Сохранить назначения</button>
+                        </div>
+                    </form>
                     <h3>История изменений</h3>
                     <ol data-defects-history-list class="defects-timeline"></ol>
                     <button type="button" class="defects-button defects-button--secondary ui-button ui-button--secondary" data-defects-history-more hidden>Ранее не показанные события</button>
