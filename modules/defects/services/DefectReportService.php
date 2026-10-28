@@ -34,7 +34,7 @@ final class DefectReportService
 
         $rows = $this->database->fetchAll(
             'SELECT d.id,d.object_id,d.description,d.priority,d.discovered_at,d.due_at,
-                    d.registered_by_name,d.status,d.version,d.closed_at,
+                    d.registered_by_name,d.created_at,d.status,d.version,d.closed_at,
                     o.name AS object_name,c.name AS category_name,a.name AS area_name
              ' . $this->relations()
             . ' WHERE ' . implode(' AND ', $where)
@@ -146,18 +146,26 @@ final class DefectReportService
             $params['service_id'] = $serviceId;
         }
 
-        $from = $this->date($filters['from'] ?? null, 'from');
-        $to = $this->date($filters['to'] ?? null, 'to');
-        if ($from !== null && $to !== null && $from > $to) {
-            throw new InvalidArgumentException('Начало периода позже окончания');
-        }
-        if ($from !== null) {
-            $where[] = 'd.discovered_at >= :from_date';
-            $params['from_date'] = $from->format('Y-m-d');
-        }
-        if ($to !== null) {
-            $where[] = 'd.discovered_at < :to_date';
-            $params['to_date'] = $to->modify('+1 day')->format('Y-m-d');
+        // Для существующих клиентов from/to остаются датой обнаружения.
+        // Новые диапазоны регистрации и срока независимы друг от друга.
+        foreach ([
+            ['from', 'to', 'd.discovered_at', 'discovered'],
+            ['registered_from', 'registered_to', 'd.created_at', 'registered'],
+            ['due_from', 'due_to', 'd.due_at', 'due'],
+        ] as [$first, $last, $column, $prefix]) {
+            $from = $this->date($filters[$first] ?? null, $first);
+            $to = $this->date($filters[$last] ?? null, $last);
+            if ($from !== null && $to !== null && $from > $to) {
+                throw new InvalidArgumentException('Начало периода позже окончания: ' . $prefix);
+            }
+            if ($from !== null) {
+                $where[] = $column . ' >= :' . $prefix . '_from';
+                $params[$prefix . '_from'] = $from->format('Y-m-d');
+            }
+            if ($to !== null) {
+                $where[] = $column . ' < :' . $prefix . '_to';
+                $params[$prefix . '_to'] = $to->modify('+1 day')->format('Y-m-d');
+            }
         }
 
         return [$where, $params];
