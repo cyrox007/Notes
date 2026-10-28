@@ -131,6 +131,21 @@ wpAssert(count($next['items']) === 3 && $next['next_cursor'] === null,
 wpAssert((int) $first['items'][0]['id'] > (int) $next['items'][0]['id'],
     'Должен соблюдаться порядок от новых документов к старым');
 
+// Существующие закрытые документы доступны только по явному выбору.
+$db->execute("UPDATE work_permit_documents SET state='closed' WHERE id=:id",
+    [':id' => $created['id']]);
+$active = $service->listMine($userA, 50);
+wpAssert(count($active['items']) === 22, 'закрытые должны исчезнуть из личного журнала по умолчанию');
+$closedOnly = $service->listMine($userA, 50, 0, 'closed');
+wpAssert(count($closedOnly['items']) === 1 && (int) $closedOnly['items'][0]['id'] === $created['id'],
+    'закрытый наряд должен быть доступен по явному фильтру');
+wpAssert(count($service->listMine($userA, 50, 0, 'all')['items']) === 23,
+    'режим всех документов не должен терять закрытые');
+wpAssert(count($service->managementList(50, 0, 'active')['items']) === 23,
+    'управленческий журнал должен включать действующие документы разных авторов');
+wpAssert(count($service->managementList(50, 0, 'closed')['items']) === 1,
+    'управляющий должен видеть закрытые документы отдельно');
+
 foreach ([['kind' => 'invalid'], ['organization' => ''], ['command_id' => 'short']] as $patch) {
     try {
         $service->create($userA, array_replace($input, $patch));

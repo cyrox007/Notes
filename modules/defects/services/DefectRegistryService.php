@@ -63,7 +63,7 @@ final class DefectRegistryService
         }
         $defect = $this->database->fetchOne(
             'SELECT d.id,d.object_id,d.description,d.priority,d.discovered_at,d.due_at,d.registered_by_name,
-                    d.registered_by_user_id,d.status,d.completed_work,d.closed_at,d.closed_by_user_id,d.version,
+                    d.registered_by_user_id,d.status,d.completed_work,d.closed_at,d.closed_by_user_id,d.version,d.created_at,
                     o.name AS object_name,c.name AS category_name,a.name AS area_name
              FROM defects d
              JOIN defect_objects o ON o.id=d.object_id
@@ -110,15 +110,26 @@ final class DefectRegistryService
                 "UPDATE defects SET status='closed',completed_work=:work,
                     closed_at=:closed_at,closed_by_user_id=:user_id,
                     version=version+1,close_command_id=:command_id,close_request_hash=:hash
-                 WHERE id=:id AND version=:version AND status='open'",
+                 WHERE id=:id AND version=:version AND status='open' AND due_at > :now_utc",
                 [
                     'work' => $work, 'user_id' => $userId,
                     'closed_at' => gmdate('Y-m-d H:i:s'),
+                    'now_utc' => gmdate('Y-m-d H:i:s'),
                     'command_id' => $commandId, 'hash' => $fingerprint,
                     'id' => $id, 'version' => $expectedVersion,
                 ]
             );
             if ($affected !== 1) {
+                $current = $this->database->fetchOne(
+                    'SELECT status,due_at FROM defects WHERE id=:id',
+                    ['id' => $id]
+                );
+                if ($current !== null && $current['status'] === 'open'
+                    && (string) $current['due_at'] <= gmdate('Y-m-d H:i:s')) {
+                    throw new DomainException(
+                        'Плановый срок истёк. Закрытие требует отдельного решения ответственного лица', 409
+                    );
+                }
                 throw new DomainException('Запись изменилась или уже закрыта', 409);
             }
             (new DefectHistoryService($this->database))->record('defect', $id, 'closed', $userId, [

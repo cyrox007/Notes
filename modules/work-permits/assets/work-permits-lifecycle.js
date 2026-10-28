@@ -93,6 +93,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
         const loadManager = async (reset = false) => {
             if (!manager || managerLoading) return;
             managerLoading = true;
+            managerList.setAttribute('aria-busy', 'true');
             managerMore.disabled = true;
             try {
                 const query = new URLSearchParams({ state: managerState.value, limit: '20' });
@@ -113,6 +114,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                     row.append(title, author);
                     if (action) {
                         const button = document.createElement('button');
+            button.className = 'ui-button ui-button--secondary';
                         button.type = 'button';
                         button.textContent = action === 'issue' ? 'Выдать' : 'Оформить первый допуск';
                         pageScope.listen(button, 'click', () => void open({
@@ -122,6 +124,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                     }
                     if (item.state === 'issued' && item.kind === 'permit') {
                         const periods = document.createElement('button');
+            periods.className = 'ui-button ui-button--secondary';
                         periods.type = 'button';
                         periods.textContent = 'Рабочие смены и перерывы';
                         pageScope.listen(periods, 'click', () => root.dispatchEvent(
@@ -131,6 +134,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                     }
                     if (item.state === 'issued' && item.kind === 'permit') {
                         const safetyButton = document.createElement('button');
+            safetyButton.className = 'ui-button ui-button--secondary';
                         safetyButton.type = 'button';
                         safetyButton.textContent = 'Разрешения и инструктажи';
                         pageScope.listen(safetyButton, 'click', () => root.dispatchEvent(
@@ -140,6 +144,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                     }
                     if (item.state === 'issued' && item.kind === 'permit') {
                         const button = document.createElement('button');
+            button.className = 'ui-button ui-button--secondary';
                         button.type = 'button';
                         button.textContent = 'Состав бригады и продление';
                         pageScope.listen(button, 'click', () => root.dispatchEvent(
@@ -149,6 +154,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                     }
                     if (item.state === 'issued') {
                         const finishButton = document.createElement('button');
+            finishButton.className = 'ui-button ui-button--secondary';
                         finishButton.type = 'button';
                         const stage = item.kind === 'order' ? 'close_order'
                             : Number(item.has_completion) ? 'close_permit' : 'complete';
@@ -180,9 +186,15 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                     managerList.append(empty);
                 }
             } catch (error) {
+                if (!managerList.querySelector('article')) {
+                    const message = document.createElement('p');
+                    message.textContent = 'Не удалось загрузить журнал. Обновите страницу.';
+                    managerList.replaceChildren(message);
+                }
                 alert(error.message, true);
             } finally {
                 managerLoading = false;
+                managerList.removeAttribute('aria-busy');
                 managerMore.disabled = false;
             }
         };
@@ -224,6 +236,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits-lifecycle.
                 row.append(wrapper);
             }
             const remove = document.createElement('button');
+            remove.className = 'ui-button ui-button--secondary';
             remove.type = 'button';
             remove.textContent = 'Удалить мероприятие';
             pageScope.listen(remove, 'click', () => {

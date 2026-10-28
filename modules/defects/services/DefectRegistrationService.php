@@ -42,7 +42,9 @@ final class DefectRegistrationService
         $description = trim($description);
         $registrarName = trim($registrarName);
         $discoveredUtc = $discoveredAt->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
-        $dueUtc = DefectPriorityPolicy::deadline($discoveredAt, $priority)
+        // Плановый срок отсчитывается от регистрации, а не от обнаружения.
+        $registeredAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+        $dueUtc = DefectPriorityPolicy::deadline($registeredAt, $priority)
             ->setTimezone(new DateTimeZone('UTC'))
             ->format('Y-m-d H:i:s');
 

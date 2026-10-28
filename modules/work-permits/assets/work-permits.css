@@ -5,8 +5,17 @@
 .wp-journal__editor label{display:grid;gap:6px;font-weight:600;font-size:13px;color:var(--ui-text)}
 .wp-journal input,.wp-journal textarea,.wp-journal select{box-sizing:border-box;width:100%;padding:10px;border:1px solid var(--ui-border);border-radius:8px;background:var(--ui-surface);color:var(--ui-text)}
 .wp-journal__wide{grid-column:1/-1}
-.wp-journal button{justify-self:start;padding:10px 16px;border:1px solid var(--ui-border);border-radius:8px;background:var(--ui-primary);color:white;cursor:pointer}
-.wp-journal button:disabled{opacity:.6;cursor:wait}
+.wp-journal form button{align-self:end;height:auto;min-height:40px;max-width:100%}
+.wp-journal__template-description,.wp-journal__template-description>label{display:grid;gap:6px}
+.wp-journal__template-description>button{justify-self:start}
+.wp-journal summary{cursor:pointer;user-select:none;transition:color .2s ease}
+.wp-journal summary:hover{color:var(--ui-primary,#4f46e5)}
+.wp-journal summary{display:flex;align-items:center;gap:8px;list-style:none}
+.wp-journal summary::-webkit-details-marker{display:none}
+.wp-journal summary::marker{content:''}
+.wp-journal summary::after{content:'';width:7px;height:7px;flex:none;border-right:2px solid currentColor;border-bottom:2px solid currentColor;margin:0 5px 4px auto;transform:rotate(45deg);transition:transform .28s ease}
+.wp-journal details[open]>summary::after{transform:rotate(225deg)}
+@media(prefers-reduced-motion:reduce){.wp-journal :is(button,a,summary,summary::after){transition:none!important;transform:none!important}}
 .wp-journal__row{display:grid;gap:5px;padding:14px 0;border-bottom:1px solid var(--ui-border)}
 .wp-journal__row:last-child{border-bottom:0}
 .wp-journal__row small{color:var(--ui-muted)}
@@ -94,3 +103,26 @@
  body:has(.wp-journal) .sidebar-backdrop:not(.is-visible){display:none!important}
  body:has(.wp-journal) .sidebar-backdrop.is-visible{display:block}
 }
+
+/* Сначала рабочие документы, потом служебные формы. */
+.wp-journal{max-width:1180px;gap:14px;padding:16px 20px 30px}
+.wp-journal>.module-page-header{display:block;margin:0}
+.wp-journal>.module-page-header p{max-width:780px;line-height:1.55}
+.wp-journal__shortcuts{display:flex;flex-wrap:wrap;gap:8px}
+.wp-journal__shortcuts a{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:8px 12px;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface);font-size:13px;font-weight:700;color:var(--ui-text)}
+.wp-journal__shortcuts a:hover,.wp-journal__shortcuts a:focus-visible{border-color:var(--ui-primary);background:var(--ui-primary-soft)}
+.wp-journal__shortcuts .wp-journal__shortcuts-primary{background:var(--ui-primary);border-color:var(--ui-primary);color:#fff}
+.wp-journal__shortcuts .wp-journal__shortcuts-primary:hover{background:var(--ui-primary-hover);color:#fff}
+.wp-journal__registry,.wp-journal__editor{background:var(--ui-surface);border:1px solid var(--ui-border);border-radius:14px;box-shadow:var(--ui-shadow-sm)}
+.wp-journal__registry h2,.wp-journal__editor h2{font-size:18px}
+.wp-journal__registry p{color:var(--ui-muted);font-size:13px;line-height:1.45}
+.wp-journal section[id],.wp-journal h2[id]{scroll-margin-top:90px}
+@media(max-width:640px){.wp-journal{padding:12px;gap:12px}.wp-journal__shortcuts{display:grid;grid-template-columns:1fr}.wp-journal__shortcuts a{justify-content:flex-start}}
+.wp-journal :is([data-wp-list],[data-wp-management-list]){min-height:52px}
+.wp-journal :is([data-wp-list],[data-wp-management-list])>p{margin:0;padding:12px 0;line-height:24px;color:var(--ui-muted)}
+@media(prefers-reduced-motion:reduce){.wp-journal :is(button,.wp-journal__shortcuts a){transition:none!important;transform:none!important;filter:none!important}}
+
+/* Состояние журнала: черновик жёлтый, выданный зелёный, закрытый нейтральный. */
+.wp-journal__row[data-state="draft"]{box-shadow:inset 4px 0 0 var(--ui-warning);background:color-mix(in srgb,var(--ui-warning-soft) 52%,var(--ui-surface))}
+.wp-journal__row[data-state="issued"]{box-shadow:inset 4px 0 0 var(--ui-success);background:color-mix(in srgb,var(--ui-success-soft) 44%,var(--ui-surface))}
+.wp-journal__row[data-state="closed"]{background:var(--ui-surface)}

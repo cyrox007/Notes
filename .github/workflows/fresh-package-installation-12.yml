@@ -1,0 +1,37 @@
+name: Fresh installation of bundled 1.2 modules
+on:
+  pull_request:
+    branches: ['1.2']
+    paths: ['database/**', 'modules/**/module.json', 'modules/**/runtime.php', 'core/DatabaseOwnership.php', 'core/SchemaReadiness.php', 'core/InstallerDatabaseService.php', '.github/workflows/hosting-package.yml', 'tests/integration/fresh_package_installation_12.php', '.github/workflows/fresh-package-installation-12.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fresh-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        prefix: ['', 'qa_']
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_fresh_package_test
+        ports: ['3306:3306']
+        options: --health-cmd="mysqladmin ping -h127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql
+      - run: php tests/integration/fresh_package_installation_12.php
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: '3306'
+          DBNAME: notes_fresh_package_test
+          DBUSER: root
+          DBPASS: root
+          DBPREFIX: ${{ matrix.prefix }}

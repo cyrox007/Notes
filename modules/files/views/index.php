@@ -76,8 +76,8 @@ ob_start();
      data-max-upload-bytes="<?= $view->e($maxUploadBytes) ?>"
      data-effective-upload-bytes="<?= $view->e($effectiveUploadBytes) ?>"
      <?php if ($currentFolder !== null): ?>data-current-folder-id="<?= $view->e($currentFolder['id'] ?? '') ?>"<?php endif; ?>>
-    <nav class="file-manager__toolbar" aria-label="Файловые пространства">
-        <span class="file-manager__btn file-manager__btn--primary">Мои файлы</span>
+    <nav class="file-manager__toolbar file-storage-tabs" aria-label="Файловые пространства">
+        <span class="file-manager__btn file-manager__btn--primary" aria-current="page">Мои файлы</span>
         <?php if (!empty($global_files_available)): ?>
             <a href="<?= $view->e($view->route('files_global')) ?>" class="file-manager__btn file-manager__btn--secondary">Общие файлы</a>
         <?php endif; ?>

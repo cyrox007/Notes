@@ -307,8 +307,8 @@ foreach (['bin/update_external_apply.php', 'bin/update_bootstrap.php'] as $relat
 $healthcheck = file_get_contents($root . '/bin/healthcheck.php');
 installerCliAssert(is_string($healthcheck), 'Не удалось прочитать bin/healthcheck.php');
 installerCliAssert(
-    str_contains($healthcheck, "version_compare(PHP_VERSION, '8.2.0', '>=')"),
-    'healthcheck должен проверять технический минимум PHP 8.2'
+    str_contains($healthcheck, "version_compare(PHP_VERSION, '8.3.0', '>=')"),
+    'healthcheck должен проверять технический минимум линии 1.2 — PHP 8.3'
 );
 installerCliAssert(
     !str_contains($healthcheck, 'technical floor 8.1') && !str_contains($healthcheck, "'8.1.0'"),

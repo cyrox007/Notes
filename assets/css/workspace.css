@@ -361,3 +361,62 @@ html[data-theme="dark"] .sidebar__utility{color:var(--ui-text);}
 html[data-theme="dark"] .sidebar__utility[aria-current="page"]{background:rgb(49, 50, 51);color:rgb(237, 237, 237);border-color:var(--ui-border);box-shadow:rgb(72, 160, 199) 3px 0px inset;}
 html[data-theme="dark"] .sidebar__brand-copy strong{color:rgb(237, 237, 237);}
 html[data-theme="dark"] .sidebar__brand-copy small{color:var(--ui-primary);}
+
+/* Персональная сводка на главной вместо одного каталога разделов. */
+.workspace-home__overview{display:grid;gap:12px;margin:16px 0 24px}
+.workspace-home__overview .workspace-home__section-heading{align-items:center}
+.workspace-home__overview .workspace-home__section-heading a{color:var(--ui-primary);font-weight:700;font-size:13px}
+.workspace-home__overview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.workspace-home__overview-item{display:flex;align-items:center;gap:13px;min-width:0;padding:16px;border:1px solid var(--ui-border);border-radius:14px;background:var(--ui-surface);box-shadow:var(--ui-shadow-sm)}
+.workspace-home__overview-item:hover,.workspace-home__overview-item:focus-visible{border-color:var(--ui-primary);background:var(--ui-primary-soft)}
+.workspace-home__overview-value{flex:0 0 auto;min-width:44px;font-size:29px;font-weight:800;color:var(--ui-primary);font-variant-numeric:tabular-nums}
+.workspace-home__overview-item>span:nth-child(2){display:grid;gap:4px;min-width:0;flex:1}
+.workspace-home__overview-item strong{font-size:13px}
+.workspace-home__overview-item small{font-size:12px;color:var(--ui-muted)}
+.workspace-home__overview-item>.fa{color:var(--ui-subtle)}
+@media(max-width:800px){.workspace-home__overview-grid{grid-template-columns:1fr}.workspace-home__overview .workspace-home__section-heading{align-items:flex-start}}
+/* Storage locations stay together; administration is a separate action. */
+@media(min-width:901px){html{scrollbar-gutter:stable}}
+.file-manager .file-manager__toolbar.file-storage-tabs{display:flex;flex-direction:row;justify-content:flex-start;flex-wrap:wrap;gap:4px;padding:6px;border:0;background:transparent;box-shadow:none}
+.file-storage-tabs .file-manager__btn{min-height:36px;padding:8px 14px;border-color:transparent;border-radius:9px;background:transparent;transition:background-color .2s ease,color .2s ease,box-shadow .2s ease,transform .2s ease}
+.file-storage-tabs .file-manager__btn[aria-current=page]{background:var(--ui-action,#1677ff);color:#fff;box-shadow:0 3px 10px #1677ff26}
+.file-storage-tabs .file-storage-tabs__manage{margin-left:auto;border-color:var(--ui-border);background:var(--ui-surface)}
+@media(hover:hover){.file-storage-tabs a.file-manager__btn:hover{background:var(--ui-surface-soft);transform:translateY(-2px);box-shadow:0 4px 12px #10264c1a}}
+@media(max-width:500px){.file-storage-tabs .file-storage-tabs__manage{margin-left:0}}
+@media(prefers-reduced-motion:reduce){.file-storage-tabs .file-manager__btn{transition:none;transform:none!important}}
+/* Shared opt-in component contract. Modules own layout, not control appearance. */
+body .ui-form :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]),select,textarea){box-sizing:border-box;width:100%;min-width:0;align-self:start;min-height:38px;height:auto;padding:9px 11px;border:1px solid var(--ui-border-strong);border-radius:9px;background:var(--ui-surface);color:var(--ui-text);font-family:inherit;font-size:13px;font-weight:400;line-height:18px;transition:border-color .18s ease,box-shadow .18s ease,background-color .18s ease}
+body .ui-form select:not([multiple]){height:38px;padding:0 11px}
+body .ui-form select[multiple]{min-height:120px}
+body .ui-form textarea{min-height:94px;resize:vertical}
+body .ui-form label{font-family:inherit;font-size:12px;font-weight:600;line-height:1.5;color:var(--ui-text)}
+body .ui-form :is(input,select,textarea):focus{outline:0;border-color:var(--ui-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--ui-primary) 14%,transparent)}
+body .ui-form :is(input,select,textarea):disabled{opacity:.6;cursor:not-allowed}
+body .ui-form :is(input,select,textarea)[aria-invalid=true]{border-color:var(--ui-danger)}
+body .ui-button.ui-button{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;align-self:end;justify-self:start;gap:8px;min-height:38px;height:auto;max-width:100%;padding:9px 14px;border:1px solid var(--ui-border-strong);border-radius:9px;background:var(--ui-surface);color:var(--ui-text);font-family:inherit;font-size:13px;font-weight:600;line-height:18px;text-align:center;text-decoration:none;white-space:normal;cursor:pointer;user-select:none;transition:background-color .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease;filter:none}
+body .ui-button.ui-button--primary{background:var(--ui-action);border-color:var(--ui-action);color:#fff}
+body .ui-button.ui-button--danger{background:var(--ui-danger);border-color:var(--ui-danger);color:#fff}
+body .ui-button.ui-button--ghost{background:transparent;border-color:transparent;color:var(--ui-primary)}
+body .ui-button.ui-button--small{min-height:30px;padding:5px 10px;font-size:12px}
+body .ui-button.ui-button--large{min-height:46px;padding:13px 18px}
+body .ui-button.ui-button--icon{width:38px;padding:9px;flex:none}
+body .ui-button.ui-button:disabled,body .ui-button.ui-button[aria-disabled=true],body .ui-button.ui-button[aria-busy=true]{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none;pointer-events:none}
+body .ui-button.ui-button:focus-visible{outline:2px solid var(--ui-primary);outline-offset:3px}
+@media(hover:hover){body .ui-button.ui-button:not(:disabled):not([aria-disabled=true]):hover{transform:translateY(-2px);background:var(--ui-surface-soft);border-color:var(--ui-primary);box-shadow:0 5px 14px color-mix(in srgb,var(--ui-primary) 20%,transparent);filter:none}body .ui-button.ui-button--primary:not(:disabled):hover{background:var(--ui-action-hover);border-color:var(--ui-action-hover);color:#fff}body .ui-button.ui-button--danger:not(:disabled):hover{background:color-mix(in srgb,var(--ui-danger) 85%,#000);color:#fff}}
+body .ui-button.ui-button:not(:disabled):active{transform:translateY(0) scale(.98);box-shadow:none}
+@media(prefers-reduced-motion:reduce){body .ui-button.ui-button{transition:none!important;transform:none!important}}
+
+body .ui-button.ui-button[hidden]{display:none!important}
+body .ui-form label{align-self:start}
+body .ui-form :is(input[type=checkbox],input[type=radio]){width:16px;height:16px;min-height:0;flex:none;margin:0;accent-color:var(--ui-primary)}
+body .ui-form label:has(>input[type=checkbox]),body .ui-form label:has(>input[type=radio]){display:flex;align-items:center;gap:8px;font-weight:400}
+body .ui-form :is(input,textarea)[readonly]{background:var(--ui-surface-soft);color:var(--ui-muted)}
+.file-storage-tabs .file-manager__btn{box-sizing:border-box;height:36px;text-decoration:none}
+body .ui-form details>summary{display:flex;align-items:center;gap:8px;list-style:none;cursor:pointer;user-select:none}
+body .ui-form details>summary::-webkit-details-marker{display:none}
+body .ui-form details>summary::marker{content:''}
+body .ui-form details>summary::after{content:'';flex:none;width:7px;height:7px;margin:0 5px 4px auto;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(45deg);transition:transform .28s ease}
+body .ui-form details[open]>summary::after{transform:rotate(225deg)}
+body .ui-button.ui-button[aria-pressed=true]{background:var(--ui-primary-soft);color:var(--ui-primary);border-color:var(--ui-primary)}
+@media(prefers-reduced-motion:reduce){body .ui-form details>summary::after{transition:none}}
+.file-spaces-page [id^=filespace-]{scroll-margin-top:90px}

@@ -118,7 +118,8 @@ $printed = $renderer->renderForm($read);
 checkPdfWithPoppler($printed, [
     'ЛИЦЕВАЯ СТОРОНА',
     'Мероприятия по подготовке рабочих мест',
-    'Оградить', 'соседнюю', 'кабельный отсек',
+    // Poppler may interleave adjacent table columns when this cell wraps.
+    'Оградить', 'соседнюю', 'кабельный', 'отсек',
     'изолировано',
     'ОБОРОТНАЯ СТОРОНА',
     'Подпись', 'Передал', 'Получил',

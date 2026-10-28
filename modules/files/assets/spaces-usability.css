@@ -1,0 +1,53 @@
+/* Общие файлы: компактный каталог, понятные действия и управляемая форма прав. */
+.file-spaces-page .file-manager__content{min-height:0}
+.file-spaces-page .file-spaces-page__catalog{min-height:160px}
+.file-spaces-page .file-manager__empty{min-height:160px}
+.file-spaces-page__shortcuts{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px}
+.file-spaces-page__shortcuts a{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 12px;border:1px solid var(--ui-border);border-radius:9px;background:var(--ui-surface);color:var(--ui-text);font-size:12px;font-weight:700}
+.file-spaces-page__shortcuts a:hover,.file-spaces-page__shortcuts a:focus-visible{border-color:var(--ui-primary);background:var(--ui-primary-soft)}
+.file-spaces-page__tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:12px}
+.file-spaces-page__panel{padding:16px}
+.file-spaces-page__panel h2{margin:0 0 12px;font-size:15px}
+.file-spaces-page__panel form{display:flex;flex-wrap:wrap;align-items:end;gap:10px}
+.file-spaces-page__panel form label{display:grid;gap:6px;flex:1 1 210px;min-width:0;font-size:12px;font-weight:700}
+.file-spaces-page__panel form input[type=file],.file-spaces-page__panel form input[type=text]{width:100%;max-width:100%;box-sizing:border-box;min-height:36px;padding:7px;border:1px solid var(--ui-border);border-radius:8px;background:var(--ui-surface);color:var(--ui-text)}
+.file-spaces-page__panel form button{min-height:36px}
+.file-spaces-page__permissions{padding:0 16px 16px}
+.file-spaces-page__permissions>summary{cursor:pointer;display:flex;align-items:center;gap:8px;padding:14px 0;font-size:14px;font-weight:800}
+.file-spaces-page__permissions>summary:hover{color:var(--ui-primary)}
+.file-spaces-page__permissions>summary .fa{color:var(--ui-primary)}
+.file-spaces-page__permissions:not([open]){padding-bottom:0}
+.file-spaces-page__permissions>p{color:var(--ui-muted);font-size:12px}
+.file-spaces-page__permissions>form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding-top:12px;border-top:1px solid var(--ui-border)}
+.file-spaces-page__permissions>form label{display:grid;gap:5px;min-width:0;font-size:12px}
+.file-spaces-page__permissions>form input,.file-spaces-page__permissions>form select{max-width:100%;box-sizing:border-box}
+.file-spaces-page__permissions>form button{justify-self:start}
+.file-spaces-page__hint{margin:0;padding:7px;color:var(--ui-muted);font-size:12px;line-height:1.5}
+.file-spaces-page__intro{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-bottom:12px;padding:12px 14px;border:1px solid var(--ui-border);border-radius:12px;background:var(--ui-surface-soft);font-size:12px}
+.file-spaces-page__intro span{flex:1;min-width:240px;color:var(--ui-muted)}
+.file-spaces-page.admin-page>.admin-panel-card{padding:16px}
+.file-spaces-page.admin-page>.admin-panel-card>.admin-panel-card__header{margin:-16px -16px 14px}
+.file-spaces-page.admin-page>.admin-panel-card>p{margin:8px 0 14px;color:var(--ui-muted);font-size:12px;line-height:1.5}
+.file-spaces-page.admin-page>.admin-panel-card>form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;gap:12px}
+.file-spaces-page.admin-page>.admin-panel-card>form label{display:grid;gap:5px;min-width:0;font-size:12px}
+.file-spaces-page.admin-page>.admin-panel-card>form input,.file-spaces-page.admin-page>.admin-panel-card>form select{width:100%;box-sizing:border-box;min-height:36px}
+.file-spaces-page.admin-page>.admin-panel-card>form button{justify-self:start}
+.file-spaces-page.admin-page>.admin-panel-card>nav{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.file-spaces-page.admin-page>.admin-panel-card>h3{margin:16px 0 8px}
+.file-spaces-page.admin-page>.admin-panel-card>table{width:100%;border-collapse:collapse}
+.file-spaces-page.admin-page>.admin-panel-card>table td,.file-spaces-page.admin-page>.admin-panel-card>table th{padding:8px;text-align:left;border-bottom:1px solid var(--ui-border);font-size:12px}
+.file-spaces-page.admin-page>.admin-panel-card>details{margin-top:12px;padding:12px;border:1px solid var(--ui-border);border-radius:10px}
+.file-spaces-page.admin-page>.admin-panel-card>details>summary{cursor:pointer}
+.file-spaces-page.admin-page>.admin-panel-card>details>form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+.file-spaces-page.admin-page>.admin-panel-card>details>form label{display:grid;gap:5px;font-size:12px}
+.file-spaces-page.admin-page>.admin-panel-card>details>form select{width:100%;max-width:100%}
+.file-spaces-page.admin-page [id^=files-admin-]{scroll-margin-top:90px}
+@media(max-width:780px){
+ .file-spaces-page__tools,.file-spaces-page__permissions>form,
+ .file-spaces-page.admin-page>.admin-panel-card>form,
+ .file-spaces-page.admin-page>.admin-panel-card>details>form{grid-template-columns:minmax(0,1fr)}
+ .file-spaces-page__panel form{display:grid;grid-template-columns:minmax(0,1fr)}
+ .file-spaces-page__shortcuts a{flex:1 1 auto}
+ .file-spaces-page.admin-page>.admin-panel-card{padding:12px}
+ .file-spaces-page.admin-page>.admin-panel-card>.admin-panel-card__header{margin:-12px -12px 12px}
+}

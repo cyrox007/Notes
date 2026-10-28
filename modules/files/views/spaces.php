@@ -22,18 +22,29 @@ $folderId = $parent !== null ? (int) ($parent['id'] ?? 0) : null;
 $rootLink = $view->route('files_global');
 $folderLink = static fn (int $id): string => $rootLink . '?folder=' . $id;
 $command = static fn (): string => 'files:web:' . bin2hex(random_bytes(16));
+$rightNames = [
+    'view' => 'Видеть папку', 'list' => 'Просматривать список',
+    'download' => 'Скачивать', 'upload' => 'Загружать',
+    'create_folder' => 'Создавать папки',
+    'rename_own' => 'Переименовывать свои', 'rename_others' => 'Переименовывать чужие',
+    'move_own' => 'Перемещать свои', 'move_others' => 'Перемещать чужие',
+    'replace_own' => 'Заменять свои', 'replace_others' => 'Заменять чужие',
+    'delete_own' => 'Удалять свои', 'delete_others' => 'Удалять чужие',
+    'share' => 'Управлять ссылками', 'history' => 'Просматривать историю',
+    'restore' => 'Восстанавливать', 'manage_acl' => 'Настраивать доступ',
+];
 
 ob_start();
 ?>
 <section class="module-page-header module-page-header--files">
     <div><h1>Общие файлы</h1><p>Общее файловое пространство с правами доступа к каждой папке.</p></div>
 </section>
-<div class="file-manager file-spaces-page">
-    <nav class="file-manager__toolbar" aria-label="Файловые пространства">
+<div class="file-manager file-spaces-page ui-form">
+    <nav class="file-manager__toolbar file-storage-tabs" aria-label="Файловые пространства">
         <a class="file-manager__btn file-manager__btn--secondary" href="<?= $view->e($view->route('files')) ?>">Мои файлы</a>
-        <span class="file-manager__btn file-manager__btn--primary">Общие файлы</span>
+        <span class="file-manager__btn file-manager__btn--primary" aria-current="page">Общие файлы</span>
         <?php if (!empty($can_admin_files)): ?>
-            <a class="file-manager__btn file-manager__btn--secondary" href="<?= $view->e($view->route('files_admin')) ?>">Управление доступом</a>
+            <a class="file-manager__btn file-manager__btn--secondary file-storage-tabs__manage" href="<?= $view->e($view->route('files_admin')) ?>">Управление доступом</a>
         <?php endif; ?>
     </nav>
     <div class="file-manager__toolbar">
@@ -50,7 +61,13 @@ ob_start();
             <?php endif; ?>
         </div>
     </div>
-    <div class="file-manager__content">
+    <nav class="file-spaces-page__shortcuts" aria-label="Действия с общими файлами">
+        <a class="ui-button ui-button--secondary" href="#filespace-catalog">Каталог</a>
+        <?php if ($canUpload): ?><a class="ui-button ui-button--secondary" href="#filespace-upload">Загрузить файл</a><?php endif; ?>
+        <?php if ($canCreate): ?><a class="ui-button ui-button--secondary" href="#filespace-create">Создать папку</a><?php endif; ?>
+        <?php if ($canManage): ?><a class="ui-button ui-button--secondary" href="#filespace-permissions">Права этой папки</a><?php endif; ?>
+    </nav>
+    <div class="file-manager__content file-spaces-page__catalog" id="filespace-catalog">
         <?php if ($items === []): ?>
             <div class="file-manager__empty">В этом каталоге пока нет файлов и папок.</div>
         <?php else: ?>
@@ -85,7 +102,7 @@ ob_start();
                                 <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
                                 <label>Новое название <input type="text" name="name" maxlength="255"
                                         value="<?= $view->e($item['name']) ?>" required></label>
-                                <button type="submit" class="file-manager__btn file-manager__btn--secondary">Переименовать</button>
+                                <button type="submit" class="file-manager__btn file-manager__btn--secondary ui-button ui-button--primary">Переименовать</button>
                             </form>
                         <?php endif; ?>
                         <?php if (!empty($item['can_move'])): ?>
@@ -106,7 +123,7 @@ ob_start();
                                         <?php endforeach; ?>
                                     </select>
                                 </label>
-                                <button type="submit" class="file-manager__btn file-manager__btn--secondary">Переместить</button>
+                                <button type="submit" class="file-manager__btn file-manager__btn--secondary ui-button ui-button--primary">Переместить</button>
                             </form>
                         <?php endif; ?>
                         <?php if (!empty($item['can_replace'])): ?>
@@ -118,7 +135,7 @@ ob_start();
                                 <input type="hidden" name="expected_parent_version" value="<?= $folderVersion ?>">
                                 <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
                                 <label>Заменить содержимое <input type="file" name="file" required></label>
-                                <button type="submit" class="file-manager__btn file-manager__btn--secondary">Заменить</button>
+                                <button type="submit" class="file-manager__btn file-manager__btn--secondary ui-button ui-button--primary">Заменить</button>
                             </form>
                         <?php endif; ?>
                         <?php if (!empty($item['can_delete'])): ?>
@@ -129,7 +146,7 @@ ob_start();
                                 <input type="hidden" name="expected_version" value="<?= (int) $item['version'] ?>">
                                 <input type="hidden" name="expected_parent_version" value="<?= $folderVersion ?>">
                                 <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
-                                <button type="submit" class="file-manager__btn file-manager__btn--secondary">В корзину</button>
+                                <button type="submit" class="file-manager__btn file-manager__btn--secondary ui-button ui-button--primary">В корзину</button>
                             </form>
                         <?php endif; ?>
                     </div>
@@ -149,8 +166,11 @@ ob_start();
         </nav>
     <?php endif; ?>
 
+    <?php if ($canUpload || $canCreate): ?>
+    <div class="file-spaces-page__tools">
+    <?php endif; ?>
     <?php if ($canUpload): ?>
-        <section class="file-manager__content">
+        <section class="file-manager__content file-spaces-page__panel" id="filespace-upload">
             <h2>Загрузить файл в общий каталог</h2>
             <form action="<?= $view->e($view->route('files_global_upload')) ?>" method="post"
                   enctype="multipart/form-data" data-filespace-action>
@@ -159,13 +179,13 @@ ob_start();
                 <input type="hidden" name="expected_version" value="<?= $folderVersion ?>">
                 <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
                 <label>Файл <input type="file" name="file" required></label>
-                <button type="submit" class="file-manager__btn file-manager__btn--primary">Загрузить</button>
+                <button type="submit" class="file-manager__btn file-manager__btn--primary ui-button ui-button--primary">Загрузить</button>
             </form>
         </section>
     <?php endif; ?>
 
     <?php if ($canCreate): ?>
-        <section class="file-manager__content">
+        <section class="file-manager__content file-spaces-page__panel" id="filespace-create">
             <h2>Создать папку</h2>
             <form action="<?= $view->e($view->route('files_global_create_folder')) ?>" method="post" data-filespace-action>
                 <?= $view->csrfInput() ?>
@@ -174,9 +194,13 @@ ob_start();
                 <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
                 <label for="filespace-folder-name">Название</label>
                 <input id="filespace-folder-name" name="name" type="text" maxlength="255" required>
-                <button class="file-manager__btn file-manager__btn--primary" type="submit">Создать</button>
+                <button class="file-manager__btn file-manager__btn--primary ui-button ui-button--primary" type="submit">Создать</button>
             </form>
         </section>
+    <?php endif; ?>
+
+    <?php if ($canUpload || $canCreate): ?>
+    </div>
     <?php endif; ?>
 
     <?php if ($trashItems !== []): ?>
@@ -197,7 +221,7 @@ ob_start();
                         <input type="hidden" name="expected_version" value="<?= (int) $discarded['version'] ?>">
                         <input type="hidden" name="expected_parent_version" value="<?= (int) $discarded['parent_version'] ?>">
                         <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
-                        <button type="submit" class="file-manager__btn file-manager__btn--secondary">Восстановить</button>
+                        <button type="submit" class="file-manager__btn file-manager__btn--secondary ui-button ui-button--primary">Восстановить</button>
                     </form>
                 </div>
             <?php endforeach; ?>
@@ -205,13 +229,15 @@ ob_start();
     <?php endif; ?>
 
     <?php if ($canManage): ?>
-        <section class="file-manager__content">
-            <h2>Права доступа <?= $parent === null ? 'к общему пространству' : 'к этой папке' ?></h2>
+        <details class="file-manager__content file-spaces-page__permissions" id="filespace-permissions">
+            <summary><i class="fa fa-shield" aria-hidden="true"></i> Права доступа <?= $parent === null ? 'к общему пространству' : 'к этой папке' ?></summary>
             <p>Запрет имеет приоритет над разрешением на одном уровне. Если локального правила нет, применяются правила родителя.</p>
             <?php if ($rules !== []): ?>
                 <ul>
                     <?php foreach ($rules as $rule): ?>
-                        <li><?= $view->e($rule['subject_type'] . ':' . $rule['subject_id'] . ' — ' . $rule['permission_key'] . ' — ' . $rule['effect']) ?></li>
+                        <li><?= $view->e(($rule['subject_type'] ?? '—') . ':' . ($rule['subject_id'] ?? '0')) ?> —
+                            <?= $view->e($rightNames[$rule['permission_key'] ?? ''] ?? (string) ($rule['permission_key'] ?? '')) ?> —
+                            <?= ($rule['effect'] ?? '') === 'deny' ? 'Запрещено' : 'Разрешено' ?></li>
                     <?php endforeach; ?>
                 </ul>
             <?php else: ?>
@@ -250,7 +276,7 @@ ob_start();
                 <label>Действие
                     <select name="permission">
                         <?php foreach (\App\Services\Files\FileSpaceAccessService::PERMISSIONS as $permission): ?>
-                            <option value="<?= $view->e($permission) ?>"><?= $view->e($permission) ?></option>
+                            <option value="<?= $view->e($permission) ?>"><?= $view->e($rightNames[$permission] ?? $permission) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </label>
@@ -270,12 +296,12 @@ ob_start();
                         </select>
                     </label>
                 <?php endif; ?>
-                <button type="submit" class="file-manager__btn file-manager__btn--primary">Сохранить правило</button>
+                <button type="submit" class="file-manager__btn file-manager__btn--primary ui-button ui-button--primary">Сохранить правило</button>
             </form>
-        </section>
+        </details>
     <?php endif; ?>
 
-    <p class="file-manager__empty">Перемещение, изменение и удаление общих файлов подключаются следующим этапом. Личное хранилище работает без изменений.</p>
+    <p class="file-spaces-page__hint">Доступ зависит от прав на папку. Действия с файлами доступны в карточках тех объектов, которыми вы можете управлять.</p>
 </div>
 <?php
 $content = (string) ob_get_clean();
@@ -292,6 +318,7 @@ echo $view->layout('core/base', [
     'module_styles' => [
         $view->moduleAsset('files', 'style.css'),
         $view->moduleAsset('files', 'polish.css'),
+        $view->moduleAsset('files', 'spaces-usability.css'),
     ],
     'module_scripts' => [$view->moduleAsset('files', 'spaces.js')],
 ], $content);

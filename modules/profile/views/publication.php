@@ -15,7 +15,7 @@ $hasWorkspaceContent = !empty($access['notes']) || !empty($access['tasks']) || !
         <div>
             <span class="ux-kicker">Сводка</span>
             <h2 id="profile-metrics-title">Моё пространство</h2>
-            <p>Доступные разделы вашего рабочего пространства.</p>
+            <p>Только ваши данные: сколько всего создано и что ещё находится в работе.</p>
         </div>
         <button type="button" class="profile-metrics__settings" data-profile-edit aria-controls="profile-account-settings" aria-expanded="false">
             <i class="fa fa-cog" aria-hidden="true"></i>
@@ -23,6 +23,13 @@ $hasWorkspaceContent = !empty($access['notes']) || !empty($access['tasks']) || !
         </button>
     </div>
 
+    <?php if (!empty($access['tasks']) && isset($metrics['open_tasks_count'])): ?>
+        <a class="profile-metrics__attention" href="<?= $view->e($view->route('tasks')) ?>">
+            <i class="fa fa-check-square-o" aria-hidden="true"></i>
+            <span><strong><?= (int) $metrics['open_tasks_count'] ?> задач в работе</strong><small>Открыть список и выбрать следующую задачу</small></span>
+            <i class="fa fa-angle-right" aria-hidden="true"></i>
+        </a>
+    <?php endif; ?>
     <div class="profile-metrics__grid">
         <?php if (!empty($access['notes'])): ?>
             <a class="profile-metric profile-metric--notes" aria-label="Мои заметки: <?= $view->e($metrics['notes_count'] ?? 0) ?>" href="<?= $view->e($view->route('notes')) ?>">

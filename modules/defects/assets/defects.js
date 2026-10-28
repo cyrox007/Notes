@@ -31,6 +31,10 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         service_id: $('[data-defects-filter-service]'),
         from: $('[data-defects-from]'),
         to: $('[data-defects-to]'),
+        registered_from: $('[data-defects-registered-from]'),
+        registered_to: $('[data-defects-registered-to]'),
+        due_from: $('[data-defects-due-from]'),
+        due_to: $('[data-defects-due-to]'),
     };
     const state = {
         status: 'open', cursor: 0, sequence: 0, busy: false,
@@ -181,6 +185,16 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         && new Date(String(item.due_at).replace(' ', 'T') + 'Z').getTime() < Date.now();
     const renderRow = (item) => {
         const row = element('button', 'defects-row');
+        // Цвет зависит от фактического срока; статус закрытия важнее подсветки.
+        if (item.status === 'open') {
+            const remaining = Date.parse(String(item.due_at).replace(' ', 'T') + 'Z') - Date.now();
+            const registered = Date.parse(String(item.created_at).replace(' ', 'T') + 'Z');
+            if (Number.isFinite(remaining) && remaining < 0) row.classList.add('defects-row--overdue');
+            else if (Number.isFinite(remaining) && remaining <= 3 * 86400000) row.classList.add('defects-row--urgent');
+            else if (Number.isFinite(remaining) && remaining <= 10 * 86400000) row.classList.add('defects-row--soon');
+            else if (Number.isFinite(registered) && registered <= Date.now()
+                && Date.now() - registered < 86400000) row.classList.add('defects-row--new');
+        }
         row.type = 'button';
         row.dataset.defectId = String(item.id);
         const main = element('span', 'defects-row__main');
@@ -299,6 +313,14 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
             }
         }
     });
+    form.addEventListener('reset', () => {
+        state.creationCommand = null;
+        showFormError('[data-defects-create-error]', '');
+        ++categorySequence;
+        ++objectSequence;
+        fillSelect(category, [], 'Выберите категорию');
+        fillSelect(object, [], 'Выберите объект');
+    });
     form.addEventListener('input', () => { state.creationCommand = null; });
     form.addEventListener('change', () => { state.creationCommand = null; });
     form.addEventListener('submit', async event => {
@@ -415,12 +437,16 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
             addField('Описание', defect.description);
             addField('Приоритет', priorityText(defect.priority));
             addField('Обнаружен', dateText(defect.discovered_at));
+            addField('Зарегистрирован', dateText(defect.created_at));
             addField('Срок устранения', dateText(defect.due_at));
             addField('Зарегистрировал', defect.registered_by_name);
             addField('Состояние', defect.status === 'closed' ? 'Закрыт' : 'Открыт');
             addField('Ответственные службы', (defect.services || []).map(item => item.name).join(', '));
             if (defect.completed_work) addField('Выполненные работы', defect.completed_work);
-            closeForm.hidden = defect.status !== 'open';
+            closeForm.hidden = defect.status !== 'open' || isOverdue(defect);
+            if (isOverdue(defect)) {
+                addField('Ограничение', 'Срок истёк. Штатное закрытие недоступно; требуется решение ответственного лица.');
+            }
             closeForm.reset();
             closeError.hidden = true;
             detailLoading.hidden = true;
@@ -507,14 +533,14 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
             row.append(title, actions);
 
             if (item.is_archived) {
-                const restore = element('button', 'defects-button defects-button--secondary', 'Восстановить');
+                const restore = element('button', 'defects-button defects-button--secondary ui-button ui-button--secondary', 'Восстановить');
                 restore.type = 'button';
                 restore.addEventListener('click', () => void mutate(row, item, 'restore'));
                 actions.append(restore);
                 return row;
             }
 
-            const edit = element('button', 'defects-button defects-button--secondary', 'Переименовать');
+            const edit = element('button', 'defects-button defects-button--secondary ui-button ui-button--secondary', 'Переименовать');
             edit.type = 'button';
             edit.addEventListener('click', () => {
                 if (row.querySelector('form')) return;
@@ -525,9 +551,9 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
                 input.value = item.name;
                 input.maxLength = adminKind.value === 'objects' ? 180 : 160;
                 input.required = true;
-                const save = element('button', 'defects-button defects-button--primary', 'Сохранить');
+                const save = element('button', 'defects-button defects-button--primary ui-button ui-button--primary', 'Сохранить');
                 save.type = 'submit';
-                const cancel = element('button', 'defects-button defects-button--secondary', 'Отмена');
+                const cancel = element('button', 'defects-button defects-button--secondary ui-button ui-button--secondary', 'Отмена');
                 cancel.type = 'button';
                 cancel.addEventListener('click', () => {
                     editor.remove();
@@ -545,17 +571,17 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
                 input.focus();
             });
 
-            const archive = element('button', 'defects-button defects-button--secondary', 'В архив');
+            const archive = element('button', 'defects-button defects-button--secondary ui-button ui-button--secondary', 'В архив');
             archive.type = 'button';
             archive.addEventListener('click', () => {
                 if (actions.querySelector('[data-confirm-archive]')) return;
                 archive.hidden = true;
                 const warning = element('span', 'defects-reference-confirm', 'Подтвердить архивирование?');
                 warning.dataset.confirmArchive = 'true';
-                const yes = element('button', 'defects-button defects-button--secondary', 'Подтвердить');
+                const yes = element('button', 'defects-button defects-button--secondary ui-button ui-button--secondary', 'Подтвердить');
                 yes.type = 'button';
                 yes.addEventListener('click', () => void mutate(row, item, 'archive'));
-                const no = element('button', 'defects-button defects-button--secondary', 'Отмена');
+                const no = element('button', 'defects-button defects-button--secondary ui-button ui-button--secondary', 'Отмена');
                 no.type = 'button';
                 no.addEventListener('click', () => {
                     warning.remove(); yes.remove(); no.remove(); archive.hidden = false;

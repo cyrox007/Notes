@@ -61,7 +61,8 @@ $pdo->exec('CREATE TABLE defects (
     closed_by_user_id INTEGER DEFAULT NULL,
     close_command_id TEXT DEFAULT NULL UNIQUE,
     close_request_hash TEXT DEFAULT NULL,
-    version INTEGER NOT NULL DEFAULT 1
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 )');
 $pdo->exec('CREATE TABLE defect_responsible_services (
     defect_id INTEGER NOT NULL REFERENCES defects(id),
@@ -106,9 +107,14 @@ $detected = new DateTimeImmutable('2026-10-19 12:30:00', new DateTimeZone('Europ
 $register = static fn (string $command, array $services = [4, 5], string $description = 'Повреждение изоляции'):
     array => $registrar->register(3, $description, DefectPriorityPolicy::FIRST, $detected, 7, 'Иванов И. И.', $services, $command);
 
+$registeredFrom = time();
 $first = $register('command_1234567890AB');
 defectsAssert($first['id'] === 1 && $first['replayed'] === false, 'карточка должна создаваться один раз');
-defectsAssert($first['due_at'] === '2026-10-26 09:30:00', 'срок должен сохраняться в UTC');
+$deadlineTime = strtotime($first['due_at'] . ' UTC');
+defectsAssert($deadlineTime !== false
+    && $deadlineTime >= $registeredFrom + 7 * 86400
+    && $deadlineTime <= time() + 7 * 86400,
+    'плановый срок должен отсчитываться от регистрации, а не от обнаружения');
 defectsAssert((int) $database->fetchValue('SELECT COUNT(*) FROM defect_responsible_services') === 2, 'сохранены не все службы');
 defectsAssert((int) $database->fetchValue("SELECT COUNT(*) FROM defect_history WHERE entity_type='defect' AND event_type='created'") === 1, 'создание не отражено в истории');
 
@@ -163,6 +169,19 @@ $records = $registry->list(40, 0, 'open');
 defectsAssert(count($records) === 1 && (int) $records[0]['id'] === $first['id'], 'реестр должен отображать дефект');
 defectsAssert(count($registry->detail($first['id'])['services'] ?? []) === 2, 'карточка должна содержать службы');
 defectsAssert($registry->list(40, $first['id'], 'open') === [], 'курсор должен исключать предыдущую запись');
+
+$pdo->exec("UPDATE defects SET due_at='2000-01-01 00:00:00' WHERE id=1");
+$blockedOverdue = false;
+try {
+    $registry->close($first['id'], 1, 7, 'Заменён повреждённый изолятор', 'close_expired_1234567890AB');
+} catch (DomainException $e) {
+    $blockedOverdue = $e->getCode() === 409 && str_contains($e->getMessage(), 'срок');
+}
+defectsAssert($blockedOverdue, 'просроченную запись нельзя закрыть штатной командой');
+defectsAssert((int) $database->fetchValue(
+    'SELECT version FROM defects WHERE id=1'
+) === 1, 'неуспешное закрытие изменило версию');
+$pdo->prepare('UPDATE defects SET due_at=? WHERE id=1')->execute([$first['due_at']]);
 
 $closed = $registry->close($first['id'], 1, 7, 'Заменён повреждённый изолятор', 'close_1234567890ABCDE');
 defectsAssert($closed['version'] === 2 && !$closed['replayed'], 'дефект должен закрыться с новой версией');

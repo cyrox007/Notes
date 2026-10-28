@@ -56,7 +56,8 @@ final class WorkPermitController extends Controller
             return $this->drafts()->listMine(
                 $actor,
                 $this->number($request->get('limit', 20), 'limit'),
-                $this->number($request->get('before_id', 0), 'before_id')
+                $this->number($request->get('before_id', 0), 'before_id'),
+                (string) $request->get('state', 'active')
             );
         });
     }
@@ -130,7 +131,7 @@ final class WorkPermitController extends Controller
             return $this->drafts()->managementList(
                 $this->number($request->get('limit', 20), 'limit'),
                 $this->number($request->get('before_id', 0), 'before_id'),
-                (string) $request->get('state', 'draft')
+                (string) $request->get('state', 'active')
             );
         });
     }

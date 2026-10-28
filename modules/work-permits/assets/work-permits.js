@@ -24,12 +24,14 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
         const feedback = root.querySelector('[data-wp-feedback]');
         const list = root.querySelector('[data-wp-list]');
         const more = root.querySelector('[data-wp-more]');
+        const personalState = root.querySelector('[data-wp-personal-state]');
         const save = root.querySelector('[data-wp-submit]');
         const csrf = root.querySelector('[name="csrf_token"]');
         const state = { cursor: null, busy: false, command: null, sequence: 0 };
 
         const node = (name, text) => {
             const element = document.createElement(name);
+            if (name === 'button') element.className = 'ui-button ui-button--secondary';
             element.textContent = String(text);
             return element;
         };
@@ -59,6 +61,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
         const render = (item) => {
             const section = node('article', '');
             section.className = 'wp-journal__row';
+            section.dataset.state = String(item.state || 'draft');
             const kind = item.kind === 'permit' ? 'Наряд-допуск' : 'Распоряжение';
             const number = node('strong', kind + ' №' + item.id);
             const facility = node('span', item.facility);
@@ -101,7 +104,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
             more.disabled = true;
             list.setAttribute('aria-busy', 'true');
             try {
-                const query = new URLSearchParams({ limit: '20' });
+                const query = new URLSearchParams({ limit: '20', state: personalState?.value || 'active' });
                 if (!reset && state.cursor) query.set('before_id', String(state.cursor));
                 const result = await request('/?' + query);
                 if (generation !== state.sequence) return;
@@ -109,8 +112,11 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
                 for (const item of result.items || []) list.appendChild(render(item));
                 state.cursor = result.next_cursor || null;
                 more.hidden = !state.cursor;
-                if (!list.children.length) list.appendChild(node('p', 'За последний месяц черновиков нет.'));
+                if (!list.children.length) list.appendChild(node('p', 'За выбранный период документов нет.'));
             } catch (error) {
+                if (list.getAttribute('aria-busy') === 'true' && !list.querySelector('article')) {
+                    list.replaceChildren(node('p', 'Не удалось загрузить документы. Обновите страницу.'));
+                }
                 notify(error instanceof Error ? error.message : 'Ошибка загрузки журнала', true);
             } finally {
                 state.busy = false;
@@ -120,6 +126,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
         };
 
         pageScope.listen(more, 'click', () => void load(false));
+        if (personalState) pageScope.listen(personalState, 'change', () => void load(true));
         pageScope.listen(form, 'input', () => { state.command = null; });
         pageScope.listen(form, 'submit', async (event) => {
             event.preventDefault();
