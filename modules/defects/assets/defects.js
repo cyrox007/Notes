@@ -603,7 +603,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         serviceEditForm.addEventListener('submit', async event => {
             event.preventDefault();
             if (!state.detail || !state.selectedId || !serviceEditForm.reportValidity()) return;
-            const assignments = $('[data-service-id]', serviceEditRows)
+            const assignments = Array.from(serviceEditRows.querySelectorAll('[data-service-id]'))
                 .filter(entry => $('input[type="checkbox"]', entry).checked)
                 .map(entry => ({
                     service_id: Number(entry.dataset.serviceId),
