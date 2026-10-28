@@ -58,7 +58,10 @@ function answer(method, url, data, manager) {
             && String(x.organization_id) === url.searchParams.get('organization_id')), next_cursor: null });
     }
     if (method === 'GET' && parts[0] === 'management') {
-        return success({ items: state.docs.filter(x => x.state === url.searchParams.get('state'))
+        return success({ items: state.docs.filter(x => {
+            const selected = url.searchParams.get('state') || 'active';
+            return selected === 'all' || (selected === 'active' ? x.state !== 'closed' : x.state === selected);
+        })
             .map(x => ({ ...x, has_first_admission: Number(!!x.lifecycle.first_admission),
                 has_completion: Number(!!x.lifecycle.completion) })), next_cursor: null });
     }
