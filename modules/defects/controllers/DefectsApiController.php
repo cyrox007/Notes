@@ -280,7 +280,10 @@ final class DefectsApiController extends Controller
                 $this->integer($data['version'] ?? null, 'version'),
                 $userId,
                 $this->requiredString($data, 'completed_work'),
-                $this->requiredString($data, 'command_id')
+                $this->requiredString($data, 'command_id'),
+                $this->requiredString($data, 'completed_by_name'),
+                $this->requiredString($data, 'closed_at'),
+                isset($data['close_comment']) && is_string($data['close_comment']) ? $data['close_comment'] : ''
             );
             if (!$result['replayed']) {
                 $this->audit($userId, 'defects.closed', ['defect_id' => $result['id']]);
