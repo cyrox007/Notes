@@ -78,9 +78,8 @@ final class NotificationExternalChannelAdministration
             }
             if ($channel === 'sms') {
                 $settings = SmsGatewayNotificationChannel::configuration([
-                    'url' => trim((string) ($input['url'] ?? '')),
+                    'transport' => 'headwind',
                     'phone' => trim((string) ($input['phone'] ?? '')),
-                    'timeout_seconds' => 10,
                 ]);
                 $label = 'Личный SMS-шлюз';
             } else {
@@ -98,10 +97,13 @@ final class NotificationExternalChannelAdministration
              WHERE channel=:channel AND owner_scope=:scope AND label=:label LIMIT 1',
             [':channel' => $channel, ':scope' => $scope, ':label' => $label]
         );
-        if ($secret === '' && $prior !== null) {
+        $localSms = $channel === 'sms' && ($settings['transport'] ?? '') === 'headwind';
+        if ($localSms) {
+            $secret = '';
+        } elseif ($secret === '' && $prior !== null) {
             $secret = trim((string) ($prior['secret_ref'] ?? ''));
         }
-        if ($enabled && !$this->secretAvailable($secret)) {
+        if ($enabled && !$localSms && !$this->secretAvailable($secret)) {
             throw new InvalidArgumentException('Секрет внешнего канала не доступен PHP. Проверьте окружение.');
         }
 

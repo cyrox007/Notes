@@ -9,19 +9,20 @@ require_once __DIR__ . '/NotificationDeliveryResult.php';
 require_once __DIR__ . '/NotificationSecretResolver.php';
 require_once __DIR__ . '/NotificationHttpTransport.php';
 require_once __DIR__ . '/SignedWebhookNotificationChannel.php';
+require_once __DIR__ . '/HeadwindSmsTransport.php';
 
 use InvalidArgumentException;
 use Throwable;
 
 /**
- * Исходящая доставка на разрешённый отдельный SMS-шлюз по HTTPS.
- * Ядро не подключается к GSM-модему и не принимает SMS-команды.
+ * Local Headwind GSM; existing HTTPS configurations remain supported.
  */
 final class SmsGatewayNotificationChannel implements NotificationDeliveryChannel
 {
     public function __construct(
         private NotificationSecretResolver $secrets,
-        private NotificationHttpTransport $transport
+        private NotificationHttpTransport $transport,
+        private ?HeadwindSmsTransport $headwind = null
     ) {
     }
 
@@ -40,6 +41,14 @@ final class SmsGatewayNotificationChannel implements NotificationDeliveryChannel
             );
         }
 
+        $actionUrl = (string) ($job['action_url'] ?? '');
+        $text = $actionUrl === ''
+            ? 'Notes: новое уведомление. Откройте приложение для подробностей.'
+            : 'Notes: подтвердите выполнение задачи (15 минут): ' . $actionUrl;
+        if ($config['transport'] === 'headwind') {
+            return ($this->headwind ?? new HeadwindSmsTransport())->send($config['phone'], $text);
+        }
+
         try {
             $secret = $this->secrets->resolve((string) ($job['secret_ref'] ?? ''));
             if (!is_string($secret) || strlen($secret) < 24
@@ -56,12 +65,9 @@ final class SmsGatewayNotificationChannel implements NotificationDeliveryChannel
 
         // SMS содержит только обезличенный сигнал. Тексты переписки,
         // задач и других объектов не должны покидать Notes.
-        $actionUrl = (string) ($job['action_url'] ?? '');
         $payload = [
             'recipient' => $config['phone'],
-            'text' => $actionUrl === ''
-                ? 'Notes: новое уведомление. Откройте приложение для подробностей.'
-                : 'Notes: подтвердите выполнение задачи (15 минут): ' . $actionUrl,
+            'text' => $text,
             'delivery_id' => (string) ($job['id'] ?? '0'),
         ];
         try {
@@ -96,7 +102,7 @@ final class SmsGatewayNotificationChannel implements NotificationDeliveryChannel
         );
     }
 
-    /** @return array{url:string,phone:string,timeout_seconds:int} */
+    /** @return array{transport:string,phone:string,url?:string,timeout_seconds?:int} */
     public static function configuration(mixed $raw): array
     {
         try {
@@ -108,15 +114,24 @@ final class SmsGatewayNotificationChannel implements NotificationDeliveryChannel
             throw new InvalidArgumentException('Параметры SMS-шлюза должны быть объектом');
         }
 
-        $base = SignedWebhookNotificationChannel::configuration([
-            'url' => $data['url'] ?? '',
-            'timeout_seconds' => $data['timeout_seconds'] ?? 10,
-        ]);
         $phone = trim((string) ($data['phone'] ?? ''));
         if (preg_match('/^\\+[1-9][0-9]{7,14}$/', $phone) !== 1) {
             throw new InvalidArgumentException('Номер SMS должен соответствовать E.164');
         }
+        // Configurations predating Headwind have a URL and no transport marker.
+        $transport = $data['transport'] ?? (isset($data['url']) ? 'https' : 'headwind');
+        if ($transport === 'headwind') {
+            return ['transport' => 'headwind', 'phone' => $phone];
+        }
+        if ($transport !== 'https') {
+            throw new InvalidArgumentException('Неизвестный способ доставки SMS');
+        }
+        $base = SignedWebhookNotificationChannel::configuration([
+            'url' => $data['url'] ?? '',
+            'timeout_seconds' => $data['timeout_seconds'] ?? 10,
+        ]);
         return [
+            'transport' => 'https',
             'url' => $base['url'],
             'phone' => $phone,
             'timeout_seconds' => $base['timeout_seconds'],

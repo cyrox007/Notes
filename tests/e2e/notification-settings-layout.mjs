@@ -63,6 +63,13 @@ try {
             assert.deepEqual(layout, { fields: columns, panels, overflow: false, clippedInputs: false }, `${theme} ${width}px`);
         }
         await checkLayout();
+        const smsForm = page.locator('form.custom-fields-form').filter({ has: page.locator('input[name="channel"][value="sms"]') });
+        assert.equal(await smsForm.locator('[name="url"],[name="secret_ref"]').count(), 0, 'Local Headwind must not request an external gateway');
+        const phone = smsForm.locator('[name="phone"]');
+        await phone.fill('+79990000000');
+        assert.equal(await phone.evaluate(element => element.checkValidity()), true, 'E.164 number rejected by the form');
+        await phone.fill('89990000000');
+        assert.equal(await phone.evaluate(element => element.checkValidity()), false, 'Non-E.164 number accepted');
         await page.evaluate(() => scrollTo(0, 1500));
         await page.waitForFunction(() => scrollY > 1000);
         assert.equal(await page.locator('.navbar').evaluate(element => Math.round(element.getBoundingClientRect().top)), 0, 'Header moved while scrolling');

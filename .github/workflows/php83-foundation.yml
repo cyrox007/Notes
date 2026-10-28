@@ -24,7 +24,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mysqli, pdo_mysql, mbstring, ctype, fileinfo, sodium, openssl, zlib, gd
+          extensions: mysqli, pdo_mysql, pdo_sqlite, sqlite3, mbstring, ctype, fileinfo, sodium, openssl, zlib, gd
           coverage: none
 
       - name: Проверить Composer и фундамент 1.2
@@ -54,6 +54,7 @@ jobs:
           php tests/integration/core_refactor_contract.php
           php tests/integration/module_runtime_composition_contract.php
           php tests/integration/admin_module_catalog_contract.php
+          php tests/integration/notification_sms_gateway_12.php
           php tests/integration/external_update_runtime_contract.php
           php tests/integration/automatic_update_recovery_contract.php
 
@@ -89,6 +90,8 @@ jobs:
           php tests/integration/module_runtime_composition_contract.php
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           php tests/integration/admin_module_catalog_contract.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          php tests/integration/notification_sms_gateway_12.php
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           php tests/integration/automatic_update_recovery_contract.php
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
