@@ -41,6 +41,8 @@ $provider = (static function (string $projectRoot): object {
     return require $projectRoot . '/modules/defects/runtime.php';
 })($root);
 defectsModuleAssert($provider instanceof \Core\ModuleRuntimeProvider, 'runtime должен возвращать интерфейс ядра');
+defectsModuleAssert(class_exists(\Modules\Defects\Services\DefectServiceAssignmentService::class, false),
+    'сервис назначений не загружен из штатного runtime');
 defectsModuleAssert($provider->moduleId() === 'defects', 'неверный идентификатор поставщика');
 defectsModuleAssert(array_keys($provider->capabilities()) === ['workspace.defects'], 'неверный экспорт возможностей');
 
