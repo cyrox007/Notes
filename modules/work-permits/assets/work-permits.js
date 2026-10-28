@@ -61,6 +61,7 @@ window.wspace.page.register('modules/work-permits/assets/work-permits.js', (page
         const render = (item) => {
             const section = node('article', '');
             section.className = 'wp-journal__row';
+            section.dataset.state = String(item.state || 'draft');
             const kind = item.kind === 'permit' ? 'Наряд-допуск' : 'Распоряжение';
             const number = node('strong', kind + ' №' + item.id);
             const facility = node('span', item.facility);
