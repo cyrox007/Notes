@@ -54,7 +54,7 @@ final class DefectsApiController extends Controller
     {
         $filters = [];
         foreach (['status', 'priority', 'area_id', 'object_id', 'service_id', 'from', 'to',
-                 'registered_from', 'registered_to', 'due_from', 'due_to'] as $key) {
+                 'registered_from', 'registered_to', 'due_from', 'due_to', 'sort'] as $key) {
             $value = $request->get($key);
             if ($value !== null) {
                 $filters[$key] = $value;
