@@ -1,0 +1,22 @@
+name: New module motion
+on:
+  pull_request:
+    branches: ['1.2']
+    paths: ['assets/js/usability-actions.js', 'assets/js/page-runtime.js', 'modules/defects/assets/defects.css', 'modules/work-permits/assets/work-permits.css', 'tests/e2e/module-motion.mjs', '.github/workflows/module-motion.yml']
+  push:
+    branches: ['1.2']
+    paths: ['assets/js/usability-actions.js', 'assets/js/page-runtime.js', 'modules/defects/assets/defects.css', 'modules/work-permits/assets/work-permits.css', 'tests/e2e/module-motion.mjs', '.github/workflows/module-motion.yml']
+permissions:
+  contents: read
+jobs:
+  module-motion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/e2e/module-motion.mjs

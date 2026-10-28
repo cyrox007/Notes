@@ -369,26 +369,46 @@
 })();
 
 // Animate the real details height so the following table moves with the form.
-window.wspace.page.register('assets/js/admin-create-user-motion', () => {
-document.querySelectorAll('details.admin-create-user').forEach((details) => {
+window.wspace.page.register('assets/js/admin-create-user-motion', (scope) => {
+document.querySelectorAll('details.admin-create-user, .defects-workspace details, .wp-journal details').forEach((details) => {
     const summary = details.querySelector('summary');
     let animation;
     let expanded = details.open;
-    summary?.addEventListener('click', (event) => {
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!summary) return;
+    const overflow = details.style.overflow;
+    let revision = 0;
+    scope.listen(summary, 'click', (event) => {
         event.preventDefault();
         const start = details.getBoundingClientRect().height;
+        if (!animation) expanded = details.open;
+        const version = ++revision;
         animation?.cancel();
         expanded = !expanded;
-        details.open = true;
-        const end = expanded ? details.getBoundingClientRect().height : summary.getBoundingClientRect().height;
-        details.style.overflow = 'hidden';
-        animation = details.animate({height: [start + 'px', end + 'px']}, {duration: 240, easing: 'ease-in-out'});
-        animation.onfinish = () => {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !details.animate) {
             details.open = expanded;
-            details.style.overflow = '';
+            details.style.overflow = overflow;
+            animation = null;
+            return;
+        }
+        // Measure the actual closed box including padding and borders.
+        details.open = false;
+        const collapsed = details.getBoundingClientRect().height;
+        details.open = true;
+        const end = expanded ? details.getBoundingClientRect().height : collapsed;
+        details.style.overflow = 'hidden';
+        animation = details.animate({height: [start + 'px', end + 'px']}, {duration: 280, easing: 'cubic-bezier(.22,1,.36,1)'});
+        animation.onfinish = () => {
+            if (version !== revision) return;
+            details.open = expanded;
+            details.style.overflow = overflow;
             animation = null;
         };
+    });
+    scope.onDispose(() => {
+        revision++;
+        animation?.cancel();
+        details.style.overflow = overflow;
+        details.open = expanded;
     });
 });
 

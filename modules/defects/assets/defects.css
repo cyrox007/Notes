@@ -1,5 +1,13 @@
 .defects-workspace{--df-border:var(--ui-border,#dfe3ea);--df-surface:var(--ui-surface,#fff);--df-soft:var(--ui-surface-soft,#f3f5f8);--df-muted:var(--ui-muted,#667085);--df-action:var(--ui-action,#4f46e5);--df-danger:var(--ui-danger,#b42318);color:inherit}
 .defects-workspace [hidden]{display:none!important}
+.defects-workspace :is(.defects-button,.defects-icon-button,.defects-segments button){transition:background-color .2s ease,border-color .2s ease,box-shadow .2s ease,transform .2s ease}
+@media(hover:hover){.defects-workspace :is(.defects-button,.defects-icon-button,.defects-segments button):not(:disabled):hover{transform:translateY(-2px);box-shadow:0 5px 14px color-mix(in srgb,var(--df-action) 22%,transparent);border-color:var(--df-action)}}
+.defects-workspace :is(.defects-button,.defects-icon-button,.defects-segments button):not(:disabled):active{transform:translateY(0) scale(.98);box-shadow:none}
+.defects-workspace summary{user-select:none;transition:color .2s ease}
+.defects-workspace summary:hover{color:var(--df-action)}
+.defects-workspace summary::after{content:'⌄';display:inline-block;margin-left:10px;transition:transform .28s ease}
+.defects-workspace details[open]>summary::after{transform:rotate(180deg)}
+@media(prefers-reduced-motion:reduce){.defects-workspace :is(button,a,summary,summary::after){transition:none!important;transform:none!important}}
 .defects-workspace .calendar-shell{margin-top:16px;border:1px solid var(--df-border);border-radius:16px;background:var(--df-surface);box-shadow:0 12px 32px rgba(20,34,55,.055);overflow:hidden}
 .defects-workspace .defects-administration{overflow:visible}
 .defects-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.defects-heading p{color:var(--df-muted);margin:6px 0 0}
