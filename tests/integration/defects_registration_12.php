@@ -194,6 +194,11 @@ defectsAssert(count($events['events']) === 1 && $events['next_cursor'] !== null,
 $continued = $history->list('defect', $first['id'], 1, $events['next_cursor']);
 defectsAssert(count($continued['events']) === 1 && $continued['events'][0]['event_type'] === 'closed', 'закрытие не отражено в истории');
 defectsAssert($continued['events'][0]['actor_user_id'] === 7, 'потерян автор закрытия');
+$closedDetails = $continued['events'][0]['details'];
+defectsAssert(($closedDetails['completed_by_name'] ?? null) === 'Иванов Иван', 'ФИО исполнителя не записано в историю');
+defectsAssert(($closedDetails['close_comment'] ?? null) === 'Проверено после ремонта', 'Комментарий закрытия не сохранился');
+defectsAssert(($closedDetails['closed_at'] ?? null) === gmdate('Y-m-d H:i:s', strtotime($actualClosedAt)), 'Фактическая дата закрытия не сохранилась');
+defectsAssert((string) $database->fetchValue('SELECT closed_at FROM defects WHERE id=1') === $closedDetails['closed_at'], 'Дата в карточке не совпадает с историей');
 defectsAssert($continued['next_cursor'] === null, 'последняя страница должна завершать курсор');
 defectsAssert((int) $database->fetchValue("SELECT COUNT(*) FROM defect_history WHERE entity_type='defect'") === 2, 'повтор закрытия создал лишнюю историю');
 
