@@ -10,6 +10,8 @@ on:
       - 'app/services/LicenseService.php'
       - 'database/defects_schema.sql'
       - 'database/migrations/20261019_defects_*.sql'
+      - 'database/migrations/20261028_defects_*.sql'
+      - 'tests/integration/defects_service_assignments_12.php'
       - 'tests/e2e/defects-lifecycle.mjs'
       - 'tests/support/ci_license_fixture.php'
       - '.github/workflows/defects-browser-lifecycle.yml'
@@ -44,7 +46,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          extensions: mysqli, pdo_mysql, pdo_sqlite, sqlite3, mbstring, sodium, fileinfo, gd
           coverage: none
 
       - name: Подготовить Chromium
@@ -61,6 +63,12 @@ jobs:
           php -l tests/support/ci_license_fixture.php
           node --check modules/defects/assets/defects.js
           node --check tests/e2e/defects-lifecycle.mjs
+
+      - name: Проверить назначение исполнителей и откат операций
+        run: |
+          set -euo pipefail
+          php tests/integration/defects_service_assignments_12.php
+          php tests/integration/defects_registration_12.php
 
       - name: Развернуть каноническую схему MySQL 8.4
         run: |
