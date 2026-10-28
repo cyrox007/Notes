@@ -173,7 +173,7 @@ defectsAssert($registry->list(40, $first['id'], 'open') === [], 'курсор д
 $pdo->exec("UPDATE defects SET due_at='2000-01-01 00:00:00' WHERE id=1");
 $blockedOverdue = false;
 try {
-    $registry->close($first['id'], 1, 7, 'Заменён повреждённый изолятор', 'close_expired_1234567890AB');
+    $registry->close($first['id'], 1, 7, 'Заменён повреждённый изолятор', 'close_expired_1234567890AB', 'Иванов Иван', gmdate('c'));
 } catch (DomainException $e) {
     $blockedOverdue = $e->getCode() === 409 && str_contains($e->getMessage(), 'срок');
 }
@@ -183,9 +183,9 @@ defectsAssert((int) $database->fetchValue(
 ) === 1, 'неуспешное закрытие изменило версию');
 $pdo->prepare('UPDATE defects SET due_at=? WHERE id=1')->execute([$first['due_at']]);
 
-$closed = $registry->close($first['id'], 1, 7, 'Заменён повреждённый изолятор', 'close_1234567890ABCDE');
+$closed = $registry->close($first['id'], 1, 7, 'Заменён повреждённый изолятор', 'close_1234567890ABCDE', 'Иванов Иван', gmdate('c'), 'Проверено после ремонта');
 defectsAssert($closed['version'] === 2 && !$closed['replayed'], 'дефект должен закрыться с новой версией');
-$repeatClose = $registry->close($first['id'], 1, 7, 'Заменён повреждённый изолятор', 'close_1234567890ABCDE');
+$repeatClose = $registry->close($first['id'], 1, 7, 'Заменён повреждённый изолятор', 'close_1234567890ABCDE', 'Иванов Иван', gmdate('c'), 'Проверено после ремонта');
 defectsAssert($repeatClose['replayed'] && $repeatClose['version'] === 2, 'повтор закрытия должен быть безопасным');
 $history = new \Modules\Defects\Services\DefectHistoryService($database);
 $events = $history->list('defect', $first['id'], 1);
@@ -214,7 +214,7 @@ defectsAssert(count($registry->list(40, 0, 'closed')) === 1, 'реестр за�
 
 $staleRejected = false;
 try {
-    $registry->close($first['id'], 1, 7, 'Ещё одно закрытие', 'close_1234567890XYZAB');
+    $registry->close($first['id'], 1, 7, 'Ещё одно закрытие', 'close_1234567890XYZAB', 'Иванов Иван', gmdate('c'));
 } catch (DomainException) {
     $staleRejected = true;
 }
