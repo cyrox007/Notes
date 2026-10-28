@@ -7,6 +7,13 @@ window.wspace.page.register('modules/files/assets/spaces.js', (pageScope) => {
         if (!root || root.dataset.actionsReady === '1') return;
         root.dataset.actionsReady = '1';
 
+        pageScope.listen(root, 'click', event => {
+            const trigger = event.target.closest('[data-filespace-properties]');
+            if (trigger) document.getElementById(trigger.dataset.filespaceProperties)?.showModal();
+            const close = event.target.closest('[data-filespace-close]');
+            if (close) close.closest('dialog')?.close();
+        });
+
         const newCommandId = () => 'files:web:' + (
             globalThis.crypto?.randomUUID?.()
             || Date.now().toString(36) + Math.random().toString(36).slice(2)

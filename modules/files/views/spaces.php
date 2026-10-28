@@ -92,6 +92,11 @@ ob_start();
                                 <?= !empty($item['inherit_acl']) ? 'Наследует права' : 'Собственные правила' ?>
                             <?php endif; ?>
                         </div>
+                        <button type="button" class="ui-button ui-button--secondary filespace-properties-trigger" data-filespace-properties="filespace-object-<?= (int) $item['id'] ?>">Свойства и настройки</button>
+                        <dialog class="filespace-properties ui-form" id="filespace-object-<?= (int) $item['id'] ?>" aria-labelledby="filespace-title-<?= (int) $item['id'] ?>">
+                            <div class="filespace-properties__header"><h2 id="filespace-title-<?= (int) $item['id'] ?>"><?= $view->e($item['name']) ?></h2><button type="button" class="ui-button ui-button--secondary" data-filespace-close>Закрыть</button></div>
+                            <p><?= ($item['type'] ?? '') === 'folder' ? 'Папка' : 'Файл' ?> · <?= !empty($item['inherit_acl']) ? 'Наследует права' : 'Собственные правила' ?></p>
+                            <?php if (($item['type'] ?? '') === 'folder'): ?><a class="ui-button ui-button--secondary" href="<?= $view->e($folderLink((int) $item['id'])) ?>#filespace-permissions">Настроить права папки</a><?php endif; ?>
                         <?php $objectAction = $view->route('files_global_object_mutate', ['nodeId' => (int) $item['id']]); ?>
                         <?php if (!empty($item['can_rename'])): ?>
                             <form method="post" action="<?= $view->e($objectAction) ?>" data-filespace-action>
@@ -149,6 +154,7 @@ ob_start();
                                 <button type="submit" class="file-manager__btn file-manager__btn--secondary ui-button ui-button--primary">В корзину</button>
                             </form>
                         <?php endif; ?>
+                        </dialog>
                     </div>
                 <?php endforeach; ?>
             </div>
