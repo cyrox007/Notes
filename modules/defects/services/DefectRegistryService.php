@@ -75,7 +75,7 @@ final class DefectRegistryService
             return null;
         }
         $defect['services'] = $this->database->fetchAll(
-            'SELECT s.id,s.name FROM defect_services s
+            'SELECT s.id,s.name,ds.executor_name FROM defect_services s
              JOIN defect_responsible_services ds ON ds.service_id=s.id
              WHERE ds.defect_id=:id ORDER BY s.name,s.id',
             ['id' => $id]
