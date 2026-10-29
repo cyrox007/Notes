@@ -186,6 +186,34 @@ try {
     await detail(page, first);
     check((await page.locator('[data-defects-detail-fields]').innerText()).includes('Заменён повреждённый изолятор'),
         'Выполненные работы не сохранились');
+    const adminCorrection = page.locator('form[data-defects-admin-correct]');
+    await adminCorrection.waitFor({ state: 'visible' });
+    await adminCorrection.locator('[name="completed_work"]').fill('Заменён повреждённый изолятор, составлен акт');
+    await adminCorrection.locator('[name="reason"]').fill('Уточнение по акту выполненных работ');
+    const correctResponse = ajaxResponse(page, '/api/defects/' + first + '/correct');
+    await adminCorrection.locator('button[type="submit"]').click();
+    check((await correctResponse).status() === 200, 'Административное исправление вернуло ошибку');
+    await page.locator('[data-defects-history-list]').getByText('Исправлена карточка администратором')
+        .waitFor({ state: 'visible', timeout: 15000 });
+    const archivePanel = page.locator('[data-defects-admin-archive]');
+    await archivePanel.locator('[data-defects-admin-reason]').fill('Проверка контролируемого архива');
+    const archiveResponse = ajaxResponse(page, '/api/defects/' + first + '/archive');
+    await archivePanel.locator('[data-defects-admin-archive-action]').click();
+    check((await archiveResponse).status() === 200, 'Архивирование вернуло ошибку');
+    await archivePanel.locator('[data-defects-admin-archive-action]')
+        .getByText('Восстановить из архива').waitFor({ state: 'visible', timeout: 15000 });
+    const archivedList = await page.evaluate(async ({url, identifier}) => {
+        const response = await fetch(url + '/api/defects/?status=all&archived=1', { credentials: 'same-origin' });
+        const data = await response.json();
+        return response.status === 200 && data.items.some(item => Number(item.id) === identifier);
+    }, {url: base, identifier: first});
+    check(archivedList, 'Архивная карточка отсутствует в реестре');
+    await archivePanel.locator('[data-defects-admin-reason]').fill('Восстановление после проверки');
+    const restoreResponse = ajaxResponse(page, '/api/defects/' + first + '/restore');
+    await archivePanel.locator('[data-defects-admin-archive-action]').click();
+    check((await restoreResponse).status() === 200, 'Восстановление архива завершилось ошибкой');
+    await page.locator('[data-defects-history-list]').getByText('Карточка восстановлена из архива')
+        .waitFor({ state: 'visible', timeout: 15000 });
     await page.locator('[data-defects-detail-close]').first().click();
 
     await page.locator('[data-defects-tab="open"]').click();
@@ -271,6 +299,31 @@ try {
         return response.status;
     }, { baseUrl: base, csrfToken: regularCsrf, identifier: first });
     check(forbiddenAssignment === 403, 'Обычному пользователю разрешили редактировать службы');
+    const forbiddenCorrection = await regular.evaluate(async ({url,csrfToken,identifier}) => {
+        const response = await fetch(url + '/api/defects/' + identifier + '/correct', {
+            method: 'POST', credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken},
+            body: JSON.stringify({
+                version: 1, command_id: 'correct_user_forbidden_123456',
+                reason: 'Без права администратора',
+                fields: {description: 'Недопустимая правка'},
+            }),
+        });
+        return response.status;
+    }, {url: base, csrfToken: regularCsrf, identifier: first});
+    check(forbiddenCorrection === 403, 'Обычный пользователь смог исправлять дефекты');
+    const forbiddenArchive = await regular.evaluate(async ({url,csrfToken,identifier}) => {
+        const response = await fetch(url + '/api/defects/' + identifier + '/archive', {
+            method: 'POST', credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken},
+            body: JSON.stringify({
+                version: 1, command_id: 'archive_user_forbidden_123456',
+                reason: 'Без права администратора',
+            }),
+        });
+        return response.status;
+    }, {url: base, csrfToken: regularCsrf, identifier: first});
+    check(forbiddenArchive === 403, 'Обычный пользователь смог архивировать дефект');
 
     const mobileContext = await browser.newContext({
         viewport: { width: 390, height: 844 }, isMobile: true, deviceScaleFactor: 1,
