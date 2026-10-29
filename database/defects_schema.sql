@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS `defects` (
     `creation_command_id` VARCHAR(96) NOT NULL,
     `creation_request_hash` CHAR(64) NOT NULL,
     `status` ENUM('open', 'closed') NOT NULL DEFAULT 'open',
+    `is_archived` TINYINT(1) NOT NULL DEFAULT 0,
+    `archived_at` DATETIME DEFAULT NULL,
     `completed_work` TEXT DEFAULT NULL,
     `closed_at` DATETIME DEFAULT NULL,
     `closed_by_user_id` INT DEFAULT NULL,
@@ -62,6 +64,7 @@ CREATE TABLE IF NOT EXISTS `defects` (
     UNIQUE KEY `uq_defects_command` (`creation_command_id`),
     UNIQUE KEY `uq_defects_close_command` (`close_command_id`),
     KEY `idx_defects_state_due` (`status`, `due_at`, `id`),
+    KEY `idx_defects_archive_status` (`is_archived`, `status`, `id`),
     KEY `idx_defects_object_date` (`object_id`, `discovered_at`, `id`),
     KEY `idx_defects_priority_status` (`priority`, `status`, `id`),
     CONSTRAINT `fk_defects_object` FOREIGN KEY (`object_id`)
