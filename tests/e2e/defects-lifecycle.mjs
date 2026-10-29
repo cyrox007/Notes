@@ -197,11 +197,11 @@ try {
         .waitFor({ state: 'visible', timeout: 15000 });
     const archivePanel = page.locator('[data-defects-admin-archive]');
     await archivePanel.locator('[data-defects-admin-reason]').fill('Проверка контролируемого архива');
-    const archiveResponse = ajaxResponse(page, '/api/defects/' + first + '/archive');
+    const defectArchiveResponse = ajaxResponse(page, '/api/defects/' + first + '/archive');
     await archivePanel.locator('[data-defects-admin-archive-action]').click();
-    check((await archiveResponse).status() === 200, 'Архивирование вернуло ошибку');
+    check((await defectArchiveResponse).status() === 200, 'Архивирование вернуло ошибку');
     await archivePanel.locator('[data-defects-admin-archive-action]')
-        .getByText('Восстановить из архива').waitFor({ state: 'visible', timeout: 15000 });
+        .filter({ hasText: 'Восстановить из архива' }).waitFor({ state: 'visible', timeout: 15000 });
     const archivedList = await page.evaluate(async ({url, identifier}) => {
         const response = await fetch(url + '/api/defects/?status=all&archived=1', { credentials: 'same-origin' });
         const data = await response.json();
@@ -209,9 +209,9 @@ try {
     }, {url: base, identifier: first});
     check(archivedList, 'Архивная карточка отсутствует в реестре');
     await archivePanel.locator('[data-defects-admin-reason]').fill('Восстановление после проверки');
-    const restoreResponse = ajaxResponse(page, '/api/defects/' + first + '/restore');
+    const defectRestoreResponse = ajaxResponse(page, '/api/defects/' + first + '/restore');
     await archivePanel.locator('[data-defects-admin-archive-action]').click();
-    check((await restoreResponse).status() === 200, 'Восстановление архива завершилось ошибкой');
+    check((await defectRestoreResponse).status() === 200, 'Восстановление архива завершилось ошибкой');
     await page.locator('[data-defects-history-list]').getByText('Карточка восстановлена из архива')
         .waitFor({ state: 'visible', timeout: 15000 });
     await page.locator('[data-defects-detail-close]').first().click();
