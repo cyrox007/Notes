@@ -86,6 +86,7 @@ async function rampUsers(targetCount, seconds) {
       cookies: new CookieJar(),
       csrfToken: '',
       calendarUids: [],
+      taskItems: [],
       promise: null,
     };
     virtualUsers.push(vu);
@@ -168,6 +169,8 @@ async function executeOperation(vu, op) {
       return measuredRequest(vu, op, 'GET', '/tasks/');
     case 'tasks_boards':
       return measuredRequest(vu, op, 'GET', '/tasks/boards');
+    case 'tasks_status_change':
+      return taskStatusChange(vu, op);
     case 'calendar_page':
       return measuredRequest(vu, op, 'GET', '/calendar/');
     case 'calendar_range': {
@@ -201,6 +204,57 @@ async function executeOperation(vu, op) {
     default:
       throw new Error(`Неизвестная операция профиля: ${op.name}`);
   }
+}
+
+async function taskStatusChange(vu, op) {
+  // Реальная запись, а не просмотр под видом изменяющей операции.
+  // Используются только личные задачи авторизованного синтетического пользователя.
+  if (vu.taskItems.length === 0) {
+    const lookup = await measuredRequest(vu, {
+      ...op, name: 'tasks_status_lookup', kind: 'read',
+    }, 'GET', '/api/v1/tasks?limit=30', { captureBody: true });
+    if (lookup.status !== 200) return lookup;
+    const items = safeJson(lookup.body)?.items;
+    if (!Array.isArray(items)) {
+      throw new Error('Личный API задач не вернул список для нагрузочной записи');
+    }
+    vu.taskItems = items.filter(item => /^[a-f0-9]{32}$/.test(String(item.uid || ''))
+      && Number.isInteger(item.version) && item.version > 0
+      && item.archived_at === null);
+    if (vu.taskItems.length === 0) {
+      throw new Error('Нет действующих личных задач для изменяющего испытания');
+    }
+  }
+  const task = vu.taskItems[randomInt(0, vu.taskItems.length - 1)];
+  const nextStatus = task.status === 'in_progress' ? 'review' : 'in_progress';
+  const body = new URLSearchParams({
+    expected_version: String(task.version),
+    command_id: 'perf-task-' + vu.id + '-' + (++globalSequence),
+    status: nextStatus,
+    csrf_token: vu.csrfToken,
+  }).toString();
+  const response = await measuredRequest(vu, op, 'POST',
+    '/tasks/' + encodeURIComponent(task.uid) + '/update', {
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-Token': vu.csrfToken,
+      },
+      body, captureBody: true,
+    });
+  const result = safeJson(response.body);
+  if (response.status === 200 && result?.success === true
+      && Number.isInteger(result.version) && result.version > task.version) {
+    task.status = nextStatus;
+    task.version = result.version;
+  } else if (response.status === 409) {
+    // Обнаруженный конфликт нельзя выдавать за успешную запись.
+    vu.taskItems = [];
+  } else if (response.status === 200) {
+    throw new Error('Задача не подтверждена серверной версией после изменения');
+  }
+  return response;
 }
 
 async function calendarCreate(vu, op) {
