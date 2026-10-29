@@ -61,6 +61,13 @@ final class DefectAdministrationService
         return $this->change($id, $version, $actorId, 'restored', [], trim($reason), $commandId);
     }
 
+    /** @return array{id:int,version:int,replayed:bool,changed:bool} */
+    public function reopen(int $id, int $version, int $actorId, string $reason, string $commandId): array
+    {
+        $this->assertCommand($id, $version, $actorId, $reason, $commandId);
+        return $this->change($id, $version, $actorId, 'reopened', [], trim($reason), $commandId);
+    }
+
     private function assertCommand(int $id, int $version, int $actorId, string $reason, string $commandId): void
     {
         if ($id < 1 || $version < 1 || $actorId < 1) {
@@ -130,7 +137,7 @@ final class DefectAdministrationService
         try {
             $before = $this->database->fetchOne(
                 'SELECT id,version,is_archived,status,object_id,description,priority,'
-                . ' discovered_at,due_at,registered_by_name,completed_work,closed_at'
+                . ' discovered_at,due_at,registered_by_name,completed_work,closed_at,closed_by_user_id'
                 . ' FROM defects WHERE id=:id', ['id' => $id]
             );
             if ($before === null) {
@@ -141,7 +148,8 @@ final class DefectAdministrationService
             }
             $archived = (int) $before['is_archived'] === 1;
             if (($event === 'archived' && $archived) || ($event === 'restored' && !$archived)
-                || ($event === 'corrected' && $archived)) {
+                || ($event === 'corrected' && $archived)
+                || ($event === 'reopened' && ($archived || $before['status'] !== 'closed'))) {
                 throw new DomainException('Состояние архива изменилось. Обновите карточку.', 409);
             }
             if ($event === 'corrected') {
@@ -166,6 +174,21 @@ final class DefectAdministrationService
                     $assignments[] = $name . '=:' . $name;
                     $values[$name] = $change['after'];
                 }
+            } elseif ($event === 'reopened') {
+                // Доказательство первоначального закрытия остаётся в истории.
+                // Активная карточка не должна выглядеть уже устранённой.
+                $difference = [
+                    'status' => ['before' => $before['status'], 'after' => 'open'],
+                    'completed_work' => ['before' => $before['completed_work'], 'after' => null],
+                    'closed_at' => ['before' => $before['closed_at'], 'after' => null],
+                    'closed_by_user_id' => ['before' => $before['closed_by_user_id'], 'after' => null],
+                ];
+                $assignments[] = "status='open'";
+                $assignments[] = 'completed_work=NULL';
+                $assignments[] = 'closed_at=NULL';
+                $assignments[] = 'closed_by_user_id=NULL';
+                $assignments[] = 'close_command_id=NULL';
+                $assignments[] = 'close_request_hash=NULL';
             } else {
                 $assignments[] = 'is_archived=:archived';
                 $assignments[] = 'archived_at=:archived_at';

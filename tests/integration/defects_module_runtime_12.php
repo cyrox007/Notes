@@ -56,7 +56,7 @@ foreach ([
     'defects_history', 'defects_reference_history',
     'defects_references_manage', 'defects_reference_rename',
     'defects_reference_archive', 'defects_reference_restore',
-    'defects_references', 'defects_reference_create', 'defects_show', 'defects_close', 'defects_services_update', 'defects_correct', 'defects_archive', 'defects_restore',
+    'defects_references', 'defects_reference_create', 'defects_show', 'defects_close', 'defects_services_update', 'defects_correct', 'defects_archive', 'defects_restore', 'defects_reopen',
 ] as $name) {
     defectsModuleAssert(in_array($name, $names, true), 'не найден маршрут ' . $name);
 }
@@ -67,7 +67,7 @@ foreach ($routes as $route) {
 defectsModuleAssert($methods['defects_create'] === 'POST', 'создание должно использовать POST');
 defectsModuleAssert($methods['defects_close'] === 'POST', 'закрытие должно использовать POST');
 defectsModuleAssert($methods['defects_services_update'] === 'POST', 'назначения служб должны использовать POST');
-foreach (['defects_correct', 'defects_archive', 'defects_restore'] as $name) {
+foreach (['defects_correct', 'defects_archive', 'defects_restore', 'defects_reopen'] as $name) {
     defectsModuleAssert($methods[$name] === 'POST', 'изменение дефекта должно использовать POST');
 }
 defectsModuleAssert(class_exists(\Modules\Defects\Services\DefectAdministrationService::class, false), 'административная служба не подключена штатным runtime');

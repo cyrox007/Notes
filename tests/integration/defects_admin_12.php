@@ -54,6 +54,8 @@ $pdo->exec("INSERT INTO defects VALUES
     (2,1,0,NULL,1,'Устранено','normal','2026-01-01 09:00:00',
      '2026-01-10 12:00:00','Иванов',17,'closed','Ремонт','2026-01-11 12:00:00',22,'2026-01-01 10:00:00')");
 $pdo->exec('INSERT INTO defect_responsible_services VALUES (1,1),(2,1)');
+$pdo->exec('ALTER TABLE defects ADD COLUMN close_command_id TEXT');
+$pdo->exec('ALTER TABLE defects ADD COLUMN close_request_hash TEXT');
 $db = DatabaseManager::forConnection($pdo);
 $admin = new DefectAdministrationService($db);
 $report = new DefectReportService($db);
@@ -127,6 +129,37 @@ assertAdmin($fixedClosed['version'] === 2
     'закрытые работы не исправлены');
 assertAdmin((int) $db->fetchValue('SELECT closed_by_user_id FROM defects WHERE id=2') === 22,
     'исходная учётная запись закрывшего была изменена');
+
+$reopened = $admin->reopen(2, 2, 31, 'Закрытие ошибочно, устранение не подтверждено', 'reopen_1234567890ABC');
+assertAdmin($reopened['version'] === 3 && $reopened['changed'], 'карточка не возвращена в работу');
+$reopenedRow = $db->fetchOne('SELECT * FROM defects WHERE id=2');
+assertAdmin($reopenedRow['status'] === 'open' && $reopenedRow['closed_at'] === null
+    && $reopenedRow['completed_work'] === null && $reopenedRow['closed_by_user_id'] === null,
+    'у вновь открытого дефекта остались признаки закрытия');
+assertAdmin($reopenedRow['registered_by_user_id'] == 17, 'исходный автор регистрации изменён');
+$replayedReopen = $admin->reopen(2, 2, 31, 'Закрытие ошибочно, устранение не подтверждено', 'reopen_1234567890ABC');
+assertAdmin($replayedReopen['replayed'] && $replayedReopen['version'] === 3, 'повтор открытия не распознан');
+$staleReopen = false;
+try {
+    $admin->reopen(2, 2, 31, 'Повторная отмена закрытия', 'reopen_1234567890DEF');
+} catch (DomainException $error) {
+    $staleReopen = $error->getCode() === 409;
+}
+assertAdmin($staleReopen, 'устаревшая версия вернула дефект в работу');
+$wrongState = false;
+try {
+    $admin->reopen(2, 3, 31, 'Повторная отмена закрытия', 'reopen_1234567890GHI');
+} catch (DomainException $error) {
+    $wrongState = $error->getCode() === 409;
+}
+assertAdmin($wrongState, 'повторно открывать активный дефект нельзя');
+$reopenHistory = (new DefectHistoryService($db))->list('defect', 2);
+assertAdmin(count($reopenHistory['events']) === 2
+    && $reopenHistory['events'][1]['event_type'] === 'reopened'
+    && $reopenHistory['events'][1]['actor_user_id'] === 31
+    && $reopenHistory['events'][1]['details']['changes']['closed_by_user_id']['before'] == 22,
+    'потеряно доказательство отменённого закрытия');
+
 
 $pdo->exec("CREATE TRIGGER reject_archive_history BEFORE INSERT ON defect_history
     WHEN NEW.command_id='archive_FAIL_1234567890'

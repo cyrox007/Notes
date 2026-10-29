@@ -344,6 +344,11 @@ final class DefectsApiController extends Controller
         $this->adminChange($request, $id, 'restored');
     }
 
+    public function reopen(Request $request, int $id): void
+    {
+        $this->adminChange($request, $id, 'reopened');
+    }
+
     private function adminChange(Request $request, int $id, string $action): void
     {
         $this->handle($request, 'defects.manage', function (int $userId) use ($request, $id, $action): array {
@@ -359,9 +364,11 @@ final class DefectsApiController extends Controller
                 }
                 $result = $service->correct($id, $version, $userId, $fields, $reason, $commandId);
             } else {
-                $result = $action === 'archived'
-                    ? $service->archive($id, $version, $userId, $reason, $commandId)
-                    : $service->restore($id, $version, $userId, $reason, $commandId);
+                $result = match ($action) {
+                    'archived' => $service->archive($id, $version, $userId, $reason, $commandId),
+                    'reopened' => $service->reopen($id, $version, $userId, $reason, $commandId),
+                    default => $service->restore($id, $version, $userId, $reason, $commandId),
+                };
             }
             if ($result['changed']) {
                 $this->audit($userId, 'defects.' . $action, [
