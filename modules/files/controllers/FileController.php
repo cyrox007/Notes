@@ -263,9 +263,21 @@ class FileController extends Controller
 
             $dbManager = DatabaseManager::getInstance();
             $dbManager->queueInsert($newFile, 'user_files');
-            $dbManager->commit();
+            $writeResult = $dbManager->commit();
+            $fileId = (int) ($writeResult[0]['last_insert_id'] ?? 0);
+            if ($fileId < 1) {
+                // В разных драйверах подтверждение записи имеет разную форму.
+                $fileId = (int) $dbManager->fetchValue(
+                    'SELECT id FROM user_files WHERE uid=:uid AND user_id=:owner',
+                    [':uid' => $newFile['uid'], ':owner' => (int) $user->id]
+                );
+            }
+            if ($fileId < 1) {
+                throw new Exception('Созданному файлу не назначен числовой идентификатор');
+            }
 
             $publicFile = [
+                'id' => $fileId,
                 'uid' => $newFile['uid'],
                 'parent_id' => $newFile['parent_id'],
                 'name' => $newFile['name'],
