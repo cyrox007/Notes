@@ -214,6 +214,18 @@ try {
     check((await defectRestoreResponse).status() === 200, 'Восстановление архива завершилось ошибкой');
     await page.locator('[data-defects-history-list]').getByText('Карточка восстановлена из архива')
         .waitFor({ state: 'visible', timeout: 15000 });
+    await archivePanel.locator('[data-defects-admin-reopen-action]').waitFor({ state: 'visible' });
+    await archivePanel.locator('[data-defects-admin-reason]').fill('Ошибочное закрытие — работы требуют продолжения');
+    const reopenResponse = ajaxResponse(page, '/api/defects/' + first + '/reopen');
+    await archivePanel.locator('[data-defects-admin-reopen-action]').click();
+    check((await reopenResponse).status() === 200, 'Повторное открытие дефекта не выполнено');
+    await page.locator('[data-defects-history-list]')
+        .getByText('Закрытие отменено администратором, дефект возвращён в работу')
+        .waitFor({ state: 'visible', timeout: 15000 });
+    check((await page.locator('[data-defects-detail-fields]').innerText()).includes('Открыт'),
+        'Дефект после отмены закрытия не находится в работе');
+    check((await page.locator('[data-defects-history-list]').innerText()).includes('Дефект закрыт'),
+        'После повторного открытия потеряно доказательство первоначального закрытия');
     await page.locator('[data-defects-detail-close]').first().click();
 
     await page.locator('[data-defects-tab="open"]').click();
@@ -324,6 +336,18 @@ try {
         return response.status;
     }, {url: base, csrfToken: regularCsrf, identifier: first});
     check(forbiddenArchive === 403, 'Обычный пользователь смог архивировать дефект');
+    const forbiddenReopen = await regular.evaluate(async ({url,csrfToken,identifier}) => {
+        const response = await fetch(url + '/api/defects/' + identifier + '/reopen', {
+            method: 'POST', credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken},
+            body: JSON.stringify({
+                version: 1, command_id: 'reopen_user_forbidden_123456',
+                reason: 'Без права администратора',
+            }),
+        });
+        return response.status;
+    }, {url: base, csrfToken: regularCsrf, identifier: first});
+    check(forbiddenReopen === 403, 'Обычный пользователь смог отменить закрытие');
 
     const mobileContext = await browser.newContext({
         viewport: { width: 390, height: 844 }, isMobile: true, deviceScaleFactor: 1,
