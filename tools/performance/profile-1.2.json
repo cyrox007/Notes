@@ -31,12 +31,17 @@
     {
       "name": "tasks_list",
       "kind": "read",
-      "weight": 10
+      "weight": 7
     },
     {
       "name": "tasks_boards",
       "kind": "read",
       "weight": 4
+    },
+    {
+      "name": "tasks_status_change",
+      "kind": "write",
+      "weight": 3
     },
     {
       "name": "calendar_page",
