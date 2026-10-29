@@ -51,6 +51,9 @@ final class DefectsRuntimeProvider implements ModuleRuntimeProvider
             ->add('GET', '/{int:id}/history', [DefectsApiController::class, 'history'], [ApiLoginRequired::class], 'defects_history')
             ->add('GET', '/{int:id}', [DefectsApiController::class, 'show'], [ApiLoginRequired::class], 'defects_show')
             ->add('POST', '/{int:id}/services', [DefectsApiController::class, 'updateServices'], [ApiLoginRequired::class, CSRFMiddleware::class], 'defects_services_update')
+            ->add('POST', '/{int:id}/correct', [DefectsApiController::class, 'correct'], [ApiLoginRequired::class, CSRFMiddleware::class], 'defects_correct')
+            ->add('POST', '/{int:id}/archive', [DefectsApiController::class, 'archive'], [ApiLoginRequired::class, CSRFMiddleware::class], 'defects_archive')
+            ->add('POST', '/{int:id}/restore', [DefectsApiController::class, 'restore'], [ApiLoginRequired::class, CSRFMiddleware::class], 'defects_restore')
             ->add('POST', '/{int:id}/close', [DefectsApiController::class, 'close'], [ApiLoginRequired::class, CSRFMiddleware::class], 'defects_close')
             ->endGroup();
     }
