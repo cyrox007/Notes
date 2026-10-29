@@ -56,12 +56,17 @@
     {
       "name": "files_list",
       "kind": "read",
-      "weight": 6
+      "weight": 5
     },
     {
       "name": "files_folder_cycle",
       "kind": "write",
       "weight": 2
+    },
+    {
+      "name": "files_transfer_cycle",
+      "kind": "write",
+      "weight": 1
     },
     {
       "name": "files_spaces",
