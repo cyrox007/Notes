@@ -47,6 +47,7 @@ $pdo->exec("INSERT INTO defects VALUES
     (3,2,'Проверка','first','2020-02-02 12:00:00','2020-02-09 12:00:00','Сидоров','open',1,NULL,'2020-02-05 10:00:00')");
 $pdo->exec('INSERT INTO defect_responsible_services VALUES (1,10),(2,10),(3,20)');
 $pdo->exec("INSERT INTO defect_services VALUES (10,'Электросеть'),(20,'Ремонтная служба')");
+$pdo->exec('ALTER TABLE defects ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0');
 $service = new \Modules\Defects\Services\DefectReportService(
     \Core\DatabaseManager::forConnection($pdo)
 );
