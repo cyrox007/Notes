@@ -54,6 +54,8 @@ $pdo->exec("INSERT INTO defects VALUES
     (2,1,0,NULL,1,'Устранено','normal','2026-01-01 09:00:00',
      '2026-01-10 12:00:00','Иванов',17,'closed','Ремонт','2026-01-11 12:00:00',22,'2026-01-01 10:00:00')");
 $pdo->exec('INSERT INTO defect_responsible_services VALUES (1,1),(2,1)');
+$pdo->exec('ALTER TABLE defects ADD COLUMN close_command_id TEXT');
+$pdo->exec('ALTER TABLE defects ADD COLUMN close_request_hash TEXT');
 $db = DatabaseManager::forConnection($pdo);
 $admin = new DefectAdministrationService($db);
 $report = new DefectReportService($db);
