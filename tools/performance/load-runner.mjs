@@ -181,6 +181,8 @@ async function executeOperation(vu, op) {
     }
     case 'files_list':
       return measuredRequest(vu, op, 'GET', '/files/');
+    case 'files_folder_cycle':
+      return filesFolderCycle(vu, op);
     case 'files_spaces':
       return measuredRequest(vu, op, 'GET', '/files/spaces/global/');
     case 'messenger_page':
@@ -255,6 +257,54 @@ async function taskStatusChange(vu, op) {
     throw new Error('Задача не подтверждена серверной версией после изменения');
   }
   return response;
+}
+
+// Каждый цикл создаёт отдельную личную папку, переименовывает и удаляет её.
+// Не используем существующие файлы: только собственные синтетические объекты.
+async function filesFolderCycle(vu, op) {
+  const commandName = 'perf-folder-' + vu.id + '-' + (++globalSequence);
+  const send = (operation, route, fields) => measuredRequest(vu, {
+    ...op, name: 'files_folder_' + operation,
+  }, 'POST', route, {
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-CSRF-Token': vu.csrfToken,
+    },
+    body: new URLSearchParams({ ...fields, csrf_token: vu.csrfToken }).toString(),
+    captureBody: true,
+    requireJsonSuccess: true,
+  });
+  const created = await send('create', '/files/create-folder/', {
+    name: commandName, parent_id: '0',
+  });
+  const createdData = safeJson(created.body);
+  const id = Number(createdData?.folder?.id);
+  if (created.status !== 200 || createdData?.success !== true
+      || !Number.isSafeInteger(id) || id < 1) {
+    throw new Error('Создание личной папки не подтверждено идентификатором');
+  }
+  let renameError = null;
+  try {
+    const renamed = await send('rename', '/files/rename/', {
+      id: String(id), name: commandName + '-renamed',
+    });
+    if (renamed.status !== 200 || safeJson(renamed.body)?.success !== true) {
+      throw new Error('Переименование нагрузочной папки не подтверждено');
+    }
+  } catch (error) {
+    renameError = error;
+  }
+
+  // Очистка обязательна даже после ошибки переименования:
+  // удаление ограничено ID только что созданной личной папки.
+  const deleted = await send('delete', '/files/delete/', { id: String(id) });
+  if (deleted.status !== 200 || safeJson(deleted.body)?.success !== true) {
+    throw new Error('Не удалена синтетическая папка: ' + id);
+  }
+  if (renameError) throw renameError;
+  return deleted;
 }
 
 async function calendarCreate(vu, op) {
@@ -332,8 +382,9 @@ async function measuredRequest(vu, op, method, requestPath, options = {}) {
   try {
     const response = await request(vu, method, requestPath, options);
     const duration = performance.now() - started;
+    const validBody = !options.requireJsonSuccess || safeJson(response.body)?.success === true;
     const ok = response.status >= 200 && response.status < 400
-      && !response.url.pathname.includes('/auth/login');
+      && !response.url.pathname.includes('/auth/login') && validBody;
     metrics.record(op.name, op.kind, currentPhase, duration, response.status, ok);
     return response;
   } catch (error) {
