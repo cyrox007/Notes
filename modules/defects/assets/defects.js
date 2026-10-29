@@ -442,6 +442,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         if (event.event_type === 'corrected') return 'Исправлена карточка администратором';
         if (event.event_type === 'archived') return 'Карточка перенесена в архив';
         if (event.event_type === 'restored') return 'Карточка восстановлена из архива';
+        if (event.event_type === 'reopened') return 'Закрытие отменено администратором, дефект возвращён в работу';
         if (event.event_type === 'created') return 'Зарегистрирован дефект';
         if (event.event_type === 'closed') return 'Дефект закрыт';
         return 'Изменение';
@@ -567,6 +568,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         const archiveButton = $('[data-defects-admin-archive-action]', adminArchiveBox);
         archiveButton.dataset.action = archived ? 'restore' : 'archive';
         archiveButton.textContent = archived ? 'Восстановить из архива' : 'Поместить в архив';
+        $('[data-defects-admin-reopen-action]', adminArchiveBox).hidden = archived || defect.status !== 'closed';
         $('[data-defects-admin-reason]', adminArchiveBox).value = '';
         $('[data-defects-admin-archive-error]', adminArchiveBox).hidden = true;
         $('[data-defects-admin-correct-error]', adminCorrectForm).hidden = true;
@@ -684,6 +686,36 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
                 errorBox.hidden = false;
             } finally { button.disabled = false; }
         });
+        $('[data-defects-admin-reopen-action]', adminArchiveBox).addEventListener('click', async event => {
+            if (!state.detail || !state.selectedId || Number(state.detail.is_archived) === 1
+                || state.detail.status !== 'closed') return;
+            const reason = $('[data-defects-admin-reason]', adminArchiveBox).value.trim();
+            const errorBox = $('[data-defects-admin-archive-error]', adminArchiveBox);
+            if (reason.length < 5) {
+                errorBox.textContent = 'Укажите причину отмены закрытия, не короче пяти символов';
+                errorBox.hidden = false;
+                return;
+            }
+            const button = event.currentTarget;
+            button.disabled = true;
+            errorBox.hidden = true;
+            state.adminArchiveCommand ||= newCommand();
+            const id = state.selectedId;
+            try {
+                await request(api + '/' + id + '/reopen', {
+                    version: Number(state.detail.version), reason,
+                    command_id: state.adminArchiveCommand,
+                });
+                state.adminArchiveCommand = null;
+                await loadRegistry();
+                await openDetail(id);
+                feedbackMessage('Дефект №' + id + ' возвращён в работу; история закрытия сохранена');
+            } catch (error) {
+                errorBox.textContent = errorText(error) + '. При конфликте обновите карточку.';
+                errorBox.hidden = false;
+            } finally { button.disabled = false; }
+        });
+
         $('[data-defects-admin-archive-action]', adminArchiveBox).addEventListener('click', async event => {
             if (!state.detail || !state.selectedId) return;
             const reason = $('[data-defects-admin-reason]', adminArchiveBox).value.trim();
