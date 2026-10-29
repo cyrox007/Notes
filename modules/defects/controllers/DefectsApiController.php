@@ -76,7 +76,7 @@ final class DefectsApiController extends Controller
 
     public function show(Request $request, int $id): void
     {
-        $this->handle($request, 'defects.use', function () use ($id): array {
+        $this->handle($request, 'defects.use', function () use ($request, $id): array {
             $record = $this->registry()->detail($id);
             if ($record === null) {
                 throw new DomainException('Дефект не найден', 404);
