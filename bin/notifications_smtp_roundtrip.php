@@ -52,12 +52,21 @@ try {
         throw new InvalidArgumentException('Получатель недоступен или его адрес некорректен');
     }
     $subscription = $db->fetchOne(
-        'SELECT user_id FROM notification_subscriptions '
+        'SELECT user_id,browser_enabled,telegram_enabled,max_enabled,webhook_enabled,sms_enabled '
+        . 'FROM notification_subscriptions '
         . 'WHERE user_id=:user AND category=:category AND enabled=1 AND email_enabled=1 LIMIT 1',
         ['user' => $userId, 'category' => $category]
     );
     if ($subscription === null) {
         throw new InvalidArgumentException('У пользователя не включена SMTP-подписка этой категории');
+    }
+    // Пробная публикация не должна невольно поставить задания в другие каналы.
+    foreach (['browser_enabled', 'telegram_enabled', 'max_enabled', 'webhook_enabled', 'sms_enabled'] as $flag) {
+        if ((int) ($subscription[$flag] ?? 0) === 1) {
+            throw new InvalidArgumentException(
+                'Выберите категорию подписки только с почтовой доставкой для сквозной проверки'
+            );
+        }
     }
     $config = $db->fetchOne(
         "SELECT id FROM notification_channel_configs "
