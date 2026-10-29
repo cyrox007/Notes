@@ -344,6 +344,11 @@ final class DefectsApiController extends Controller
         $this->adminChange($request, $id, 'restored');
     }
 
+    public function reopen(Request $request, int $id): void
+    {
+        $this->adminChange($request, $id, 'reopened');
+    }
+
     private function adminChange(Request $request, int $id, string $action): void
     {
         $this->handle($request, 'defects.manage', function (int $userId) use ($request, $id, $action): array {
