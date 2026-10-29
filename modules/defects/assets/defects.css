@@ -85,3 +85,10 @@
 .defects-services-editor__entry label:first-child{flex-direction:row;align-items:center}
 .defects-services-editor__entry input[type=checkbox]{flex:none;margin:0}
 @media(max-width:580px){.defects-services-editor__entry{grid-template-columns:minmax(0,1fr)}}
+
+/* Административное исправление и архив дефекта. */
+.defects-admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.defects-admin-grid label{min-width:0}
+.defects-admin-grid input,.defects-admin-grid select{width:100%;box-sizing:border-box}
+[data-defects-admin-correct] textarea,[data-defects-admin-archive] textarea{width:100%;box-sizing:border-box}
+@media(max-width:580px){.defects-admin-grid{grid-template-columns:minmax(0,1fr)}}
