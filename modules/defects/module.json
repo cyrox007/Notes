@@ -41,7 +41,8 @@
       "database/migrations/20261019_defects_foundation.sql",
       "database/migrations/20261019_defects_history.sql",
       "database/migrations/20261019_defects_reference_versions.sql",
-      "database/migrations/20261028_defects_service_executor.sql"
+      "database/migrations/20261028_defects_service_executor.sql",
+      "database/migrations/20261029_defects_archive.sql"
     ]
   },
   "background": {
