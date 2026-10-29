@@ -36,6 +36,9 @@ ob_start();
             <button class="ui-button ui-button--secondary" type="button" data-defects-tab="open" aria-pressed="true">Открытые</button>
             <button class="ui-button ui-button--secondary" type="button" data-defects-tab="closed" aria-pressed="false">Закрытые</button>
             <button class="ui-button ui-button--secondary" type="button" data-defects-tab="all" aria-pressed="false">Все</button>
+            <?php if (!empty($can_manage_defects)): ?>
+                <button class="ui-button ui-button--secondary" type="button" data-defects-tab="archived" aria-pressed="false">Архив</button>
+            <?php endif; ?>
         </div>
         <div class="defects-registry__display">
             <div class="defects-registry__switch" role="group" aria-label="Вид реестра">
@@ -205,6 +208,41 @@ ob_start();
                             <button type="submit" class="defects-button defects-button--primary ui-button ui-button--primary">Сохранить назначения</button>
                         </div>
                     </form>
+                    <?php if (!empty($can_manage_defects)): ?>
+                    <form data-defects-admin-correct class="defects-services-editor" hidden>
+                        <h3>Административное исправление</h3>
+                        <p>Все изменения записываются с причиной, автором и прежними значениями. Сведения об учётных записях авторов не переписываются.</p>
+                        <div class="defects-admin-grid">
+                            <label>Номер объекта <input name="object_id" type="number" min="1" required></label>
+                            <label>Приоритет
+                                <select name="priority" required>
+                                    <option value="urgent">Неотложный</option>
+                                    <option value="first">Первоочередной</option>
+                                    <option value="important">Важный</option>
+                                    <option value="normal">Обычный</option>
+                                </select>
+                            </label>
+                            <label>Дата обнаружения <input name="discovered_at" type="datetime-local" required></label>
+                            <label>Плановый срок <input name="due_at" type="datetime-local" required></label>
+                            <label>ФИО регистрирующего <input name="registered_by_name" maxlength="160" required></label>
+                        </div>
+                        <label>Описание дефекта <textarea name="description" maxlength="10000" required rows="3"></textarea></label>
+                        <div data-defects-correct-closed hidden>
+                            <label>Фактическая дата закрытия <input name="closed_at" type="datetime-local"></label>
+                            <label>Выполненные работы <textarea name="completed_work" maxlength="10000" rows="3"></textarea></label>
+                        </div>
+                        <label>Причина исправления <textarea name="reason" minlength="5" maxlength="1000" required rows="2"></textarea></label>
+                        <div data-defects-admin-correct-error class="defects-form-error" role="alert" hidden></div>
+                        <button type="submit" class="defects-button defects-button--primary ui-button ui-button--primary">Сохранить исправление</button>
+                    </form>
+                    <div data-defects-admin-archive class="defects-services-editor" hidden>
+                        <h3>Архивирование записи</h3>
+                        <p>Карточка и её история сохраняются. Запись исчезнет из обычного реестра, но останется доступна в архиве.</p>
+                        <label>Обоснование операции <textarea data-defects-admin-reason minlength="5" maxlength="1000" rows="2" placeholder="Укажите причину"></textarea></label>
+                        <div data-defects-admin-archive-error class="defects-form-error" role="alert" hidden></div>
+                        <button type="button" class="defects-button defects-button--secondary ui-button ui-button--secondary" data-defects-admin-archive-action>Поместить в архив</button>
+                    </div>
+                    <?php endif; ?>
                     <h3>История изменений</h3>
                     <ol data-defects-history-list class="defects-timeline"></ol>
                     <button type="button" class="defects-button defects-button--secondary ui-button ui-button--secondary" data-defects-history-more hidden>Ранее не показанные события</button>
