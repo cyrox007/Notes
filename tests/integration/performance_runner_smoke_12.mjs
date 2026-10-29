@@ -25,6 +25,10 @@ const errors = [];
 let loginCount = 0;
 let authorizedCalls = 0;
 let taskMutations = 0;
+let folderCreates = 0;
+let folderRenames = 0;
+let folderDeletes = 0;
+let folderSequence = 0;
 
 const server = http.createServer(async (req, res) => {
   const cookie = req.headers.cookie || '';
@@ -101,6 +105,39 @@ const server = http.createServer(async (req, res) => {
     taskMutations += 1;
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true, version: state.taskVersion }));
+    return;
+  }
+  if (req.method === 'POST' && ['/files/create-folder/', '/files/rename/', '/files/delete/'].includes(pathname)) {
+    const form = new URLSearchParams(await readBody(req));
+    state.folders ??= new Map();
+    let payload = null;
+    if (pathname === '/files/create-folder/') {
+      const name = form.get('name') || '';
+      if (!/^perf-folder-[0-9]+-[0-9]+$/.test(name)) errors.push('Некорректное имя временной папки');
+      const id = ++folderSequence;
+      state.folders.set(id, name);
+      folderCreates += 1;
+      payload = { success: true, folder: { id, name } };
+    } else {
+      const id = Number(form.get('id'));
+      if (!state.folders.has(id)) {
+        errors.push('Изменение не принадлежащей сеансу папки');
+        res.writeHead(404, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: false }));
+        return;
+      }
+      if (pathname === '/files/rename/') {
+        const name = form.get('name') || '';
+        if (!name.endsWith('-renamed')) errors.push('Неверное переименование папки');
+        state.folders.set(id, name);
+        folderRenames += 1;
+      } else {
+        state.folders.delete(id);
+        folderDeletes += 1;
+      }
+      payload = { success: true };
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(payload));
     return;
   }
   if (pathname === '/') {
@@ -198,6 +235,33 @@ try {
   assert.equal(writeReport.acceptance.passed, false);
   assert.deepEqual(errors, []);
 
+  // Отдельный испытательный профиль гарантированно выполняет запись Files.
+  const filesProfilePath = path.join(temporary, 'files-profile.json');
+  const filesReportPath = path.join(temporary, 'files-report.json');
+  const filesProfile = JSON.parse(fs.readFileSync(
+    path.join(root, 'tools/performance/profile-1.2.json'), 'utf8'
+  ));
+  filesProfile.operations = [{ name: 'files_folder_cycle', kind: 'write', weight: 100 }];
+  fs.writeFileSync(filesProfilePath, JSON.stringify(filesProfile));
+  const filesRun = await run([
+    '--mode=smoke',
+    '--profile=' + filesProfilePath,
+    '--base-url=' + target,
+    '--credentials=' + credentialsFile,
+    '--output=' + filesReportPath,
+    '--users=3', '--ramp=1', '--steady=3',
+  ], { PERF_MODE: 'smoke' });
+  assert.equal(filesRun.code, 2, 'Файловый цикл не прошёл пробный прогон: ' + filesRun.transcript);
+  const filesReport = JSON.parse(fs.readFileSync(filesReportPath, 'utf8'));
+  assert.ok(folderCreates >= 3, 'Реальное создание папок не проверено');
+  assert.equal(folderCreates, folderRenames, 'Не все созданные папки переименованы');
+  assert.equal(folderCreates, folderDeletes, 'Не все тестовые папки удалены');
+  assert.ok([...sessions.values()].every(item => (item.folders?.size || 0) === 0),
+    'После испытания остались синтетические папки');
+  assert.equal(filesReport.requests.errors, 0, 'Ошибки файловой записи: ' + filesRun.transcript);
+  assert.equal(filesReport.acceptance.passed, false);
+  assert.deepEqual(errors, []);
+
   const denied = await run([
     '--mode=full',
     '--profile=tools/performance/profile-1.2.json',
@@ -207,7 +271,7 @@ try {
   ], { PERF_MODE: 'full', PERF_FIXTURE_CONFIRM: '', PERF_ISOLATED_STAND: '' });
   assert.notEqual(denied.code, 0);
   assert.match(denied.transcript, /изолированном стенде/);
-  console.log('Пробный HTTP-прогон, запись Tasks, версии, CSRF и защита полной приёмки проверены.');
+  console.log('Пробный HTTP-прогон, запись Tasks и Files, версии, CSRF, очистка и защита полной приёмки проверены.');
 } finally {
   await new Promise(resolve => server.close(resolve));
   fs.rmSync(temporary, { recursive: true, force: true });
