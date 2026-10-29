@@ -14,7 +14,7 @@ use InvalidArgumentException;
 final class DefectHistoryService
 {
     private const array TYPES = ['defect', 'area', 'category', 'object', 'service'];
-    private const array EVENTS = ['created', 'closed', 'updated', 'archived', 'restored'];
+    private const array EVENTS = ['created', 'closed', 'updated', 'corrected', 'archived', 'restored'];
 
     public function __construct(private readonly DatabaseManager $database)
     {
