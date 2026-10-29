@@ -45,6 +45,7 @@ $pdo->exec("INSERT INTO defect_services VALUES
     (11,'Дежурная служба',0),(12,'Ремонтная служба',0),(13,'Архивная служба',1)");
 $pdo->exec("INSERT INTO defect_responsible_services VALUES
     (7,11,NULL),(7,12,NULL)");
+$pdo->exec('ALTER TABLE defects ADD COLUMN is_archived INTEGER NOT NULL DEFAULT 0');
 $db = DatabaseManager::forConnection($pdo);
 $service = new DefectServiceAssignmentService($db);
 $initial = [
