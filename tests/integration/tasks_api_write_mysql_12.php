@@ -84,6 +84,65 @@ namespace {
         }
         ensure($denied, 'можно изменить чужую задачу');
 
+        // Внешняя команда смены состояния обязана сохранять историю версий и
+        // проставлять время завершения на сервере, а не доверять клиенту.
+        $finished = $mutator->mutateOwned(11, $created['task_uid'], 2,
+            'task-status-command-001', 'task.api.update', ['status' => 'completed']);
+        ensure(($finished['success'] ?? false) && $finished['version'] === 3,
+            'внешний API не завершил личную задачу');
+        $finishedAt = $db->fetchValue('SELECT completed_at FROM tasks WHERE uid=:uid',
+            [':uid' => $created['task_uid']]);
+        ensure(is_string($finishedAt) && $finishedAt !== '', 'отсутствует время завершения');
+        $finishedAgain = $mutator->mutateOwned(11, $created['task_uid'], 2,
+            'task-status-command-001', 'task.api.update', ['status' => 'completed']);
+        ensure($finishedAgain['replayed'] === true && $finishedAgain['version'] === 3,
+            'повтор завершения изменил версию');
+        $completeAgain = $mutator->mutateOwned(11, $created['task_uid'], 3,
+            'task-status-command-002', 'task.api.update', ['status' => 'completed']);
+        ensure($completeAgain['version'] === 4 && $db->fetchValue(
+            'SELECT completed_at FROM tasks WHERE uid=:uid', [':uid' => $created['task_uid']]
+        ) === $finishedAt, 'повторная фиксация состояния подменила дату завершения');
+        $returned = $mutator->mutateOwned(11, $created['task_uid'], 4,
+            'task-status-command-003', 'task.api.update', ['status' => 'in_progress']);
+        ensure($returned['version'] === 5 && $db->fetchValue(
+            'SELECT completed_at FROM tasks WHERE uid=:uid', [':uid' => $created['task_uid']]
+        ) === null, 'возврат задачи в работу не очистил завершение');
+
+        $db->execute('UPDATE tasks SET archived_at=NOW() WHERE uid=:uid',
+            [':uid' => $created['task_uid']]);
+        $archiveDenied = false;
+        try {
+            $mutator->mutateOwned(11, $created['task_uid'], 5,
+                'task-status-command-004', 'task.api.update', ['status' => 'completed']);
+        } catch (RuntimeException $e) {
+            $archiveDenied = str_contains($e->getMessage(), 'недоступна');
+        }
+        ensure($archiveDenied, 'внешний API обошёл архив задачи');
+
+        $db->execute('UPDATE tasks SET archived_at=NULL,is_deleted=1 WHERE uid=:uid',
+            [':uid' => $created['task_uid']]);
+        $deletedDenied = false;
+        try {
+            $mutator->mutateOwned(11, $created['task_uid'], 5,
+                'task-status-command-005', 'task.api.update', ['title' => 'Изменение удалённого']);
+        } catch (RuntimeException $e) {
+            $deletedDenied = str_contains($e->getMessage(), 'недоступна');
+        }
+        ensure($deletedDenied, 'внешний API изменил удалённую задачу');
+
+        require_once dirname(__DIR__, 2) . '/modules/tasks/controllers/TaskWriteApiController.php';
+        $controller = new \App\Controllers\TaskWriteApiController();
+        $changes = new ReflectionMethod($controller, 'changes');
+        ensure($changes->invoke($controller, ['status' => 'review']) === ['status' => 'review'],
+            'контроллер не принимает разрешённое состояние');
+        $invalidStatusDenied = false;
+        try {
+            $changes->invoke($controller, ['status' => 'hidden']);
+        } catch (InvalidArgumentException) {
+            $invalidStatusDenied = true;
+        }
+        ensure($invalidStatusDenied, 'контроллер принял недопустимое состояние');
+
         $collision = false;
         try {
             $creator->create(11, 'task-create-command-001', ['title' => 'Иной запрос']);
@@ -91,7 +150,7 @@ namespace {
             $collision = true;
         }
         ensure($collision, 'один command_id принят для другого содержимого');
-        echo "Tasks API: создание, повтор, изменение, конфликт и владельцы проверены\n";
+        echo "Tasks API: создание, статусы, версии, даты завершения, повтор, архив и владельцы проверены\n";
     } finally {
         $db->execute('DROP TABLE IF EXISTS mutation_commands');
         $db->execute('DROP TABLE IF EXISTS tasks');

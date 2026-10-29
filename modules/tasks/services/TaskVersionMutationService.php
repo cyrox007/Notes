@@ -98,7 +98,9 @@ final class TaskVersionMutationService
             }
 
             $task = $this->lockTask($userId, $taskUid);
-            if ($task === null) {
+            if ($task === null
+                || ($action === 'task.api.update'
+                    && ((int) ($task['is_deleted'] ?? 0) !== 0 || $task['archived_at'] !== null))) {
                 throw new RuntimeException('Задача не найдена или недоступна');
             }
 
@@ -126,6 +128,14 @@ final class TaskVersionMutationService
             }
 
             $now = date('Y-m-d H:i:s');
+            // Внешний API не принимает completed_at от клиента. Время завершения
+            // вычисляется внутри той же блокировки строки, что и смена статуса.
+            if ($action === 'task.api.update' && array_key_exists('status', $normalized)) {
+                $newStatus = (string) $normalized['status'];
+                $normalized['completed_at'] = $newStatus === 'completed'
+                    ? (($task['status'] ?? '') === 'completed' ? $task['completed_at'] : $now)
+                    : null;
+            }
             $set = [];
             $params = [
                 ':id' => (int) $task['id'],
