@@ -183,6 +183,8 @@ async function executeOperation(vu, op) {
       return measuredRequest(vu, op, 'GET', '/files/');
     case 'files_folder_cycle':
       return filesFolderCycle(vu, op);
+    case 'files_transfer_cycle':
+      return filesTransferCycle(vu, op);
     case 'files_spaces':
       return measuredRequest(vu, op, 'GET', '/files/spaces/global/');
     case 'messenger_page':
@@ -307,6 +309,76 @@ async function filesFolderCycle(vu, op) {
   return deleted;
 }
 
+// Небольшой настоящий файл проходит полный цикл физического хранилища.
+async function filesTransferCycle(vu, op) {
+  const sequence = ++globalSequence;
+  const filename = 'perf-' + vu.id + '-' + sequence + '.txt';
+  const contents = 'notes-perf-content-' + vu.id + '-' + sequence + '\\n';
+  const boundary = '----notes-perf-' + vu.id + '-' + sequence;
+  const multipart = Buffer.concat([
+    Buffer.from('--' + boundary + '\r\n'
+      + 'Content-Disposition: form-data; name="parent_id"\r\n\r\n0\r\n'
+      + '--' + boundary + '\r\n'
+      + 'Content-Disposition: form-data; name="csrf_token"\r\n\r\n'
+      + vu.csrfToken + '\r\n'
+      + '--' + boundary + '\r\n'
+      + 'Content-Disposition: form-data; name="file"; filename="' + filename + '"\r\n'
+      + 'Content-Type: text/plain\r\n\r\n'),
+    Buffer.from(contents),
+    Buffer.from('\r\n--' + boundary + '--\r\n'),
+  ]);
+  // Размер строго ограничен, чтобы один синтетический пользователь не мог
+  // исчерпать хранилище только из-за настроек профиля нагрузки.
+  if (multipart.length > 4096) throw new Error('Слишком большой синтетический файл');
+
+  const upload = await measuredRequest(vu, { ...op, name: 'files_transfer_upload' },
+    'POST', '/files/upload/', {
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'multipart/form-data; boundary=' + boundary,
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-Token': vu.csrfToken,
+      },
+      body: multipart, captureBody: true, requireJsonSuccess: true,
+    });
+  const uploadResult = safeJson(upload.body);
+  const id = Number(uploadResult?.file?.id);
+  if (upload.status !== 200 || uploadResult?.success !== true
+      || !Number.isSafeInteger(id) || id < 1) {
+    throw new Error('Загрузка синтетического файла не подтверждена идентификатором');
+  }
+  try {
+    const downloaded = await measuredRequest(vu, {
+      ...op, name: 'files_transfer_download', kind: 'read',
+    }, 'GET', '/files/get/' + id + '/', {
+      captureBody: true, expectedBody: contents,
+    });
+    if (downloaded.status !== 200 || downloaded.body !== contents) {
+      throw new Error('Скачанное содержимое не совпадает с загруженным');
+    }
+  } finally {
+    // Удаляем только созданный этим запросом файл даже при сбое скачивания.
+    const deleted = await measuredRequest(vu, {
+      ...op, name: 'files_transfer_delete',
+    }, 'POST', '/files/delete/', {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-Token': vu.csrfToken,
+      },
+      body: new URLSearchParams({
+        id: String(id), csrf_token: vu.csrfToken,
+      }).toString(),
+      captureBody: true, requireJsonSuccess: true,
+    });
+    if (deleted.status !== 200 || safeJson(deleted.body)?.success !== true) {
+      throw new Error('Синтетический загруженный файл не удалён: ' + id);
+    }
+  }
+  return upload;
+}
+
 async function calendarCreate(vu, op) {
   if (!vu.csrfToken) return calendarReadFallback(vu, op);
   if (vu.calendarUids.length >= 20) return calendarDelete(vu, op);
@@ -382,7 +454,8 @@ async function measuredRequest(vu, op, method, requestPath, options = {}) {
   try {
     const response = await request(vu, method, requestPath, options);
     const duration = performance.now() - started;
-    const validBody = !options.requireJsonSuccess || safeJson(response.body)?.success === true;
+    const validBody = (!options.requireJsonSuccess || safeJson(response.body)?.success === true)
+      && (options.expectedBody === undefined || response.body === options.expectedBody);
     const ok = response.status >= 200 && response.status < 400
       && !response.url.pathname.includes('/auth/login') && validBody;
     metrics.record(op.name, op.kind, currentPhase, duration, response.status, ok);
