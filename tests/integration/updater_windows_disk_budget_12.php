@@ -85,4 +85,30 @@ try {
     @unlink($orphanPath);
 }
 
+// Изолированный каталог можно разместить на отдельном томе с квотой ОС.
+$separate = $tmp . 'notes-up-isolated-' . bin2hex(random_bytes(6));
+assertDiskBudget(mkdir($separate, 0700), 'не удалось создать отдельный каталог');
+try {
+    putenv('NOTES_UPDATER_TEMP_DIRECTORY=' . $separate);
+    $isolated = $invoke([PHP_BINARY, '-r', 'fwrite(STDOUT, "ok"); fwrite(STDERR, "details");'], 10);
+    assertDiskBudget($isolated['code'] === 0 && $isolated['stdout'] === 'ok',
+        'запуск в отдельном каталоге не работает');
+    assertDiskBudget((glob($separate . DIRECTORY_SEPARATOR . 'notes-up-*') ?: []) === [],
+        'в выделенном каталоге остались временные файлы');
+    assertDiskBudget($findArtifacts() === $initialArtifacts,
+        'отдельный временный каталог затронул системный каталог');
+
+    putenv('NOTES_UPDATER_TEMP_DIRECTORY=' . $separate . DIRECTORY_SEPARATOR . 'missing');
+    $denied = false;
+    try {
+        $invoke([PHP_BINARY, '-r', 'echo "must not run";'], 5);
+    } catch (RuntimeException $error) {
+        $denied = str_contains($error->getMessage(), 'Временный каталог');
+    }
+    assertDiskBudget($denied, 'при недоступном каталоге нет безопасного отказа');
+} finally {
+    putenv('NOTES_UPDATER_TEMP_DIRECTORY');
+    @rmdir($separate);
+}
+
 echo 'Временный вывод обновлятора: квота, timeout, очистка и повтор проверены' . PHP_EOL;
