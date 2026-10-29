@@ -226,12 +226,9 @@ try {
         'Дефект после отмены закрытия не находится в работе');
     check((await page.locator('[data-defects-history-list]').innerText()).includes('Дефект закрыт'),
         'После повторного открытия потеряно доказательство первоначального закрытия');
-    // Освобождаем зависимости тестового дефекта перед проверкой архива справочника.
-    // Архивировать службу с активным открытым дефектом запрещено по правилам.
-    await archivePanel.locator('[data-defects-admin-reason]').fill('Завершение испытания возврата в работу');
-    const archiveReopenedResponse = ajaxResponse(page, '/api/defects/' + first + '/archive');
-    await archivePanel.locator('[data-defects-admin-archive-action]').click();
-    check((await archiveReopenedResponse).status() === 200, 'Не удалены активные зависимости тестовой службы');
+    // Повторно закрываем исправленный дефект: архивирование службы не должно
+    // обходить запрет зависимостей, даже если карточка временно архивировалась.
+    await closeDefect(page, first, 'Повторное устранение после проверки');
     await page.locator('[data-defects-detail-close]').first().click();
 
     await page.locator('[data-defects-tab="open"]').click();
