@@ -91,8 +91,12 @@ final class DefectsApiController extends Controller
     public function history(Request $request, int $id): void
     {
         $this->handle($request, 'defects.use', function () use ($request, $id): array {
-            if ($this->registry()->detail($id) === null) {
+            $record = $this->registry()->detail($id);
+            if ($record === null) {
                 throw new DomainException('Дефект не найден', 404);
+            }
+            if ((int) ($record['is_archived'] ?? 0) === 1) {
+                (new PermissionService())->requirePermission((int) $request->session('user_id', 0), 'defects.manage');
             }
             return ['history' => $this->historyService()->list(
                 'defect', $id,
