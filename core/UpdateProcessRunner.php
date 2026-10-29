@@ -144,7 +144,7 @@ final class UpdateProcessRunner implements UpdateCommandRunner
      */
     private function runWithTemporaryFiles(array $command, string $cwd, int $timeoutSeconds): array
     {
-        $temporaryDirectory = sys_get_temp_dir();
+        $temporaryDirectory = self::temporaryOutputDirectory();
         self::removeStaleTemporaryOutput($temporaryDirectory);
         self::assertTemporaryDiskReserve($temporaryDirectory);
         $stdoutPath = self::createTemporaryOutputFile($temporaryDirectory, 'notes-up-out-');
@@ -273,6 +273,31 @@ final class UpdateProcessRunner implements UpdateCommandRunner
         if (proc_get_status($process)['running'] ?? false) {
             proc_terminate($process, 9);
         }
+    }
+
+    /**
+     * Оператор может выделить временным файлам отдельный том с квотой ОС.
+     * Само задание каталога квотой не является; отсутствие каталога — отказ,
+     * а не молчаливый возврат к системному разделу.
+     */
+    private static function temporaryOutputDirectory(): string
+    {
+        $configured = getenv('NOTES_UPDATER_TEMP_DIRECTORY');
+        $directory = is_string($configured) && trim($configured) !== ''
+            ? trim($configured) : sys_get_temp_dir();
+
+        if (!is_dir($directory) || is_link($directory) || !is_writable($directory)) {
+            throw new RuntimeException('Временный каталог обновлятора недоступен или небезопасен');
+        }
+        $resolved = realpath($directory);
+        if (!is_string($resolved) || $resolved === '') {
+            throw new RuntimeException('Не удалось проверить временный каталог обновлятора');
+        }
+        if (PHP_OS_FAMILY === 'Windows'
+            && preg_match('~^[A-Za-z]:[\\\\/]~', $resolved) !== 1) {
+            throw new RuntimeException('Каталог обновлятора должен находиться на локальном диске Windows');
+        }
+        return $resolved;
     }
 
     private static function assertTemporaryDiskReserve(string $directory): void
