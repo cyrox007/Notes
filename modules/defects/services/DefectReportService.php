@@ -132,7 +132,11 @@ final class DefectReportService
      */
     private function conditions(array $filters): array
     {
-        $where = ['1=1'];
+        $archived = $filters['archived'] ?? '0';
+        if (!in_array($archived, ['0', '1'], true)) {
+            throw new InvalidArgumentException('Неверное состояние архива');
+        }
+        $where = ['d.is_archived=' . $archived];
         $params = [];
 
         $status = $filters['status'] ?? 'open';
