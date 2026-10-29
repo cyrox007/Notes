@@ -364,9 +364,11 @@ final class DefectsApiController extends Controller
                 }
                 $result = $service->correct($id, $version, $userId, $fields, $reason, $commandId);
             } else {
-                $result = $action === 'archived'
-                    ? $service->archive($id, $version, $userId, $reason, $commandId)
-                    : $service->restore($id, $version, $userId, $reason, $commandId);
+                $result = match ($action) {
+                    'archived' => $service->archive($id, $version, $userId, $reason, $commandId),
+                    'reopened' => $service->reopen($id, $version, $userId, $reason, $commandId),
+                    default => $service->restore($id, $version, $userId, $reason, $commandId),
+                };
             }
             if ($result['changed']) {
                 $this->audit($userId, 'defects.' . $action, [
