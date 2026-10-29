@@ -29,6 +29,10 @@ let folderCreates = 0;
 let folderRenames = 0;
 let folderDeletes = 0;
 let folderSequence = 0;
+let transferSequence = 100000;
+let transferUploads = 0;
+let transferDownloads = 0;
+let transferDeletes = 0;
 
 const server = http.createServer(async (req, res) => {
   const cookie = req.headers.cookie || '';
@@ -107,6 +111,45 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify({ success: true, version: state.taskVersion }));
     return;
   }
+  if (req.method === 'POST' && pathname === '/files/upload/') {
+    const contentType = String(req.headers['content-type'] || '');
+    const body = await readBody(req);
+    const header = 'Content-Type: text/plain\r\n\r\n';
+    const start = body.indexOf(header);
+    const end = body.indexOf('\r\n--', start + header.length);
+    if (!contentType.startsWith('multipart/form-data; boundary=----notes-perf-')
+        || start < 0 || end < 0 || !body.includes('name="file"; filename="perf-')) {
+      errors.push('Некорректная загрузка настоящего файла');
+      res.writeHead(422).end(JSON.stringify({ success: false }));
+      return;
+    }
+    const contents = body.slice(start + header.length, end);
+    if (!contents.startsWith('notes-perf-content-')) {
+      errors.push('Подмена синтетического содержимого');
+      res.writeHead(422).end(JSON.stringify({ success: false }));
+      return;
+    }
+    state.uploadedFiles ??= new Map();
+    const id = ++transferSequence;
+    state.uploadedFiles.set(id, contents);
+    transferUploads += 1;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, file: { id, size: Buffer.byteLength(contents) } }));
+    return;
+  }
+  if (req.method === 'GET' && /^\/files\/get\/[0-9]+\/$/.test(pathname)) {
+    const id = Number(pathname.split('/')[3]);
+    const contents = state.uploadedFiles?.get(id);
+    if (contents === undefined) {
+      errors.push('Скачивание чужого или неизвестного файла');
+      res.writeHead(404).end();
+      return;
+    }
+    transferDownloads += 1;
+    res.writeHead(200, { 'Content-Type': 'text/plain', 'Content-Length': Buffer.byteLength(contents) });
+    res.end(contents);
+    return;
+  }
   if (req.method === 'POST' && ['/files/create-folder/', '/files/rename/', '/files/delete/'].includes(pathname)) {
     const form = new URLSearchParams(await readBody(req));
     state.folders ??= new Map();
@@ -120,6 +163,14 @@ const server = http.createServer(async (req, res) => {
       payload = { success: true, folder: { id, name } };
     } else {
       const id = Number(form.get('id'));
+      if (pathname === '/files/delete/' && state.uploadedFiles?.has(id)) {
+        state.uploadedFiles.delete(id);
+        transferDeletes += 1;
+        payload = { success: true };
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(payload));
+        return;
+      }
       if (!state.folders.has(id)) {
         errors.push('Изменение не принадлежащей сеансу папки');
         res.writeHead(404, { 'Content-Type': 'application/json' }).end(JSON.stringify({ success: false }));
@@ -262,6 +313,35 @@ try {
   assert.equal(filesReport.acceptance.passed, false);
   assert.deepEqual(errors, []);
 
+  // Отдельный профиль не допускает случайной подмены передачи файла чтением.
+  const transferProfilePath = path.join(temporary, 'transfer-profile.json');
+  const transferReportPath = path.join(temporary, 'transfer-report.json');
+  const transferProfile = JSON.parse(fs.readFileSync(
+    path.join(root, 'tools/performance/profile-1.2.json'), 'utf8'
+  ));
+  transferProfile.operations = [{ name: 'files_transfer_cycle', kind: 'write', weight: 100 }];
+  fs.writeFileSync(transferProfilePath, JSON.stringify(transferProfile));
+  const transferRun = await run([
+    '--mode=smoke',
+    '--profile=' + transferProfilePath,
+    '--base-url=' + target,
+    '--credentials=' + credentialsFile,
+    '--output=' + transferReportPath,
+    '--users=3', '--ramp=1', '--steady=3',
+  ], { PERF_MODE: 'smoke' });
+  assert.equal(transferRun.code, 2,
+    'Пробная передача синтетического файла завершилась неправильно: ' + transferRun.transcript);
+  const transferReport = JSON.parse(fs.readFileSync(transferReportPath, 'utf8'));
+  assert.ok(transferUploads >= 3, 'Отсутствуют реальные HTTP-загрузки');
+  assert.equal(transferUploads, transferDownloads, 'Не все файлы скачаны для проверки');
+  assert.equal(transferUploads, transferDeletes, 'После передачи остались загруженные файлы');
+  assert.ok([...sessions.values()].every(item => (item.uploadedFiles?.size || 0) === 0),
+    'После испытания остались содержимое или метаданные файлов');
+  assert.equal(transferReport.requests.errors, 0,
+    'Ошибка передачи: ' + transferRun.transcript);
+  assert.equal(transferReport.acceptance.passed, false);
+  assert.deepEqual(errors, []);
+
   const denied = await run([
     '--mode=full',
     '--profile=tools/performance/profile-1.2.json',
@@ -271,7 +351,7 @@ try {
   ], { PERF_MODE: 'full', PERF_FIXTURE_CONFIRM: '', PERF_ISOLATED_STAND: '' });
   assert.notEqual(denied.code, 0);
   assert.match(denied.transcript, /изолированном стенде/);
-  console.log('Пробный HTTP-прогон, запись Tasks и Files, версии, CSRF, очистка и защита полной приёмки проверены.');
+  console.log('Пробный HTTP-прогон, запись Tasks, файловые операции и передача содержимого с очисткой проверены.');
 } finally {
   await new Promise(resolve => server.close(resolve));
   fs.rmSync(temporary, { recursive: true, force: true });
