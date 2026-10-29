@@ -241,6 +241,7 @@ ob_start();
                         <label>Обоснование операции <textarea data-defects-admin-reason minlength="5" maxlength="1000" rows="2" placeholder="Укажите причину"></textarea></label>
                         <div data-defects-admin-archive-error class="defects-form-error" role="alert" hidden></div>
                         <button type="button" class="defects-button defects-button--secondary ui-button ui-button--secondary" data-defects-admin-archive-action>Поместить в архив</button>
+                        <button type="button" class="defects-button defects-button--secondary ui-button ui-button--secondary" data-defects-admin-reopen-action hidden>Вернуть закрытый дефект в работу</button>
                     </div>
                     <?php endif; ?>
                     <h3>История изменений</h3>
