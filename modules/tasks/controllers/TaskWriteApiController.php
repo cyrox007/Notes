@@ -66,7 +66,7 @@ final class TaskWriteApiController
                 throw new InvalidArgumentException('Требуется положительная expected_version');
             }
             unset($data['command_id'], $data['expected_version']);
-            $allowed = ['title', 'description', 'priority', 'due_date'];
+            $allowed = ['title', 'description', 'priority', 'due_date', 'status'];
             if ($data === [] || array_diff(array_keys($data), $allowed) !== []) {
                 throw new InvalidArgumentException('Недопустимые изменяемые поля');
             }
@@ -132,6 +132,9 @@ final class TaskWriteApiController
             }
             if ($key === 'description' && ($value !== null && (!is_string($value) || mb_strlen($value) > 10000))) {
                 throw new InvalidArgumentException('Некорректное описание');
+            }
+            if ($key === 'status' && !in_array($value, ['pending', 'studying', 'in_progress', 'review', 'completed'], true)) {
+                throw new InvalidArgumentException('Некорректное состояние задачи');
             }
             if ($key === 'priority' && !in_array($value, ['low', 'medium', 'high', 'urgent'], true)) {
                 throw new InvalidArgumentException('Некорректный приоритет');
