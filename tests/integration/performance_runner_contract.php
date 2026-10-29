@@ -86,7 +86,7 @@ if (!is_array($operations12) || array_sum(array_map(
 }
 $names12 = array_column($operations12, 'name');
 foreach ([
-    'notes_list', 'tasks_list', 'tasks_boards', 'files_list',
+    'notes_list', 'tasks_list', 'tasks_boards', 'tasks_status_change', 'files_list',
     'files_spaces', 'messenger_page', 'messenger_long_poll',
     'notifications_center', 'defects_list', 'defects_report',
     'calendar_create', 'calendar_update', 'calendar_delete',

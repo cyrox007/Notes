@@ -24,6 +24,7 @@ const authenticated = new Set();
 const errors = [];
 let loginCount = 0;
 let authorizedCalls = 0;
+let taskMutations = 0;
 
 const server = http.createServer(async (req, res) => {
   const cookie = req.headers.cookie || '';
@@ -68,6 +69,38 @@ const server = http.createServer(async (req, res) => {
   if (req.method !== 'GET' && req.headers['x-csrf-token'] !== state.csrf) {
     errors.push('Изменяющая команда без CSRF');
     res.writeHead(403).end();
+    return;
+  }
+  if (req.method === 'GET' && pathname === '/api/v1/tasks') {
+    state.taskVersion ??= 1;
+    state.taskStatus ??= 'pending';
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ items: [{
+      uid: 'a'.repeat(32), version: state.taskVersion,
+      status: state.taskStatus, archived_at: null,
+    }] }));
+    return;
+  }
+  if (req.method === 'POST' && /^\/tasks\/[a-f0-9]{32}\/update$/.test(pathname)) {
+    const body = new URLSearchParams(await readBody(req));
+    const version = Number(body.get('expected_version'));
+    const status = body.get('status');
+    if (!/^perf-task-[0-9]+-[0-9]+$/.test(body.get('command_id') || '')
+        || !['in_progress', 'review'].includes(status)) {
+      errors.push('Неверная изменяющая команда Tasks');
+      res.writeHead(422).end();
+      return;
+    }
+    if (version !== state.taskVersion) {
+      errors.push('Потеряна версионность изменяющей команды Tasks');
+      res.writeHead(409).end();
+      return;
+    }
+    state.taskVersion += 1;
+    state.taskStatus = status;
+    taskMutations += 1;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true, version: state.taskVersion }));
     return;
   }
   if (pathname === '/') {
@@ -141,6 +174,30 @@ try {
   assert.ok(authorizedCalls >= 3);
   assert.deepEqual(errors, []);
 
+  // Принудительно выбираем 100% изменяющих запросов, чтобы случайное
+  // распределение пробного профиля не скрывало неработающую запись Tasks.
+  const writeProfilePath = path.join(temporary, 'write-profile.json');
+  const writeReportPath = path.join(temporary, 'write-report.json');
+  const writeProfile = JSON.parse(fs.readFileSync(
+    path.join(root, 'tools/performance/profile-1.2.json'), 'utf8'
+  ));
+  writeProfile.operations = [{ name: 'tasks_status_change', kind: 'write', weight: 100 }];
+  fs.writeFileSync(writeProfilePath, JSON.stringify(writeProfile));
+  const writeRun = await run([
+    '--mode=smoke',
+    '--profile=' + writeProfilePath,
+    '--base-url=' + target,
+    '--credentials=' + credentialsFile,
+    '--output=' + writeReportPath,
+    '--users=3', '--ramp=1', '--steady=3',
+  ], { PERF_MODE: 'smoke' });
+  assert.equal(writeRun.code, 2, 'Пробная изменяющая нагрузка завершилась неправильно: ' + writeRun.transcript);
+  const writeReport = JSON.parse(fs.readFileSync(writeReportPath, 'utf8'));
+  assert.ok(taskMutations >= 3, 'Не выполнены реальные изменяющие запросы Tasks');
+  assert.equal(writeReport.requests.errors, 0, 'Ошибки записи Tasks: ' + writeRun.transcript);
+  assert.equal(writeReport.acceptance.passed, false);
+  assert.deepEqual(errors, []);
+
   const denied = await run([
     '--mode=full',
     '--profile=tools/performance/profile-1.2.json',
@@ -150,7 +207,7 @@ try {
   ], { PERF_MODE: 'full', PERF_FIXTURE_CONFIRM: '', PERF_ISOLATED_STAND: '' });
   assert.notEqual(denied.code, 0);
   assert.match(denied.transcript, /изолированном стенде/);
-  console.log('Пробный HTTP-прогон, три независимых сеанса, CSRF и защита полной приёмки проверены.');
+  console.log('Пробный HTTP-прогон, запись Tasks, версии, CSRF и защита полной приёмки проверены.');
 } finally {
   await new Promise(resolve => server.close(resolve));
   fs.rmSync(temporary, { recursive: true, force: true });
