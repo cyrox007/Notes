@@ -44,12 +44,13 @@ final class DefectServiceAssignmentService
         $this->database->beginTransaction();
         try {
             $current = $this->database->fetchOne(
-                'SELECT id,version,status FROM defects WHERE id=:id', ['id' => $id]
+                'SELECT id,version,status,is_archived FROM defects WHERE id=:id', ['id' => $id]
             );
             if ($current === null) {
                 throw new DomainException('Дефект не найден', 404);
             }
-            if ($current['status'] !== 'open' || (int) $current['version'] !== $version) {
+            if ($current['status'] !== 'open' || (int) $current['is_archived'] === 1
+                || (int) $current['version'] !== $version) {
                 throw new DomainException('Карточка изменена или закрыта. Обновите её.', 409);
             }
 
@@ -59,7 +60,7 @@ final class DefectServiceAssignmentService
                 . ' WHERE defect_id=:id ORDER BY service_id', ['id' => $id]
             );
             $changed = $this->database->execute(
-                "UPDATE defects SET version=version+1 WHERE id=:id AND version=:version AND status='open'",
+                "UPDATE defects SET version=version+1 WHERE id=:id AND version=:version AND status='open' AND is_archived=0",
                 ['id' => $id, 'version' => $version]
             );
             if ($changed !== 1) {

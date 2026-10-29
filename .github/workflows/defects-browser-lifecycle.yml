@@ -11,6 +11,8 @@ on:
       - 'database/defects_schema.sql'
       - 'database/migrations/20261019_defects_*.sql'
       - 'database/migrations/20261028_defects_*.sql'
+      - 'database/migrations/20261029_defects_*.sql'
+      - 'tests/integration/defects_admin_12.php'
       - 'tests/integration/defects_service_assignments_12.php'
       - 'tests/integration/defects_services_mysql_12.php'
       - 'tests/e2e/defects-lifecycle.mjs'
@@ -71,6 +73,7 @@ jobs:
           php tests/integration/defects_service_assignments_12.php
           php tests/integration/defects_registration_12.php
           php tests/integration/defects_module_runtime_12.php
+          php tests/integration/defects_admin_12.php
 
       - name: Развернуть каноническую схему MySQL 8.4
         run: |

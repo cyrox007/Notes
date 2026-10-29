@@ -31,7 +31,7 @@ final class DefectRegistryService
             throw new InvalidArgumentException('Недопустимый объект');
         }
 
-        $where = ['d.id > :after_id'];
+        $where = ['d.id > :after_id', 'd.is_archived=0'];
         $params = ['after_id' => $afterId];
         if ($status !== 'all') {
             $where[] = 'd.status = :status';
@@ -44,7 +44,7 @@ final class DefectRegistryService
 
         return $this->database->fetchAll(
             'SELECT d.id,d.object_id,d.description,d.priority,d.discovered_at,d.due_at,
-                    d.registered_by_name,d.status,d.version,d.closed_at,
+                    d.registered_by_name,d.status,d.version,d.closed_at,d.is_archived,
                     o.name AS object_name,c.name AS category_name,a.name AS area_name
              FROM defects d
              JOIN defect_objects o ON o.id=d.object_id
@@ -63,7 +63,7 @@ final class DefectRegistryService
         }
         $defect = $this->database->fetchOne(
             'SELECT d.id,d.object_id,d.description,d.priority,d.discovered_at,d.due_at,d.registered_by_name,
-                    d.registered_by_user_id,d.status,d.completed_work,d.closed_at,d.closed_by_user_id,d.version,d.created_at,
+                    d.registered_by_user_id,d.status,d.completed_work,d.closed_at,d.closed_by_user_id,d.version,d.created_at,d.is_archived,d.archived_at,
                     o.name AS object_name,c.name AS category_name,a.name AS area_name
              FROM defects d
              JOIN defect_objects o ON o.id=d.object_id
@@ -128,7 +128,7 @@ final class DefectRegistryService
                 "UPDATE defects SET status='closed',completed_work=:work,
                     closed_at=:closed_at,closed_by_user_id=:user_id,
                     version=version+1,close_command_id=:command_id,close_request_hash=:hash
-                 WHERE id=:id AND version=:version AND status='open' AND due_at > :now_utc",
+                 WHERE id=:id AND version=:version AND status='open' AND due_at > :now_utc AND is_archived=0",
                 [
                     'work' => $work, 'user_id' => $userId,
                     'closed_at' => $closedAt,

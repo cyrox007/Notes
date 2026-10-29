@@ -24,6 +24,9 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
     const services = $('[data-defects-services]');
     const referenceForm = $('[data-defects-reference]');
     const closeForm = $('[data-defects-close]');
+    const adminCorrectForm = $('[data-defects-admin-correct]');
+    const adminArchiveBox = $('[data-defects-admin-archive]');
+    const canAdminCorrect = Boolean(adminCorrectForm && adminArchiveBox);
     const serviceEditForm = $('[data-defects-services-edit]');
     const serviceEditRows = $('[data-defects-edit-services]');
     const serviceEditError = $('[data-defects-edit-error]');
@@ -47,6 +50,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         selectedId: null, detail: null, detailSequence: 0,
         historyCursor: 0, creationCommand: null, closeCommand: null,
         previousFocus: null, historyLoading: false, serviceEditCommand: null,
+        adminCorrectCommand: null, adminArchiveCommand: null,
         display: window.matchMedia('(max-width: 760px)').matches ? 'cards' : 'table',
     };
 
@@ -169,7 +173,8 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
     };
 
     const queryFilters = (includeStatus = true) => {
-        const obj = includeStatus ? { status: state.status } : {};
+        const obj = includeStatus ? { status: state.status === 'archived' ? 'all' : state.status } : {};
+        if (includeStatus && state.status === 'archived') obj.archived = '1';
         Object.entries(filters).forEach(([key, input]) => {
             if (input.value) obj[key] = input.value;
         });
@@ -434,6 +439,9 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
     };
     const historyLabel = (event) => {
         if (event.event_type === 'updated' && event.details?.action === 'responsible_services') return 'Изменены службы и исполнители';
+        if (event.event_type === 'corrected') return 'Исправлена карточка администратором';
+        if (event.event_type === 'archived') return 'Карточка перенесена в архив';
+        if (event.event_type === 'restored') return 'Карточка восстановлена из архива';
         if (event.event_type === 'created') return 'Зарегистрирован дефект';
         if (event.event_type === 'closed') return 'Дефект закрыт';
         return 'Изменение';
@@ -456,6 +464,12 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
             if (details.action === 'responsible_services') {
                 const list = (details.after || []).map(item => 'служба №' + item.service_id + ': ' + (item.executor_name || 'исполнитель не назначен'));
                 li.append(element('p', '', 'Новые назначения: ' + list.join('; ')));
+            }
+            if (details.reason) li.append(element('p', '', 'Причина: ' + details.reason));
+            if (details.changes) {
+                Object.entries(details.changes).forEach(([name, values]) => {
+                    li.append(element('p', '', name + ': ' + (values.before ?? '—') + ' → ' + (values.after ?? '—')));
+                });
             }
             historyList.append(li);
         });
@@ -487,7 +501,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
     };
     const renderServiceEditor = async (defect, sequence) => {
         if (!serviceEditAllowed) return;
-        serviceEditForm.hidden = defect.status !== 'open';
+        serviceEditForm.hidden = defect.status !== 'open' || Number(defect.is_archived) === 1;
         serviceEditRows.replaceChildren();
         serviceEditError.hidden = true;
         state.serviceEditCommand = null;
@@ -539,11 +553,47 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         });
     };
 
+    const localDateInput = (value) => {
+        if (!value) return '';
+        const utc = new Date(String(value).replace(' ', 'T') + 'Z');
+        if (Number.isNaN(utc.getTime())) return '';
+        return new Date(utc.getTime() - utc.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    };
+    const fillAdminEditor = (defect) => {
+        if (!canAdminCorrect) return;
+        const archived = Number(defect.is_archived) === 1;
+        adminCorrectForm.hidden = archived;
+        adminArchiveBox.hidden = false;
+        const archiveButton = $('[data-defects-admin-archive-action]', adminArchiveBox);
+        archiveButton.dataset.action = archived ? 'restore' : 'archive';
+        archiveButton.textContent = archived ? 'Восстановить из архива' : 'Поместить в архив';
+        $('[data-defects-admin-reason]', adminArchiveBox).value = '';
+        $('[data-defects-admin-archive-error]', adminArchiveBox).hidden = true;
+        $('[data-defects-admin-correct-error]', adminCorrectForm).hidden = true;
+        if (archived) return;
+        const fields = adminCorrectForm.elements;
+        for (const name of ['object_id', 'description', 'priority', 'registered_by_name']) {
+            fields.namedItem(name).value = String(defect[name] ?? '');
+        }
+        for (const name of ['discovered_at', 'due_at', 'closed_at']) {
+            fields.namedItem(name).value = localDateInput(defect[name]);
+        }
+        fields.namedItem('completed_work').value = defect.completed_work || '';
+        fields.namedItem('reason').value = '';
+        const closed = $('[data-defects-correct-closed]', adminCorrectForm);
+        closed.hidden = defect.status !== 'closed';
+        for (const name of ['closed_at', 'completed_work']) {
+            fields.namedItem(name).required = defect.status === 'closed';
+        }
+    };
+
     const openDetail = async (id, opener) => {
         const sequence = ++state.detailSequence;
         state.selectedId = Number(id);
         state.closeCommand = null;
         state.serviceEditCommand = null;
+        state.adminCorrectCommand = null;
+        state.adminArchiveCommand = null;
         state.historyCursor = 0;
         detailTitle.textContent = 'Дефект №' + id;
         detailLoading.textContent = 'Загрузка карточки…';
@@ -564,17 +614,18 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
             addField('Зарегистрирован', dateText(defect.created_at));
             addField('Срок устранения', dateText(defect.due_at));
             addField('Зарегистрировал', defect.registered_by_name);
-            addField('Состояние', defect.status === 'closed' ? 'Закрыт' : 'Открыт');
+            addField('Состояние', Number(defect.is_archived) === 1 ? 'В архиве' : defect.status === 'closed' ? 'Закрыт' : 'Открыт');
             addField('Ответственные службы', (defect.services || []).map(item =>
                 item.name + ' — ' + (item.executor_name || 'исполнитель не назначен')).join('; '));
             if (defect.completed_work) addField('Выполненные работы', defect.completed_work);
-            closeForm.hidden = defect.status !== 'open' || isOverdue(defect);
+            closeForm.hidden = defect.status !== 'open' || isOverdue(defect) || Number(defect.is_archived) === 1;
             if (isOverdue(defect)) {
                 addField('Ограничение', 'Срок истёк. Штатное закрытие недоступно; требуется решение ответственного лица.');
             }
             closeForm.reset();
             closeError.hidden = true;
             await renderServiceEditor(defect, sequence);
+            fillAdminEditor(defect);
             detailLoading.hidden = true;
             detailContent.hidden = false;
             await loadHistory(id, sequence, true);
@@ -595,6 +646,74 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
     historyMore.addEventListener('click', () => {
         if (state.selectedId) void loadHistory(state.selectedId, state.detailSequence);
     });
+    if (canAdminCorrect) {
+        adminCorrectForm.addEventListener('input', () => { state.adminCorrectCommand = null; });
+        adminArchiveBox.addEventListener('input', () => { state.adminArchiveCommand = null; });
+        adminCorrectForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            if (!state.detail || !state.selectedId || !adminCorrectForm.reportValidity()) return;
+            const fields = {};
+            for (const name of ['description', 'priority', 'registered_by_name']) {
+                fields[name] = adminCorrectForm.elements.namedItem(name).value;
+            }
+            fields.object_id = Number(adminCorrectForm.elements.namedItem('object_id').value);
+            for (const name of ['discovered_at', 'due_at']) {
+                fields[name] = new Date(adminCorrectForm.elements.namedItem(name).value).toISOString();
+            }
+            if (state.detail.status === 'closed') {
+                fields.completed_work = adminCorrectForm.elements.namedItem('completed_work').value;
+                fields.closed_at = new Date(adminCorrectForm.elements.namedItem('closed_at').value).toISOString();
+            }
+            const button = $('[type="submit"]', adminCorrectForm);
+            const errorBox = $('[data-defects-admin-correct-error]', adminCorrectForm);
+            button.disabled = true;
+            errorBox.hidden = true;
+            state.adminCorrectCommand ||= newCommand();
+            const id = state.selectedId;
+            try {
+                await request(api + '/' + id + '/correct', {
+                    version: Number(state.detail.version), reason: adminCorrectForm.elements.namedItem('reason').value,
+                    command_id: state.adminCorrectCommand, fields,
+                });
+                state.adminCorrectCommand = null;
+                await openDetail(id);
+                await loadRegistry();
+                feedbackMessage('Изменения дефекта №' + id + ' сохранены');
+            } catch (error) {
+                errorBox.textContent = errorText(error) + '. При конфликте обновите карточку.';
+                errorBox.hidden = false;
+            } finally { button.disabled = false; }
+        });
+        $('[data-defects-admin-archive-action]', adminArchiveBox).addEventListener('click', async event => {
+            if (!state.detail || !state.selectedId) return;
+            const reason = $('[data-defects-admin-reason]', adminArchiveBox).value.trim();
+            const errorBox = $('[data-defects-admin-archive-error]', adminArchiveBox);
+            if (reason.length < 5) {
+                errorBox.textContent = 'Укажите обоснование не короче пяти символов';
+                errorBox.hidden = false;
+                return;
+            }
+            const button = event.currentTarget;
+            const action = button.dataset.action;
+            const id = state.selectedId;
+            button.disabled = true;
+            errorBox.hidden = true;
+            state.adminArchiveCommand ||= newCommand();
+            try {
+                await request(api + '/' + id + '/' + action, {
+                    version: Number(state.detail.version), reason,
+                    command_id: state.adminArchiveCommand,
+                });
+                state.adminArchiveCommand = null;
+                await loadRegistry();
+                await openDetail(id);
+                feedbackMessage(action === 'archive' ? 'Дефект перемещён в архив' : 'Дефект восстановлен');
+            } catch (error) {
+                errorBox.textContent = errorText(error) + '. При конфликте обновите карточку.';
+                errorBox.hidden = false;
+            } finally { button.disabled = false; }
+        });
+    }
     if (serviceEditAllowed) {
         serviceEditForm.addEventListener('input', () => { state.serviceEditCommand = null; });
         $('[data-defects-services-refresh]').addEventListener('click', () => {

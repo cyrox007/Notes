@@ -19,6 +19,7 @@ use Modules\Defects\Services\DefectHistoryService;
 use Modules\Defects\Services\DefectReportService;
 use Modules\Defects\Services\DefectRegistrationService;
 use Modules\Defects\Services\DefectRegistryService;
+use Modules\Defects\Services\DefectAdministrationService;
 use Modules\Defects\Services\DefectServiceAssignmentService;
 use Throwable;
 
@@ -31,8 +32,17 @@ final class DefectsApiController extends Controller
     public function list(Request $request): void
     {
         $this->handle($request, 'defects.use', function () use ($request): array {
+            $filters = $this->reportFilters($request);
+            $archived = $request->get('archived', '0');
+            if ($archived !== '0' && $archived !== '1') {
+                throw new InvalidArgumentException('Неверное состояние архива');
+            }
+            if ($archived === '1') {
+                (new PermissionService())->requirePermission((int) $request->session('user_id', 0), 'defects.manage');
+            }
+            $filters['archived'] = $archived;
             return $this->reports()->search(
-                $this->reportFilters($request),
+                $filters,
                 $this->integer($request->get('limit', 40), 'limit'),
                 $this->integer($request->get('after_id', 0), 'after_id')
             );
@@ -66,10 +76,13 @@ final class DefectsApiController extends Controller
 
     public function show(Request $request, int $id): void
     {
-        $this->handle($request, 'defects.use', function () use ($id): array {
+        $this->handle($request, 'defects.use', function () use ($request, $id): array {
             $record = $this->registry()->detail($id);
             if ($record === null) {
                 throw new DomainException('Дефект не найден', 404);
+            }
+            if ((int) ($record['is_archived'] ?? 0) === 1) {
+                (new PermissionService())->requirePermission((int) $request->session('user_id', 0), 'defects.manage');
             }
             return ['defect' => $record];
         });
@@ -78,8 +91,12 @@ final class DefectsApiController extends Controller
     public function history(Request $request, int $id): void
     {
         $this->handle($request, 'defects.use', function () use ($request, $id): array {
-            if ($this->registry()->detail($id) === null) {
+            $record = $this->registry()->detail($id);
+            if ($record === null) {
                 throw new DomainException('Дефект не найден', 404);
+            }
+            if ((int) ($record['is_archived'] ?? 0) === 1) {
+                (new PermissionService())->requirePermission((int) $request->session('user_id', 0), 'defects.manage');
             }
             return ['history' => $this->historyService()->list(
                 'defect', $id,
@@ -305,6 +322,49 @@ final class DefectsApiController extends Controller
             );
             if (!$result['replayed']) {
                 $this->audit($userId, 'defects.services.updated', [
+                    'defect_id' => $id, 'version' => $result['version'],
+                ]);
+            }
+            return ['defect' => $result];
+        });
+    }
+
+    public function correct(Request $request, int $id): void
+    {
+        $this->adminChange($request, $id, 'corrected');
+    }
+
+    public function archive(Request $request, int $id): void
+    {
+        $this->adminChange($request, $id, 'archived');
+    }
+
+    public function restore(Request $request, int $id): void
+    {
+        $this->adminChange($request, $id, 'restored');
+    }
+
+    private function adminChange(Request $request, int $id, string $action): void
+    {
+        $this->handle($request, 'defects.manage', function (int $userId) use ($request, $id, $action): array {
+            $data = $this->payload($request);
+            $version = $this->integer($data['version'] ?? null, 'version');
+            $reason = $this->requiredString($data, 'reason');
+            $commandId = $this->requiredString($data, 'command_id');
+            $service = new DefectAdministrationService(DatabaseManager::getInstance());
+            if ($action === 'corrected') {
+                $fields = $data['fields'] ?? null;
+                if (!is_array($fields) || array_is_list($fields)) {
+                    throw new InvalidArgumentException('Укажите поля для исправления');
+                }
+                $result = $service->correct($id, $version, $userId, $fields, $reason, $commandId);
+            } else {
+                $result = $action === 'archived'
+                    ? $service->archive($id, $version, $userId, $reason, $commandId)
+                    : $service->restore($id, $version, $userId, $reason, $commandId);
+            }
+            if ($result['changed']) {
+                $this->audit($userId, 'defects.' . $action, [
                     'defect_id' => $id, 'version' => $result['version'],
                 ]);
             }

@@ -12,6 +12,7 @@ foreach ([
     'services/DefectRegistrationService.php',
     'services/DefectRegistryService.php',
     'services/DefectServiceAssignmentService.php',
+    'services/DefectAdministrationService.php',
     'services/DefectReportService.php',
     'controllers/DefectsPageController.php',
     'controllers/DefectsApiController.php',
