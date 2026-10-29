@@ -25,6 +25,7 @@ on:
       - 'assets/js/update-notifications.js'
       - 'bin/notifications_worker.php'
       - 'bin/notifications_smtp_probe.php'
+      - 'bin/notifications_smtp_roundtrip.php'
       - 'bin/calendar_reminders.php'
       - 'core/ApplicationEntryPoint.php'
       - 'core/DatabaseOwnership.php'
@@ -78,6 +79,7 @@ on:
       - 'assets/js/update-notifications.js'
       - 'bin/notifications_worker.php'
       - 'bin/notifications_smtp_probe.php'
+      - 'bin/notifications_smtp_roundtrip.php'
       - 'bin/calendar_reminders.php'
       - 'core/ApplicationEntryPoint.php'
       - 'core/DatabaseOwnership.php'
@@ -218,6 +220,7 @@ jobs:
           node tests/integration/notification_smtp_feedback_12.mjs
           php -l app/services/notifications/SmtpDeliveryGuidance.php
           php -l bin/notifications_smtp_probe.php
+          php -l bin/notifications_smtp_roundtrip.php
           php -l modules/admin/controllers/NotificationSettingsController.php
           node --check modules/admin/assets/notification-settings.js
           php tests/integration/notification_external_channels_12.php
