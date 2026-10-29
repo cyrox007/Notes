@@ -81,6 +81,9 @@ final class DefectsApiController extends Controller
             if ($record === null) {
                 throw new DomainException('Дефект не найден', 404);
             }
+            if ((int) ($record['is_archived'] ?? 0) === 1) {
+                (new PermissionService())->requirePermission((int) $request->session('user_id', 0), 'defects.manage');
+            }
             return ['defect' => $record];
         });
     }
