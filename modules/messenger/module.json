@@ -33,7 +33,10 @@
       "messages",
       "message_user_deletions",
       "messenger_attachments",
-      "message_reactions"
+      "message_reactions",
+      "messenger_e2ee_devices",
+      "messenger_e2ee_prekeys",
+      "messenger_e2ee_mailbox"
     ],
     "schemas": [
       "database/messenger_module_schema.sql"
@@ -46,7 +49,8 @@
       "database/migrations/20260913_messenger_reactions.sql",
       "database/migrations/20260913_messenger_saved_dialog.sql",
       "database/migrations/20260918_messenger_retention_timestamps.sql",
-      "database/migrations/20260928_messenger_activity.sql"
+      "database/migrations/20260928_messenger_activity.sql",
+      "database/migrations/20261031_messenger_e2ee_relay.sql"
     ]
   },
   "background": {
