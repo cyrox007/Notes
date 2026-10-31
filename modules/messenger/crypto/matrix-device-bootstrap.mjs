@@ -43,23 +43,25 @@ export async function openClientMachine(sdk, userUid, deviceId, passphrase) {
     return { machine, userId, deviceId };
 }
 
-function outgoingUpload(requests) {
-    const upload = requests.find((request) => {
+function outgoingUploads(requests) {
+    const matches = [];
+    for (const request of requests) {
+        if (typeof request?.body !== 'string' || !request.id || request.type === undefined) continue;
+        let body;
         try {
-            const body = JSON.parse(request.body);
-            return body && ('device_keys' in body || 'one_time_keys' in body || 'fallback_keys' in body);
+            body = JSON.parse(request.body);
         } catch {
-            return false;
+            continue;
         }
-    });
-    if (!upload || !upload.id || upload.type === undefined) {
-        throw new Error('Движок не предоставил запрос публикации ключей');
+        if (!body || typeof body !== 'object') continue;
+        if ('device_keys' in body || 'one_time_keys' in body || 'fallback_keys' in body) {
+            matches.push({ upload: request, body });
+        }
     }
-    const body = JSON.parse(upload.body);
-    if (body.fallback_keys && Object.keys(body.fallback_keys).length > 0) {
-        throw new Error('Сервер пока не поддерживает резервные ключи: публикация отменена');
+    if (matches.length > 20) {
+        throw new Error('Слишком много запросов публикации ключей от криптодвижка');
     }
-    return { upload, body };
+    return matches;
 }
 
 function mapIdentity(keys, matrixUserId, deviceId) {
@@ -88,23 +90,36 @@ export async function publishInitialKeys(machine, userUid, deviceId, post) {
         throw new TypeError('Не передан защищённый отправитель запросов');
     }
     const matrixUserId = notesMatrixUserId(userUid);
-    const { upload, body } = outgoingUpload(await machine.outgoingRequests());
-    if (body.device_keys) {
-        const identity = mapIdentity(body.device_keys, matrixUserId, deviceId);
-        await post('/e2ee/devices', { device_id: deviceId, identity });
-    }
-    const oneTimeKeys = body.one_time_keys ?? {};
-    if (Object.keys(oneTimeKeys).length > 0) {
-        for (const id of Object.keys(oneTimeKeys)) {
+    const uploads = outgoingUploads(await machine.outgoingRequests());
+    let registered = false;
+    let published = 0;
+    for (const { upload, body } of uploads) {
+        if (body.fallback_keys && Object.keys(body.fallback_keys).length > 0) {
+            throw new Error('Резервные ключи ещё не поддерживаются сервером');
+        }
+        if (body.device_keys) {
+            const identity = mapIdentity(body.device_keys, matrixUserId, deviceId);
+            await post('/e2ee/devices', { device_id: deviceId, identity });
+            registered = true;
+        }
+        const oneTimeKeys = body.one_time_keys ?? {};
+        if (!oneTimeKeys || typeof oneTimeKeys !== 'object' || Array.isArray(oneTimeKeys)) {
+            throw new Error('Некорректный пакет одноразовых ключей');
+        }
+        const ids = Object.keys(oneTimeKeys);
+        for (const id of ids) {
             if (!id.startsWith('signed_curve25519:')) {
                 throw new Error('Неизвестный алгоритм одноразового ключа');
             }
         }
-        await post('/e2ee/prekeys', { device_id: deviceId, keys: oneTimeKeys });
+        if (ids.length > 0) {
+            await post('/e2ee/prekeys', { device_id: deviceId, keys: oneTimeKeys });
+            published += ids.length;
+        }
+        // При частичном сетевом отказе необработанный запрос остаётся в движке.
+        await machine.markRequestAsSent(upload.id, upload.type,
+            JSON.stringify({ one_time_key_counts: { signed_curve25519: published } })
+        );
     }
-    const count = Object.keys(oneTimeKeys).length;
-    await machine.markRequestAsSent(
-        upload.id, upload.type, JSON.stringify({ one_time_key_counts: { signed_curve25519: count } })
-    );
-    return { registered: !!body.device_keys, published: count };
+    return { registered, published };
 }
