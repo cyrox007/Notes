@@ -78,6 +78,39 @@ final class MessengerE2eeRelayController extends Controller
         });
     }
 
+    public function sendRoomEvent(Request $request): void
+    {
+        $this->handle($request, static function (MessengerE2eeRelayService $service, int $user) use ($request): array {
+            $body = self::payload($request);
+            if (!is_array($body['encrypted'] ?? null)) {
+                throw new InvalidArgumentException('Отсутствует шифротекст Megolm');
+            }
+            $service->sendRoomEvent(
+                $user,
+                self::field($body, 'sender_device_id'),
+                self::field($body, 'dialog_uid'),
+                self::field($body, 'transaction_id'),
+                $body['encrypted']
+            );
+            return ['stored' => true];
+        });
+    }
+
+    public function roomEvents(Request $request): void
+    {
+        $this->handle($request, static function (MessengerE2eeRelayService $service, int $user) use ($request): array {
+            $cursor = (string) $request->get('after', '0');
+            if (strlen($cursor) > 18 || !ctype_digit($cursor)) {
+                throw new InvalidArgumentException('Некорректный курсор сообщений');
+            }
+            return ['events' => $service->roomEvents(
+                $user,
+                (string) $request->get('dialog_uid', ''),
+                (int) $cursor
+            )];
+        });
+    }
+
     public function inbox(Request $request): void
     {
         $this->handle($request, static function (MessengerE2eeRelayService $service, int $user) use ($request): array {
