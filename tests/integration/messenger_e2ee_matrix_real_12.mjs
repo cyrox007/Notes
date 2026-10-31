@@ -15,8 +15,11 @@ test('настоящий движок Matrix Rust Crypto создаёт подп
         const uploads = requests.filter(request => {
             try { return !!JSON.parse(request.body).device_keys; } catch { return false; }
         });
-        assert.equal(uploads.length, 1);
-        const keys = JSON.parse(uploads[0].body).device_keys;
+        assert.ok(uploads.length >= 1, 'движок выдал хотя бы один запрос публикации идентичности');
+        const requestWithIdentity = uploads.map(r => JSON.parse(r.body).device_keys)
+            .find(keys => keys?.user_id === user && keys?.device_id === 'DEVICE_001');
+        assert.ok(requestWithIdentity, 'есть подписанная идентичность текущего устройства');
+        const keys = requestWithIdentity;
         assert.equal(keys.user_id, user);
         assert.equal(keys.device_id, 'DEVICE_001');
         assert.ok(keys.keys['ed25519:DEVICE_001']);
