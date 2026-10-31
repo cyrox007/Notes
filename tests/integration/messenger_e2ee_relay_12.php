@@ -144,6 +144,15 @@ assertRelay(count($service->inbox(2, 'device_002')) === 0, 'подтверждё
 $service->send(1, 'device_001', $uids[2], 'device_002', $dialogUid, $transaction, $envelope);
 assertRelay(count($service->inbox(2, 'device_002')) === 0, 'подтверждённый пакет нельзя доставить повторно');
 assertRelay((int) $db->query('SELECT COUNT(*) FROM messenger_e2ee_mailbox WHERE acknowledged_at IS NOT NULL')->fetchColumn() === 1, 'подтверждение хранится как защита от повторной отправки');
+// Подтверждённые записи остаются до срока хранения; затем очищаются.
+$db->exec('UPDATE messenger_e2ee_mailbox
+           SET expires_at = DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY)');
+$db->exec('UPDATE messenger_e2ee_prekeys
+           SET claimed_at = DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 31 DAY)
+           WHERE claimed_at IS NOT NULL');
+$removed = $service->pruneExpired(50);
+assertRelay($removed['mailbox'] === 1, 'истёкший пакет очищен после окончания окна дедупликации');
+assertRelay($removed['prekeys'] === 1, 'использованный устаревший ключ удалён');
 $service->revoke(2, 'device_002');
 mustReject(fn () => $service->inbox(2, 'device_002'), 'отозванное устройство не получает очередь');
 mustReject(fn () => $service->register(2, 'device_002', $identity2), 'повторное создание отозванного ID');
