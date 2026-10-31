@@ -153,6 +153,26 @@ $db->exec('UPDATE messenger_e2ee_prekeys
 $removed = $service->pruneExpired(50);
 assertRelay($removed['mailbox'] === 1, 'истёкший пакет очищен после окончания окна дедупликации');
 assertRelay($removed['prekeys'] === 1, 'использованный устаревший ключ удалён');
+$encryptedRoom = [
+    'algorithm' => 'm.megolm.v1.aes-sha2',
+    'device_id' => 'device_001',
+    'sender_key' => $key2,
+    'session_id' => base64_encode(random_bytes(32)),
+    'ciphertext' => base64_encode(random_bytes(150)),
+];
+$roomTxn = 'room_transaction_000000001';
+$service->sendRoomEvent(1, 'device_001', $dialogUid, $roomTxn, $encryptedRoom);
+$service->sendRoomEvent(1, 'device_001', $dialogUid, $roomTxn, $encryptedRoom);
+$storedEvents = $service->roomEvents(2, $dialogUid);
+assertRelay(count($storedEvents) === 1, 'повтор не создаёт второе сообщение Megolm');
+assertRelay($storedEvents[0]['encrypted'] == $encryptedRoom, 'сервер возвращает только исходный шифротекст');
+mustReject(fn () => $service->roomEvents(3, $dialogUid), 'чужой участник не читает зашифрованную хронологию');
+mustReject(fn () => $service->sendRoomEvent(3, 'device_001', $dialogUid, $roomTxn, $encryptedRoom), 'посторонний не отправляет зашифрованные события');
+mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid, 'room_transaction_000000002', ['plaintext' => 'секрет']), 'сервер отклоняет открытый текст');
+$tamperedRoom = $encryptedRoom;
+$tamperedRoom['ciphertext'] = base64_encode(random_bytes(150));
+mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid, $roomTxn, $tamperedRoom), 'подмена уже отправленного шифротекста');
+assertRelay(count($service->roomEvents(2, $dialogUid, $storedEvents[0]['id'])) === 0, 'постраничное чтение не повторяет события');
 $service->revoke(2, 'device_002');
 mustReject(fn () => $service->inbox(2, 'device_002'), 'отозванное устройство не получает очередь');
 mustReject(fn () => $service->register(2, 'device_002', $identity2), 'повторное создание отозванного ID');
