@@ -55,6 +55,11 @@ final class MessengerE2eeRelayService
         if ($signing === $agreement) {
             throw new InvalidArgumentException('Ключи подписи и обмена должны различаться');
         }
+        $ownerUid = $this->db->fetchValue('SELECT uid FROM users WHERE id = :id AND is_active = 1', [':id' => $actor]);
+        if (!is_string($ownerUid)) {
+            throw new DomainException('Пользователь недоступен', 403);
+        }
+        MessengerE2eeIdentity::verifyDevice($identity, $ownerUid, $deviceId);
         $encoded = json_encode($identity, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         if (strlen($encoded) > 8192) {
             throw new InvalidArgumentException('Слишком большой открытый пакет идентичности');
@@ -112,7 +117,11 @@ final class MessengerE2eeRelayService
         }
         $this->db->beginTransaction();
         try {
-            $this->ownDevice($actor, $deviceId, true);
+            $device = $this->ownDevice($actor, $deviceId, true);
+            $ownerUid = $this->db->fetchValue('SELECT uid FROM users WHERE id = :id AND is_active = 1', [':id' => $actor]);
+            if (!is_string($ownerUid)) {
+                throw new DomainException('Пользователь недоступен', 403);
+            }
             $count = (int) $this->db->fetchValue(
                 'SELECT COUNT(*) FROM messenger_e2ee_prekeys
                  WHERE user_id = :uid AND device_id = :did AND claimed_at IS NULL',
@@ -129,6 +138,7 @@ final class MessengerE2eeRelayService
                     throw new InvalidArgumentException('Неверный формат подписанного одноразового ключа');
                 }
                 self::publicKey($item['key']);
+                MessengerE2eeIdentity::verifyPrekey($item, $ownerUid, $deviceId, (string) $device['signing_key']);
                 $value = json_encode($item, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
                 if (strlen($value) > 2048) {
                     throw new InvalidArgumentException('Слишком большой одноразовый ключ');
