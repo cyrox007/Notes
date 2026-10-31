@@ -259,7 +259,7 @@ final class MessengerE2eeRelayService
             $count = (int) $this->db->fetchValue(
                 'SELECT COUNT(*) FROM messenger_e2ee_mailbox
                  WHERE recipient_user_id = :uid AND recipient_device_id = :did
-                   AND expires_at > CURRENT_TIMESTAMP',
+                   AND acknowledged_at IS NULL AND expires_at > CURRENT_TIMESTAMP',
                 [':uid' => $recipient, ':did' => $targetDevice]
             );
             if ($count >= self::MAX_MAILBOX) {
@@ -293,7 +293,7 @@ final class MessengerE2eeRelayService
              INNER JOIN users u ON u.id = m.sender_user_id
              INNER JOIN dialogs d ON d.id = m.dialog_id
              WHERE m.recipient_user_id = :uid AND m.recipient_device_id = :did
-               AND m.id > :after AND m.expires_at > CURRENT_TIMESTAMP
+               AND m.id > :after AND m.acknowledged_at IS NULL AND m.expires_at > CURRENT_TIMESTAMP
              ORDER BY m.id ASC LIMIT 50',
             [':uid' => $actor, ':did' => $deviceId, ':after' => max(0, $after)]
         );
@@ -321,8 +321,9 @@ final class MessengerE2eeRelayService
         }
         foreach (array_unique($ids) as $id) {
             $this->db->execute(
-                'DELETE FROM messenger_e2ee_mailbox
-                 WHERE id = :id AND recipient_user_id = :uid AND recipient_device_id = :did',
+                'UPDATE messenger_e2ee_mailbox SET acknowledged_at = CURRENT_TIMESTAMP
+                 WHERE id = :id AND recipient_user_id = :uid AND recipient_device_id = :did
+                   AND acknowledged_at IS NULL',
                 [':id' => $id, ':uid' => $actor, ':did' => $deviceId]
             );
         }
