@@ -49,3 +49,17 @@ test('не доверяем подменённому отправителю и �
     await assert.rejects(decryptRoomTimeline(sdk,fake,dialogUid,async()=>({events})));
     await assert.rejects(decryptRoomTimeline({...sdk,TrustRequirement:{}},fake,dialogUid,async()=>({events})));
 });
+
+test('расшифрованное имя вложения доступно только локальному клиенту',async()=>{
+    const uid='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const secret={version:1,algorithm:'AES-256-GCM',attachment_uid:uid,key:'S'.repeat(43),iv:'I'.repeat(16)};
+    const rows=[{id:8,sender_uid:senderUid,created_at:'2026-10-31 08:01:03',
+        encrypted:{algorithm:'m.megolm.v1.aes-sha2',sender_key:'key',ciphertext:'opaque'}}];
+    const machine={decryptRoomEvent:async()=>({
+        event:JSON.stringify({type:'m.room.message',sender:'@'+senderUid+':notes.local',
+            content:{msgtype:'m.file',body:'private.jpg',file:{uri:'notes-e2ee://'+uid,secret}}})
+    })};
+    const received=await decryptRoomTimeline(sdk,machine,dialogUid,async()=>({events:rows}));
+    assert.equal(received.messages[0].type,'file');
+    assert.equal(received.messages[0].attachment.secret.key,secret.key);
+});
