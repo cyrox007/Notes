@@ -67,11 +67,20 @@ final class MessengerE2eeRelayService
                 throw new DomainException('Пользователь недоступен', 403);
             }
             $existing = $this->db->fetchOne(
-                'SELECT id FROM messenger_e2ee_devices WHERE user_id = :uid AND device_id = :did FOR UPDATE',
+                'SELECT id, identity_json, signing_key, agreement_key, revoked_at FROM messenger_e2ee_devices
+                 WHERE user_id = :uid AND device_id = :did FOR UPDATE',
                 [':uid' => $actor, ':did' => $deviceId]
             );
             if ($existing !== null) {
-                throw new DomainException('Повторное использование идентификатора устройства запрещено', 409);
+                if ($existing['revoked_at'] === null
+                    && hash_equals((string) $existing['signing_key'], $signing)
+                    && hash_equals((string) $existing['agreement_key'], $agreement)
+                    && json_decode((string) $existing['identity_json'], true, 32, JSON_THROW_ON_ERROR) == $identity) {
+                    // Повтор той же регистрации после сетевого сбоя безопасен.
+                    $this->db->endTransaction(true);
+                    return;
+                }
+                throw new DomainException('Подмена или повторное создание отозванного устройства запрещены', 409);
             }
             $count = (int) $this->db->fetchValue(
                 'SELECT COUNT(*) FROM messenger_e2ee_devices WHERE user_id = :uid AND revoked_at IS NULL',
