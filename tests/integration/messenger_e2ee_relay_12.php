@@ -72,7 +72,9 @@ $service->register(1, 'device_001', ['signing_key' => $key1, 'agreement_key' => 
 $service->register(2, 'device_002', ['signing_key' => $key3, 'agreement_key' => $key4]);
 assertRelay(count($service->devices(1, $uids[2])) === 1, 'публичные ключи общих участников');
 mustReject(fn () => $service->devices(3, $uids[1]), 'выдача ключей постороннему');
-mustReject(fn () => $service->register(1, 'device_001', ['signing_key' => $key1, 'agreement_key' => $key2]), 'подмена зарегистрированного устройства');
+$service->register(1, 'device_001', ['signing_key' => $key1, 'agreement_key' => $key2]);
+assertRelay(count($service->devices(1, $uids[1])) === 1, 'идемпотентная регистрация не создаёт второе устройство');
+mustReject(fn () => $service->register(1, 'device_001', ['signing_key' => $key3, 'agreement_key' => $key4]), 'подмена зарегистрированного устройства');
 mustReject(fn () => $service->register(1, 'bad', ['signing_key' => $key1, 'agreement_key' => $key2]), 'слабый ID устройства');
 
 $prekey = base64_encode(random_bytes(32));
