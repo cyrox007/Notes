@@ -489,8 +489,8 @@ final class MessengerE2eeRelayService
              ORDER BY id ASC LIMIT ' . $limit
         );
         return [
-            'mailbox' => $mailbox instanceof \\PDOStatement ? $mailbox->rowCount() : (int) $mailbox,
-            'prekeys' => $prekeys instanceof \\PDOStatement ? $prekeys->rowCount() : (int) $prekeys,
+            'mailbox' => $mailbox instanceof \PDOStatement ? $mailbox->rowCount() : (int) $mailbox,
+            'prekeys' => $prekeys instanceof \PDOStatement ? $prekeys->rowCount() : (int) $prekeys,
         ];
     }
 
