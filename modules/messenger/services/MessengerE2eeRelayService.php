@@ -347,9 +347,13 @@ final class MessengerE2eeRelayService
      * @param array<string,mixed> $encrypted
      */
     public function sendRoomEvent(
-        int $actor, string $senderDeviceId, string $dialogUid, string $transactionId, array $encrypted
+        int $actor, string $senderDeviceId, string $dialogUid, string $transactionId,
+        array $encrypted, array $attachmentUids = []
     ): void {
         self::validateDeviceId($senderDeviceId);
+        if (!array_is_list($attachmentUids) || count($attachmentUids) > 5) {
+            throw new InvalidArgumentException('Некорректный список зашифрованных вложений');
+        }
         if (preg_match('/^[A-Za-z0-9_-]{16,80}$/D', $transactionId) !== 1) {
             throw new InvalidArgumentException('Неверный идентификатор сообщения');
         }
@@ -391,7 +395,7 @@ final class MessengerE2eeRelayService
                 ':device' => $senderDeviceId, ':txn' => $transactionId,
             ];
             $existing = $this->db->fetchOne(
-                'SELECT encrypted_json FROM messenger_e2ee_events
+                'SELECT id, encrypted_json FROM messenger_e2ee_events
                  WHERE dialog_id = :dialog AND sender_user_id = :sender
                    AND sender_device_id = :device AND transaction_id = :txn',
                 $params
@@ -400,6 +404,7 @@ final class MessengerE2eeRelayService
                 if (json_decode((string) $existing['encrypted_json'], true, 32, JSON_THROW_ON_ERROR) != $encrypted) {
                     throw new DomainException('Повтор с изменённым шифротекстом запрещён', 409);
                 }
+                (new MessengerE2eeMediaService($this->db))->assertBoundEvent((int)$existing['id'], $attachmentUids);
                 $this->db->endTransaction(true);
                 return;
             }
@@ -418,6 +423,15 @@ final class MessengerE2eeRelayService
                  VALUES (:dialog, :sender, :device, :txn, :encrypted)',
                 $params + [':encrypted' => $encoded]
             );
+            if ($attachmentUids !== []) {
+                $newEvent = (int)$this->db->lastInsertId();
+                if ($newEvent <= 0) {
+                    throw new \RuntimeException('Не удалось привязать зашифрованное вложение');
+                }
+                (new MessengerE2eeMediaService($this->db))->bindEvent(
+                    $actor, (int)$dialog['id'], $newEvent, $attachmentUids
+                );
+            }
             $this->db->endTransaction(true);
         } catch (Throwable $e) {
             $this->db->endTransaction(false);
