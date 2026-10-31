@@ -98,6 +98,53 @@ final class MessengerE2eeMediaService
         return ['path'=>$path,'size'=>(int)$row['size']];
     }
 
+    /**
+     * Удаляет только зашифрованные файлы, которые так и не стали сообщениями.
+     * Блокировка предотвращает гонку с привязкой файла в sendRoomEvent().
+     */
+    public function pruneOrphans(int $limit = 100): int
+    {
+        $limit = max(1, min($limit, 500));
+        $rows = $this->db->fetchAll(
+            'SELECT id FROM messenger_e2ee_attachments
+             WHERE event_id IS NULL
+               AND created_at < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY)
+             ORDER BY id ASC LIMIT ' . $limit
+        );
+        $deleted = 0;
+        foreach ($rows as $row) {
+            $this->db->beginTransaction();
+            try {
+                $file = $this->db->fetchOne(
+                    'SELECT stored_path FROM messenger_e2ee_attachments
+                     WHERE id = :id AND event_id IS NULL FOR UPDATE',
+                    [':id'=>(int)$row['id']]
+                );
+                if ($file === null) {
+                    $this->db->endTransaction(true);
+                    continue;
+                }
+                $storage = new PrivateStoragePath();
+                $root = $storage->child('messenger-e2ee');
+                $path = $storage->resolveExisting((string)$file['stored_path'], $root);
+                if ($path !== null && is_file($path) && !@unlink($path)) {
+                    throw new RuntimeException('Не удалось очистить старое зашифрованное вложение');
+                }
+                $this->db->execute(
+                    'DELETE FROM messenger_e2ee_attachments
+                     WHERE id = :id AND event_id IS NULL',
+                    [':id'=>(int)$row['id']]
+                );
+                $this->db->endTransaction(true);
+                $deleted++;
+            } catch (Throwable $e) {
+                $this->db->endTransaction(false);
+                error_log('E2EE: ошибка очистки неприкреплённого файла: ' . get_class($e));
+            }
+        }
+        return $deleted;
+    }
+
     /** @param list<string> $uids */
     public function bindEvent(int $uploader, int $dialogId, int $eventId, array $uids): void
     {
