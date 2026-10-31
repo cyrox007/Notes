@@ -92,6 +92,7 @@ jobs:
           php -l modules/messenger/services/MessengerE2eeRelayService.php
           php -l modules/messenger/services/MessengerE2eeMediaService.php
           php -l modules/messenger/controllers/MessengerE2eeMediaController.php
+          php -l bin/messenger_e2ee_prune.php
           php -l modules/messenger/controllers/MessengerE2eeRelayController.php
           php -l modules/messenger/MessengerRuntimeProvider.php
           php -l modules/messenger/runtime.php
