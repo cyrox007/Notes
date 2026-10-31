@@ -18,6 +18,7 @@ const sdk={
 };
 function harness(fingerprints=['a'.repeat(64),'a'.repeat(64)]){
  let checks=0,posts=0;
+ const uploads=[];
  const machine={
   queryKeysForUsers:()=>({id:'query-1',type:1,body:JSON.stringify({device_keys:{[matrixUid]:[]}})}),
   markRequestAsSent:async()=>{},
@@ -30,9 +31,10 @@ function harness(fingerprints=['a'.repeat(64),'a'.repeat(64)]){
  const transport={
   participants:async()=>({members:[uid],fingerprint:fingerprints[Math.min(checks++,fingerprints.length-1)]}),
   getDevices:async()=>({devices:[{device_id:deviceId,signing_key:'A'.repeat(43),identity:{device_keys:{user_id:matrixUid,device_id:deviceId}}}]}),
+  uploadCiphertext:async(...args)=>{uploads.push(args);return{uid:args[1]};},
   sendRoomEvent:async(payload)=>{posts++;assert.equal(payload.encrypted.algorithm,envelope.algorithm);assert.equal(JSON.stringify(payload).includes('секрет'),false);return{stored:true};},
  };
- return {client:createE2eeConversation({sdk,machine,transport,trust:{isTrusted:async()=>true},userUid:uid,deviceId}),posts:()=>posts};
+ return {client:createE2eeConversation({sdk,machine,transport,trust:{isTrusted:async()=>true},userUid:uid,deviceId}),posts:()=>posts,uploads:()=>uploads};
 }
 test('подтверждённая защищённая отправка не отправляет открытый текст',async()=>{
  const h=harness();
@@ -47,4 +49,15 @@ test('изменение состава во время раздачи блок�
 test('состав участников без владельца или отпечатка запрещает отправку',async()=>{
  const client=createE2eeConversation({sdk,machine:{},transport:{participants:async()=>({members:[],fingerprint:'x'})},trust:{},userUid:uid,deviceId});
  await assert.rejects(client.send(room,'секрет'));
+});
+
+test('файл шифруется в браузере до передачи в защищённое хранилище',async()=>{
+ const h=harness();
+ const source=new Uint8Array([12,24,42,55,99]);
+ await h.client.sendFile(room,source,'private.jpg');
+ assert.equal(h.posts(),1);
+ assert.equal(h.uploads().length,1);
+ assert.equal(h.uploads()[0][2].byteLength,source.byteLength+16);
+ assert.notDeepEqual(h.uploads()[0][2],source);
+ assert.equal(h.uploads()[0][1].length,36);
 });
