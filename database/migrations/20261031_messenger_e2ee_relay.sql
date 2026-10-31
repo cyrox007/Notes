@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS `messenger_e2ee_mailbox` (
   `envelope_json` JSON NOT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `expires_at` DATETIME NOT NULL,
+  `acknowledged_at` DATETIME DEFAULT NULL,
   UNIQUE KEY `uq_messenger_e2ee_delivery` (
     `sender_user_id`, `sender_device_id`, `recipient_user_id`, `recipient_device_id`, `transaction_id`
   ),
