@@ -76,6 +76,7 @@ final class MessengerRuntimeProvider implements ModuleRuntimeProvider
         }
 
         $router
+            ->add('GET', '/e2ee/participants', [MessengerE2eeRelayController::class, 'participants'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_participants')
             ->add('GET', '/e2ee/devices', [MessengerE2eeRelayController::class, 'devices'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_devices')
             ->add('POST', '/e2ee/devices', [MessengerE2eeRelayController::class, 'register'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_register')
             ->add('POST', '/e2ee/prekeys', [MessengerE2eeRelayController::class, 'prekeys'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_prekeys')
