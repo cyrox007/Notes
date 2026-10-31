@@ -20,6 +20,8 @@ on:
       - 'tests/integration/messenger_e2ee_conversation_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_real_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_signature_12.php'
+      - 'tests/integration/messenger_e2ee_ui_12.mjs'
+      - 'tools/install-messenger-e2ee-sdk.mjs'
       - '.github/workflows/messenger-e2ee-relay-12.yml'
   workflow_dispatch:
 
@@ -75,6 +77,7 @@ jobs:
           node --test tests/integration/messenger_e2ee_sdk_trust_12.mjs
           node --test tests/integration/messenger_e2ee_http_transport_12.mjs
           node --test tests/integration/messenger_e2ee_conversation_12.mjs
+          node --test tests/integration/messenger_e2ee_ui_12.mjs
 
       - name: Проверить совместимость настоящего Matrix Rust Crypto 18.9.0 и PHP
         shell: bash
@@ -85,6 +88,10 @@ jobs:
           npm install --no-save --no-package-lock --ignore-scripts @matrix-org/matrix-sdk-crypto-wasm@18.9.0
           node --test tests/integration/messenger_e2ee_matrix_real_12.mjs
           php tests/integration/messenger_e2ee_matrix_signature_12.php
+          node tools/install-messenger-e2ee-sdk.mjs
+          test -s modules/messenger/crypto/sdk/index.mjs
+          test -s modules/messenger/crypto/sdk/pkg/matrix_sdk_crypto_wasm_bg.js
+          test -s modules/messenger/crypto/sdk/pkg/matrix_sdk_crypto_wasm_bg.wasm
 
       - name: Проверить синтаксис транспорта и маршрутов
         shell: bash
@@ -94,6 +101,8 @@ jobs:
           php -l modules/messenger/services/MessengerE2eeRelayService.php
           php -l modules/messenger/services/MessengerE2eeMediaService.php
           php -l modules/messenger/controllers/MessengerE2eeMediaController.php
+          php -l modules/messenger/controllers/MessengerE2eeAssetsController.php
+          php -l modules/messenger/views/index.php
           php -l bin/messenger_e2ee_prune.php
           php -l modules/messenger/controllers/MessengerE2eeRelayController.php
           php -l modules/messenger/MessengerRuntimeProvider.php
