@@ -39,13 +39,13 @@ function decode64url(value, count) {
     return Uint8Array.from(decoded, (value) => value.charCodeAt(0));
 }
 
-function fileBytes(input) {
+function fileBytes(input, allowAuthenticationTag = false) {
     const bytes = input instanceof Uint8Array
         ? input
         : input instanceof ArrayBuffer
             ? new Uint8Array(input)
             : null;
-    if (!bytes || bytes.byteLength < 1 || bytes.byteLength > MAX_FILE_BYTES) {
+    if (!bytes || bytes.byteLength < 1 || bytes.byteLength > MAX_FILE_BYTES + (allowAuthenticationTag ? 16 : 0)) {
         throw new RangeError('Зашифрованное вложение должно быть от 1 байта до 10 МиБ');
     }
     return bytes;
@@ -86,7 +86,7 @@ export async function encryptAttachment(input, dialogUid, attachmentUid) {
 
 /** Расшифровывает только после получения секретного дескриптора из E2EE-сеанса. */
 export async function decryptAttachment(input, dialogUid, attachmentUid, secret) {
-    const bytes = fileBytes(input);
+    const bytes = fileBytes(input, true);
     if (!secret || secret.version !== 1 || secret.algorithm !== 'AES-256-GCM'
         || secret.attachment_uid !== attachmentUid) {
         throw new TypeError('Неизвестный или подменённый формат вложения');
