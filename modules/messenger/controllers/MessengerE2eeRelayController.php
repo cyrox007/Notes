@@ -97,7 +97,8 @@ final class MessengerE2eeRelayController extends Controller
                 self::field($body, 'sender_device_id'),
                 self::field($body, 'dialog_uid'),
                 self::field($body, 'transaction_id'),
-                $body['encrypted']
+                $body['encrypted'],
+                $body['attachment_uids'] ?? []
             );
             return ['stored' => true];
         });
