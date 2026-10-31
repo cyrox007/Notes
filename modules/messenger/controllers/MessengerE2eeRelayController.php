@@ -92,13 +92,17 @@ final class MessengerE2eeRelayController extends Controller
             if (!is_array($body['encrypted'] ?? null)) {
                 throw new InvalidArgumentException('Отсутствует шифротекст Megolm');
             }
+            $attachments = $body['attachment_uids'] ?? [];
+            if (!is_array($attachments) || !array_is_list($attachments)) {
+                throw new InvalidArgumentException('Неверный список зашифрованных вложений');
+            }
             $service->sendRoomEvent(
                 $user,
                 self::field($body, 'sender_device_id'),
                 self::field($body, 'dialog_uid'),
                 self::field($body, 'transaction_id'),
                 $body['encrypted'],
-                $body['attachment_uids'] ?? []
+                $attachments
             );
             return ['stored' => true];
         });
