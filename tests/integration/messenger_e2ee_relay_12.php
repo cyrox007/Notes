@@ -103,7 +103,10 @@ mustReject(fn () => $service->inbox(1, 'device_002'), 'чтение чужого
 $service->acknowledge(1, 'device_001', [$inbox[0]['id']]);
 assertRelay(count($service->inbox(2, 'device_002')) === 1, 'чужой ack не удалил сообщение');
 $service->acknowledge(2, 'device_002', [$inbox[0]['id']]);
-assertRelay(count($service->inbox(2, 'device_002')) === 0, 'подтверждённое сообщение удалено');
+assertRelay(count($service->inbox(2, 'device_002')) === 0, 'подтверждённое сообщение скрыто');
+$service->send(1, 'device_001', $uids[2], 'device_002', $dialogUid, $transaction, $envelope);
+assertRelay(count($service->inbox(2, 'device_002')) === 0, 'подтверждённый пакет нельзя доставить повторно');
+assertRelay((int) $db->query('SELECT COUNT(*) FROM messenger_e2ee_mailbox WHERE acknowledged_at IS NOT NULL')->fetchColumn() === 1, 'подтверждение хранится как защита от повторной отправки');
 $service->revoke(2, 'device_002');
 mustReject(fn () => $service->inbox(2, 'device_002'), 'отозванное устройство не получает очередь');
 mustReject(fn () => $service->register(2, 'device_002', ['signing_key' => $key3, 'agreement_key' => $key4]), 'повторное создание отозванного ID');
