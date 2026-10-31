@@ -79,6 +79,9 @@ final class MessengerRuntimeProvider implements ModuleRuntimeProvider
 
         $router
             ->add('GET', '/e2ee/participants', [MessengerE2eeRelayController::class, 'participants'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_participants')
+            ->add('GET', '/e2ee/client/{str:filename}', [MessengerE2eeAssetsController::class, 'client'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_client_asset')
+            ->add('GET', '/e2ee/sdk/{str:filename}', [MessengerE2eeAssetsController::class, 'sdk'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_sdk_asset')
+            ->add('GET', '/e2ee/sdk/pkg/{str:filename}', [MessengerE2eeAssetsController::class, 'sdkPackage'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_sdk_package_asset')
             ->add('GET', '/e2ee/devices', [MessengerE2eeRelayController::class, 'devices'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_devices')
             ->add('POST', '/e2ee/devices', [MessengerE2eeRelayController::class, 'register'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_register')
             ->add('POST', '/e2ee/prekeys', [MessengerE2eeRelayController::class, 'prekeys'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_prekeys')
