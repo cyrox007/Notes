@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/core/DatabaseManager.php';
 require_once dirname(__DIR__, 2) . '/modules/messenger/services/MessengerE2eeIdentity.php';
+require_once dirname(__DIR__, 2) . '/modules/messenger/services/MessengerE2eeMediaService.php';
 require_once dirname(__DIR__, 2) . '/modules/messenger/services/MessengerE2eeRelayService.php';
 
 use App\Services\MessengerE2eeRelayService;
@@ -177,6 +178,20 @@ $tamperedRoom = $encryptedRoom;
 $tamperedRoom['ciphertext'] = base64_encode(random_bytes(150));
 mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid, $roomTxn, $tamperedRoom), 'подмена уже отправленного шифротекста');
 assertRelay(count($service->roomEvents(2, $dialogUid, $storedEvents[0]['id'])) === 0, 'постраничное чтение не повторяет события');
+
+// Новый шифротекст вложения без имени/ключа: привязка внутри транзакции.
+$fileUid = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+$db->prepare('INSERT INTO messenger_e2ee_attachments
+    (uid, dialog_id, uploader_user_id, stored_path, size) VALUES (?, ?, ?, ?, ?)')
+    ->execute([$fileUid, 7, 1, '/example/encrypted.bin', 33]);
+$fileTransaction = 'room_with_attachment_00001';
+$service->sendRoomEvent(1, 'device_001', $dialogUid, $fileTransaction, $encryptedRoom, [$fileUid]);
+$attached = $db->query("SELECT event_id FROM messenger_e2ee_attachments WHERE uid='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'")->fetchColumn();
+assertRelay((int)$attached > 0, 'зашифрованное вложение связано с событием');
+$service->sendRoomEvent(1, 'device_001', $dialogUid, $fileTransaction, $encryptedRoom, [$fileUid]);
+mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid, $fileTransaction, $encryptedRoom), 'нельзя убрать вложение повтором');
+mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid, 'room_with_attachment_00002', $encryptedRoom, [$fileUid]), 'нельзя прикрепить файл к другому сообщению');
+assertRelay((int)$db->query('SELECT COUNT(*) FROM messenger_e2ee_events')->fetchColumn() === 2, 'отклонённая привязка откатывает событие');
 $service->revoke(2, 'device_002');
 mustReject(fn () => $service->inbox(2, 'device_002'), 'отозванное устройство не получает очередь');
 mustReject(fn () => $service->register(2, 'device_002', $identity2), 'повторное создание отозванного ID');
