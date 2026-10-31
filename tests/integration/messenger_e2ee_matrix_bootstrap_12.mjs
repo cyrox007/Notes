@@ -36,7 +36,7 @@ test('движок открывает постоянное зашифрован�
     assert.equal(events.length, 2);
     assert.deepEqual(events[1].slice(0, 2), [userId, device]);
     assert.ok(events[1][2].includes('notes-e2ee-v1-'));
-    assert.throws(() => openClientMachine(sdk, user, device, 'short'));
+    await assert.rejects(openClientMachine(sdk, user, device, 'short'));
 });
 
 test('публикуются только подписанные публичные ключи и одноразовые ключи', async () => {
