@@ -55,3 +55,21 @@ CREATE TABLE IF NOT EXISTS `messenger_e2ee_mailbox` (
   CONSTRAINT `fk_messenger_e2ee_dialog` FOREIGN KEY (`dialog_id`)
     REFERENCES `dialogs` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- Отдельная хронология: сервер не расшифровывает и не индексирует содержимое.
+CREATE TABLE IF NOT EXISTS `messenger_e2ee_events` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `dialog_id` BIGINT UNSIGNED NOT NULL,
+  `sender_user_id` INT NOT NULL,
+  `sender_device_id` VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `transaction_id` VARCHAR(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `encrypted_json` JSON NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uq_messenger_e2ee_room_txn` (`dialog_id`, `sender_user_id`, `sender_device_id`, `transaction_id`),
+  KEY `idx_messenger_e2ee_room_events` (`dialog_id`, `id`),
+  CONSTRAINT `fk_messenger_e2ee_event_dialog` FOREIGN KEY (`dialog_id`)
+    REFERENCES `dialogs` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_messenger_e2ee_event_user` FOREIGN KEY (`sender_user_id`)
+    REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
