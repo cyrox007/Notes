@@ -7,6 +7,7 @@ namespace Modules\Messenger;
 use App\Controllers\MessagerController;
 use App\Controllers\MessengerRealtimeController;
 use App\Controllers\MessengerE2eeRelayController;
+use App\Controllers\MessengerE2eeMediaController;
 use App\Controllers\MessengerGroupController;
 use App\Controllers\MessengerVoiceController;
 use App\Controllers\MessengerCallController;
@@ -84,6 +85,8 @@ final class MessengerRuntimeProvider implements ModuleRuntimeProvider
             ->add('POST', '/e2ee/send', [MessengerE2eeRelayController::class, 'send'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_send')
             ->add('POST', '/e2ee/room-events', [MessengerE2eeRelayController::class, 'sendRoomEvent'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_room_send')
             ->add('GET', '/e2ee/room-events', [MessengerE2eeRelayController::class, 'roomEvents'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_room_events')
+            ->add('POST', '/e2ee/upload', [MessengerE2eeMediaController::class, 'upload'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class, UploadRateLimit::class, EnforceMessengerUploadPolicy::class], 'messenger_e2ee_upload')
+            ->add('GET', '/e2ee/media/{str:uid}', [MessengerE2eeMediaController::class, 'download'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_media')
             ->add('GET', '/e2ee/inbox', [MessengerE2eeRelayController::class, 'inbox'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_inbox')
             ->add('POST', '/e2ee/ack', [MessengerE2eeRelayController::class, 'acknowledge'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_ack')
             ->add('POST', '/e2ee/revoke', [MessengerE2eeRelayController::class, 'revoke'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_revoke')
