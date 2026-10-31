@@ -352,6 +352,32 @@ final class MessengerE2eeRelayService
         }
     }
 
+    /**
+     * Очистка только истёкших записей; сохранённые подтверждения не удаляются
+     * раньше срока, чтобы не возвращать уже полученные сообщения в очередь.
+     *
+     * @return array{mailbox:int,prekeys:int}
+     */
+    public function pruneExpired(int $limit = 500): array
+    {
+        $limit = max(1, min(2000, $limit));
+        $mailbox = $this->db->execute(
+            'DELETE FROM messenger_e2ee_mailbox
+             WHERE expires_at < CURRENT_TIMESTAMP
+             ORDER BY id ASC LIMIT ' . $limit
+        );
+        $prekeys = $this->db->execute(
+            'DELETE FROM messenger_e2ee_prekeys
+             WHERE claimed_at IS NOT NULL
+               AND claimed_at < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 DAY)
+             ORDER BY id ASC LIMIT ' . $limit
+        );
+        return [
+            'mailbox' => $mailbox instanceof \\PDOStatement ? $mailbox->rowCount() : (int) $mailbox,
+            'prekeys' => $prekeys instanceof \\PDOStatement ? $prekeys->rowCount() : (int) $prekeys,
+        ];
+    }
+
     public function revoke(int $actor, string $deviceId): void
     {
         self::validateDeviceId($deviceId);
