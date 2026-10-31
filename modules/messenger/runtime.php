@@ -24,6 +24,7 @@ $runtimeFiles = [
     '/services/MessengerSavedService.php',
     '/services/MessengerSearchService.php',
     '/services/MessengerService.php',
+    '/services/MessengerE2eeIdentity.php',
     '/services/MessengerE2eeRelayService.php',
     '/services/MessengerLongPollService.php',
     '/services/MessengerRealtimeRevisionService.php',
