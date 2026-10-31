@@ -15,6 +15,13 @@ use Throwable;
 /** Транспорт публичных ключей и непрозрачных сообщений E2EE. */
 final class MessengerE2eeRelayController extends Controller
 {
+    public function participants(Request $request): void
+    {
+        $this->handle($request, static function (MessengerE2eeRelayService $service, int $user) use ($request): array {
+            return $service->participants($user, (string) $request->get('dialog_uid', ''));
+        });
+    }
+
     public function devices(Request $request): void
     {
         $this->handle($request, static function (MessengerE2eeRelayService $service, int $user) use ($request): array {
