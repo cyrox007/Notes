@@ -216,18 +216,22 @@ final class MessengerE2eeRelayService
             throw new InvalidArgumentException('Размер шифротекста превышает лимит');
         }
         $recipient = $this->targetUser($actor, $targetUid);
-        $dialog = $this->db->fetchOne(
-            'SELECT d.id FROM dialogs d
-             INNER JOIN user_to_dialogs s ON s.dialog_id = d.id AND s.user_id = :sender AND s.is_deleted = 0
-             INNER JOIN user_to_dialogs r ON r.dialog_id = d.id AND r.user_id = :recipient AND r.is_deleted = 0
-             WHERE d.uid = :dialog LIMIT 1',
-            [':sender' => $actor, ':recipient' => $recipient, ':dialog' => $dialogUid]
-        );
-        if ($dialog === null) {
-            throw new DomainException('Нет доступа к общему диалогу', 403);
-        }
         $this->db->beginTransaction();
         try {
+            // Блокируем членство до завершения записи. Выход из группы и отправка
+            // больше не могут пройти одновременно по устаревшему списку участников.
+            $dialog = $this->db->fetchOne(
+                'SELECT d.id FROM dialogs d
+                 INNER JOIN user_to_dialogs s
+                   ON s.dialog_id = d.id AND s.user_id = :sender AND s.is_deleted = 0
+                 INNER JOIN user_to_dialogs r
+                   ON r.dialog_id = d.id AND r.user_id = :recipient AND r.is_deleted = 0
+                 WHERE d.uid = :dialog LIMIT 1 FOR UPDATE',
+                [':sender' => $actor, ':recipient' => $recipient, ':dialog' => $dialogUid]
+            );
+            if ($dialog === null) {
+                throw new DomainException('Нет доступа к общему диалогу', 403);
+            }
             $sender = $this->ownDevice($actor, $senderDevice, true);
             if (!hash_equals((string) $sender['agreement_key'], (string) $envelope['sender_key'])) {
                 throw new DomainException('Ключ пакета не принадлежит устройству отправителя', 403);
