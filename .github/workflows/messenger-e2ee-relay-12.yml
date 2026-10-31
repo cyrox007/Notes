@@ -11,6 +11,7 @@ on:
       - 'tests/integration/messenger_e2ee_file_crypto_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_bootstrap_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_transport_12.mjs'
+      - 'tests/integration/messenger_e2ee_matrix_room_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_real_12.mjs'
       - '.github/workflows/messenger-e2ee-relay-12.yml'
   push:
@@ -58,6 +59,7 @@ jobs:
           node --test tests/integration/messenger_e2ee_file_crypto_12.mjs
           node --test tests/integration/messenger_e2ee_matrix_bootstrap_12.mjs
           node --test tests/integration/messenger_e2ee_matrix_transport_12.mjs
+          node --test tests/integration/messenger_e2ee_matrix_room_12.mjs
 
       - name: Проверить настоящий движок Matrix Rust Crypto 18.9.0
         shell: bash
