@@ -26,6 +26,41 @@ final class MessengerE2eeRelayService
         $this->db ??= DatabaseManager::getInstance();
     }
 
+    /**
+     * Сервер выдаёт полный текущий состав диалога: клиент обязан обновить
+     * подтверждения устройств до смены комнатного ключа.
+     *
+     * @return array{members:list<string>,fingerprint:string}
+     */
+    public function participants(int $actor, string $dialogUid): array
+    {
+        $dialog = $this->db->fetchOne(
+            'SELECT d.id FROM dialogs d
+             INNER JOIN user_to_dialogs own
+               ON own.dialog_id = d.id AND own.user_id = :uid AND own.is_deleted = 0
+             WHERE d.uid = :dialog LIMIT 1',
+            [':uid' => $actor, ':dialog' => $dialogUid]
+        );
+        if ($dialog === null) {
+            throw new DomainException('Диалог недоступен', 403);
+        }
+        $rows = $this->db->fetchAll(
+            'SELECT u.uid FROM user_to_dialogs member
+             INNER JOIN users u ON u.id = member.user_id AND u.is_active = 1
+             WHERE member.dialog_id = :dialog AND member.is_deleted = 0
+             ORDER BY u.uid ASC LIMIT 101',
+            [':dialog' => $dialog['id']]
+        );
+        if (count($rows) > 100 || $rows === []) {
+            throw new DomainException('Неподдерживаемый размер защищённой группы', 409);
+        }
+        $members = array_map(static fn (array $row): string => (string) $row['uid'], $rows);
+        return [
+            'members' => $members,
+            'fingerprint' => hash('sha256', implode("\n", $members)),
+        ];
+    }
+
     /** @return list<array<string,mixed>> */
     public function devices(int $actor, string $targetUid): array
     {
