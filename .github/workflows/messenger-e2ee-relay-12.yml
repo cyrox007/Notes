@@ -90,6 +90,8 @@ jobs:
           set -euo pipefail
           php -l modules/messenger/services/MessengerE2eeIdentity.php
           php -l modules/messenger/services/MessengerE2eeRelayService.php
+          php -l modules/messenger/services/MessengerE2eeMediaService.php
+          php -l modules/messenger/controllers/MessengerE2eeMediaController.php
           php -l modules/messenger/controllers/MessengerE2eeRelayController.php
           php -l modules/messenger/MessengerRuntimeProvider.php
           php -l modules/messenger/runtime.php
