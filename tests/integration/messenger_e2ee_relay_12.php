@@ -91,6 +91,10 @@ function signedPrekey(string $uid, string $deviceId, string $secret, string $pub
 }
 
 $service = new MessengerE2eeRelayService(DatabaseManager::forConnection($db));
+$members = $service->participants(1, '77777777-7777-4777-8777-777777777777');
+assertRelay($members['members'] === [$uids[1], $uids[2]], 'полный отсортированный список участников');
+assertRelay(strlen($members['fingerprint']) === 64, 'отпечаток состава участников');
+mustReject(fn () => $service->participants(3, '77777777-7777-4777-8777-777777777777'), 'посторонний не получает состав диалога');
 $secret1 = sodium_crypto_sign_secretkey(sodium_crypto_sign_keypair());
 $secret2 = sodium_crypto_sign_secretkey(sodium_crypto_sign_keypair());
 $key2 = base64_encode(random_bytes(32));
