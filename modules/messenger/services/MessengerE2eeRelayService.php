@@ -305,6 +305,122 @@ final class MessengerE2eeRelayService
         }
     }
 
+    /**
+     * Публикует только Megolm-шифротекст, без доступа сервера к содержимому.
+     * Подтверждение ключей всех получателей остаётся обязанностью клиента.
+     *
+     * @param array<string,mixed> $encrypted
+     */
+    public function sendRoomEvent(
+        int $actor, string $senderDeviceId, string $dialogUid, string $transactionId, array $encrypted
+    ): void {
+        self::validateDeviceId($senderDeviceId);
+        if (preg_match('/^[A-Za-z0-9_-]{16,80}$/D', $transactionId) !== 1) {
+            throw new InvalidArgumentException('Неверный идентификатор сообщения');
+        }
+        if (($encrypted['algorithm'] ?? null) !== 'm.megolm.v1.aes-sha2'
+            || ($encrypted['device_id'] ?? null) !== $senderDeviceId
+            || !isset($encrypted['ciphertext'], $encrypted['sender_key'], $encrypted['session_id'])
+            || !is_string($encrypted['ciphertext']) || !is_string($encrypted['session_id'])
+            || strlen($encrypted['ciphertext']) < 40 || strlen($encrypted['ciphertext']) > 65536
+            || preg_match('/^[A-Za-z0-9+\/_=-]{16,256}$/D', $encrypted['session_id']) !== 1
+            || array_diff(array_keys($encrypted), [
+                'algorithm', 'device_id', 'ciphertext', 'sender_key', 'session_id',
+            ]) !== []) {
+            throw new InvalidArgumentException('Допускается только шифротекст сообщения Megolm');
+        }
+        self::publicKey($encrypted['sender_key']);
+        $encoded = json_encode($encrypted, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        if (strlen($encoded) > 73728) {
+            throw new InvalidArgumentException('Превышен предел зашифрованного сообщения');
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $dialog = $this->db->fetchOne(
+                'SELECT d.id FROM dialogs d
+                 INNER JOIN user_to_dialogs m
+                   ON m.dialog_id = d.id AND m.user_id = :uid AND m.is_deleted = 0
+                 WHERE d.uid = :dialog LIMIT 1 FOR UPDATE',
+                [':uid' => $actor, ':dialog' => $dialogUid]
+            );
+            if ($dialog === null) {
+                throw new DomainException('Нет доступа к диалогу', 403);
+            }
+            $device = $this->ownDevice($actor, $senderDeviceId, true);
+            if (!hash_equals((string) $device['agreement_key'], $encrypted['sender_key'])) {
+                throw new DomainException('Ключ сообщения не принадлежит устройству', 403);
+            }
+            $params = [
+                ':dialog' => $dialog['id'], ':sender' => $actor,
+                ':device' => $senderDeviceId, ':txn' => $transactionId,
+            ];
+            $existing = $this->db->fetchOne(
+                'SELECT encrypted_json FROM messenger_e2ee_events
+                 WHERE dialog_id = :dialog AND sender_user_id = :sender
+                   AND sender_device_id = :device AND transaction_id = :txn',
+                $params
+            );
+            if ($existing !== null) {
+                if (json_decode((string) $existing['encrypted_json'], true, 32, JSON_THROW_ON_ERROR) != $encrypted) {
+                    throw new DomainException('Повтор с изменённым шифротекстом запрещён', 409);
+                }
+                $this->db->endTransaction(true);
+                return;
+            }
+            $messagesThisHour = (int) $this->db->fetchValue(
+                'SELECT COUNT(*) FROM messenger_e2ee_events
+                 WHERE sender_user_id = :uid
+                   AND created_at >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 HOUR)',
+                [':uid' => $actor]
+            );
+            if ($messagesThisHour >= 500) {
+                throw new DomainException('Превышена частота защищённых сообщений', 429);
+            }
+            $this->db->execute(
+                'INSERT INTO messenger_e2ee_events
+                 (dialog_id, sender_user_id, sender_device_id, transaction_id, encrypted_json)
+                 VALUES (:dialog, :sender, :device, :txn, :encrypted)',
+                $params + [':encrypted' => $encoded]
+            );
+            $this->db->endTransaction(true);
+        } catch (Throwable $e) {
+            $this->db->endTransaction(false);
+            throw $e;
+        }
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function roomEvents(int $actor, string $dialogUid, int $after = 0): array
+    {
+        $dialog = $this->db->fetchOne(
+            'SELECT d.id FROM dialogs d
+             INNER JOIN user_to_dialogs m
+               ON m.dialog_id = d.id AND m.user_id = :uid AND m.is_deleted = 0
+             WHERE d.uid = :dialog LIMIT 1',
+            [':uid' => $actor, ':dialog' => $dialogUid]
+        );
+        if ($dialog === null) {
+            throw new DomainException('Нет доступа к диалогу', 403);
+        }
+        $rows = $this->db->fetchAll(
+            'SELECT e.id, e.sender_device_id, e.encrypted_json, e.created_at,
+                    u.uid AS sender_uid
+             FROM messenger_e2ee_events e
+             INNER JOIN users u ON u.id = e.sender_user_id
+             WHERE e.dialog_id = :dialog AND e.id > :after
+             ORDER BY e.id ASC LIMIT 100',
+            [':dialog' => $dialog['id'], ':after' => max(0, $after)]
+        );
+        return array_map(static fn (array $row): array => [
+            'id' => (int) $row['id'],
+            'sender_uid' => (string) $row['sender_uid'],
+            'sender_device_id' => (string) $row['sender_device_id'],
+            'created_at' => (string) $row['created_at'],
+            'encrypted' => json_decode((string) $row['encrypted_json'], true, 32, JSON_THROW_ON_ERROR),
+        ], $rows);
+    }
+
     /** @return list<array<string,mixed>> */
     public function inbox(int $actor, string $deviceId, int $after = 0): array
     {
