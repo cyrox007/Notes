@@ -1,6 +1,7 @@
 import { rotateAndShareRoomKey } from './matrix-room-keys.mjs';
 import { applyPinnedDeviceTrust } from './matrix-sdk-trust.mjs';
-import { prepareEncryptedText, sendPreparedEncryptedText } from './matrix-room-messages.mjs';
+import { prepareEncryptedText, prepareEncryptedFileMessage, sendPreparedEncryptedText } from './matrix-room-messages.mjs';
+import { encryptAttachment, decryptAttachment } from './e2ee-file-crypto.mjs';
 import { receiveDevicePackages, decryptRoomTimeline } from './matrix-incoming.mjs';
 
 const secureTxn = () => {
@@ -30,13 +31,13 @@ export function createE2eeConversation({sdk,machine,transport,trust,userUid,devi
         throw new Error('Защищённый клиент не инициализирован');
     }
     const activeRoomKeys = new Set();
-    async function send(dialogUid,plaintext) {
-        const original = validateParticipants(await transport.participants(dialogUid),userUid);
-        if (activeRoomKeys.has(dialogUid)) {
+    async function withVerifiedRoom(dialogUid,action) {
+        if(activeRoomKeys.has(dialogUid)){
             throw new Error('Защищённая отправка в этот диалог уже выполняется');
         }
         activeRoomKeys.add(dialogUid);
-        try {
+        try{
+            const original=validateParticipants(await transport.participants(dialogUid),userUid);
             await rotateAndShareRoomKey({
                 sdk,machine,dialogUid,memberUids:original.members,deviceId,
                 getDevices:uid=>transport.getDevices(uid),
@@ -46,18 +47,47 @@ export function createE2eeConversation({sdk,machine,transport,trust,userUid,devi
                     sdk,machine,trust,uid,device,key
                 ).then(()=>true),
             });
-            const current = validateParticipants(await transport.participants(dialogUid),userUid);
-            if (current.fingerprint !== original.fingerprint) {
+            const current=validateParticipants(await transport.participants(dialogUid),userUid);
+            if(current.fingerprint!==original.fingerprint){
                 throw new Error('Состав диалога изменился во время раздачи ключей. Повторите отправку');
             }
-            const packet = await prepareEncryptedText(
-                sdk,machine,dialogUid,deviceId,plaintext,secureTxn()
-            );
-            return sendPreparedEncryptedText(packet,(_path,payload)=>transport.sendRoomEvent(payload));
-        } finally {
+            return await action();
+        }finally{
             activeRoomKeys.delete(dialogUid);
         }
     }
+
+    async function send(dialogUid,plaintext){
+        return withVerifiedRoom(dialogUid,async()=>{
+            const packet=await prepareEncryptedText(sdk,machine,dialogUid,deviceId,plaintext,secureTxn());
+            return sendPreparedEncryptedText(packet,(_path,payload)=>transport.sendRoomEvent(payload));
+        });
+    }
+
+    async function sendFile(dialogUid,input,originalName){
+        return withVerifiedRoom(dialogUid,async()=>{
+            if(!globalThis.crypto?.randomUUID){
+                throw new Error('Недоступен надёжный идентификатор зашифрованного файла');
+            }
+            const uid=globalThis.crypto.randomUUID();
+            const {ciphertext,secret}=await encryptAttachment(input,dialogUid,uid);
+            // Сервер видит только шифротекст и UID, но не имя и не ключ.
+            await transport.uploadCiphertext(dialogUid,uid,ciphertext);
+            const packet=await prepareEncryptedFileMessage(
+                sdk,machine,dialogUid,deviceId,uid,secret,originalName,secureTxn()
+            );
+            return sendPreparedEncryptedText(packet,(_path,payload)=>transport.sendRoomEvent(payload));
+        });
+    }
+
+    async function receiveFile(dialogUid,attachment){
+        if(!attachment?.uid||!attachment?.secret){
+            throw new TypeError('Не хватает локального секретного дескриптора вложения');
+        }
+        const ciphertext=await transport.downloadCiphertext(attachment.uid);
+        return decryptAttachment(ciphertext,dialogUid,attachment.uid,attachment.secret);
+    }
+
     async function receive(dialogUid,after=0) {
         const keys = await receiveDevicePackages(
             sdk,machine,deviceId,
@@ -70,5 +100,5 @@ export function createE2eeConversation({sdk,machine,transport,trust,userUid,devi
         );
         return { ...timeline, new_keys:keys.received };
     }
-    return Object.freeze({send,receive});
+    return Object.freeze({send,sendFile,receive,receiveFile});
 }
