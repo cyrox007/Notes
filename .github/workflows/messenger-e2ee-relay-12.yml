@@ -17,6 +17,7 @@ on:
       - 'tests/integration/messenger_e2ee_device_trust_12.mjs'
       - 'tests/integration/messenger_e2ee_sdk_trust_12.mjs'
       - 'tests/integration/messenger_e2ee_http_transport_12.mjs'
+      - 'tests/integration/messenger_e2ee_conversation_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_real_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_signature_12.php'
       - '.github/workflows/messenger-e2ee-relay-12.yml'
@@ -71,6 +72,7 @@ jobs:
           node --test tests/integration/messenger_e2ee_device_trust_12.mjs
           node --test tests/integration/messenger_e2ee_sdk_trust_12.mjs
           node --test tests/integration/messenger_e2ee_http_transport_12.mjs
+          node --test tests/integration/messenger_e2ee_conversation_12.mjs
 
       - name: Проверить совместимость настоящего Matrix Rust Crypto 18.9.0 и PHP
         shell: bash
