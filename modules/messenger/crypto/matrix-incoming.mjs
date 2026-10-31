@@ -119,19 +119,38 @@ export async function decryptRoomTimeline(sdk, machine, dialogUid, fetchEvents, 
     for (let index = 0; index < converted.length; index++) {
         const result = await machine.decryptRoomEvent(JSON.stringify(converted[index]), room, settings);
         const decrypted = JSON.parse(result?.event || '');
-        if (decrypted.type !== 'm.room.message' || decrypted.content?.msgtype !== 'm.text'
-            || typeof decrypted.content?.body !== 'string'
-            || decrypted.content.body.length > 4096
+        if (decrypted.type !== 'm.room.message'
             || decrypted.sender !== converted[index].sender) {
             throw new Error('Содержимое расшифрованного события не соответствует отправителю');
         }
-        messages.push({
+        const content = decrypted.content;
+        const common = {
             id: rows[index].id,
             sender_uid: rows[index].sender_uid,
-            text: decrypted.content.body,
             created_at: rows[index].created_at,
             verified: true,
-        });
+        };
+        if (content?.msgtype === 'm.text'
+            && typeof content.body === 'string' && content.body.length <= 4096) {
+            messages.push({ ...common, type: 'text', text: content.body });
+            continue;
+        }
+        if (content?.msgtype === 'm.file'
+            && typeof content.body === 'string' && content.body.length <= 255
+            && /^notes-e2ee:\/\/[a-f0-9-]{36}$/i.test(content.file?.uri || '')
+            && content.file?.secret?.version === 1
+            && content.file?.secret?.algorithm === 'AES-256-GCM') {
+            const uid = content.file.uri.slice('notes-e2ee://'.length);
+            if (content.file.secret.attachment_uid !== uid) {
+                throw new Error('Ключ расшифровки не соответствует вложению');
+            }
+            messages.push({
+                ...common, type:'file', text:'Зашифрованный файл',
+                attachment: { uid, name:content.body, secret:content.file.secret },
+            });
+            continue;
+        }
+        throw new Error('Неизвестный формат расшифрованного сообщения');
     }
     return { messages, next_cursor: rows.length ? rows[rows.length - 1].id : after };
 }
