@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/core/DatabaseManager.php';
+require_once dirname(__DIR__, 2) . '/modules/messenger/services/MessengerE2eeIdentity.php';
 require_once dirname(__DIR__, 2) . '/modules/messenger/services/MessengerE2eeRelayService.php';
 
 use App\Services\MessengerE2eeRelayService;
+use App\Services\MessengerE2eeIdentity;
 use Core\DatabaseManager;
 
 /** Сквозные проверки БД: одноразовые ключи, владение, идемпотентность и отзыв. */
@@ -63,22 +65,55 @@ foreach ($uids as $id => $uid) {
 $db->exec("INSERT INTO dialogs (id, uid) VALUES (7, '77777777-7777-4777-8777-777777777777')");
 $db->exec('INSERT INTO user_to_dialogs (dialog_id, user_id) VALUES (7, 1), (7, 2)');
 
+/** @return array<string,mixed> */
+function signedDevice(string $uid, string $deviceId, string $secret, string $agreement): array
+{
+    $matrixUser = MessengerE2eeIdentity::matrixUserId($uid);
+    $public = base64_encode(sodium_crypto_sign_publickey_from_secretkey($secret));
+    $device = [
+        'algorithms' => ['m.olm.v1.curve25519-aes-sha2', 'm.megolm.v1.aes-sha2'],
+        'device_id' => $deviceId,
+        'keys' => ['ed25519:' . $deviceId => $public, 'curve25519:' . $deviceId => $agreement],
+        'user_id' => $matrixUser,
+    ];
+    $signature = base64_encode(sodium_crypto_sign_detached(MessengerE2eeIdentity::canonicalJson($device), $secret));
+    $device['signatures'] = [$matrixUser => ['ed25519:' . $deviceId => $signature]];
+    return ['signing_key' => $public, 'agreement_key' => $agreement, 'device_keys' => $device];
+}
+
+/** @return array<string,mixed> */
+function signedPrekey(string $uid, string $deviceId, string $secret, string $public): array
+{
+    $key = ['key' => $public];
+    $signature = base64_encode(sodium_crypto_sign_detached(MessengerE2eeIdentity::canonicalJson($key), $secret));
+    $key['signatures'] = [MessengerE2eeIdentity::matrixUserId($uid) => ['ed25519:' . $deviceId => $signature]];
+    return $key;
+}
+
 $service = new MessengerE2eeRelayService(DatabaseManager::forConnection($db));
-$key1 = base64_encode(random_bytes(32));
+$secret1 = sodium_crypto_sign_secretkey(sodium_crypto_sign_keypair());
+$secret2 = sodium_crypto_sign_secretkey(sodium_crypto_sign_keypair());
 $key2 = base64_encode(random_bytes(32));
-$key3 = base64_encode(random_bytes(32));
 $key4 = base64_encode(random_bytes(32));
-$service->register(1, 'device_001', ['signing_key' => $key1, 'agreement_key' => $key2]);
-$service->register(2, 'device_002', ['signing_key' => $key3, 'agreement_key' => $key4]);
+$identity1 = signedDevice($uids[1], 'device_001', $secret1, $key2);
+$identity2 = signedDevice($uids[2], 'device_002', $secret2, $key4);
+$key1 = $identity1['signing_key'];
+$key3 = $identity2['signing_key'];
+$service->register(1, 'device_001', $identity1);
+$service->register(2, 'device_002', $identity2);
 assertRelay(count($service->devices(1, $uids[2])) === 1, 'публичные ключи общих участников');
 mustReject(fn () => $service->devices(3, $uids[1]), 'выдача ключей постороннему');
-$service->register(1, 'device_001', ['signing_key' => $key1, 'agreement_key' => $key2]);
+$service->register(1, 'device_001', $identity1);
 assertRelay(count($service->devices(1, $uids[1])) === 1, 'идемпотентная регистрация не создаёт второе устройство');
-mustReject(fn () => $service->register(1, 'device_001', ['signing_key' => $key3, 'agreement_key' => $key4]), 'подмена зарегистрированного устройства');
-mustReject(fn () => $service->register(1, 'bad', ['signing_key' => $key1, 'agreement_key' => $key2]), 'слабый ID устройства');
+mustReject(fn () => $service->register(1, 'device_001', $identity2), 'подмена зарегистрированного устройства');
+$tampered = signedDevice($uids[1], 'device_003', $secret1, base64_encode(random_bytes(32)));
+$tampered['device_keys']['algorithms'][] = 'подмена после подписи';
+mustReject(fn () => $service->register(1, 'device_003', $tampered), 'подмена подписанных ключей');
+mustReject(fn () => $service->register(1, 'bad', $identity1), 'слабый ID устройства');
 
 $prekey = base64_encode(random_bytes(32));
-$service->publishPrekeys(2, 'device_002', ['signed_curve25519:once' => ['key' => $prekey]]);
+mustReject(fn () => $service->publishPrekeys(2, 'device_002', ['signed_curve25519:unsigned' => ['key' => $prekey]]), 'неподписанный одноразовый ключ');
+$service->publishPrekeys(2, 'device_002', ['signed_curve25519:once' => signedPrekey($uids[2], 'device_002', $secret2, $prekey)]);
 $claimed = $service->claimPrekey(1, $uids[2], 'device_002');
 assertRelay(($claimed['key_id'] ?? '') === 'signed_curve25519:once', 'одноразовый ключ выдан');
 assertRelay($service->claimPrekey(1, $uids[2], 'device_002') === null, 'одноразовый ключ не выдан повторно');
@@ -111,5 +146,5 @@ assertRelay(count($service->inbox(2, 'device_002')) === 0, 'подтверждё
 assertRelay((int) $db->query('SELECT COUNT(*) FROM messenger_e2ee_mailbox WHERE acknowledged_at IS NOT NULL')->fetchColumn() === 1, 'подтверждение хранится как защита от повторной отправки');
 $service->revoke(2, 'device_002');
 mustReject(fn () => $service->inbox(2, 'device_002'), 'отозванное устройство не получает очередь');
-mustReject(fn () => $service->register(2, 'device_002', ['signing_key' => $key3, 'agreement_key' => $key4]), 'повторное создание отозванного ID');
+mustReject(fn () => $service->register(2, 'device_002', $identity2), 'повторное создание отозванного ID');
 echo "OK: ключи, права, одноразовая выдача, очередь, повторы и отзыв\n";
