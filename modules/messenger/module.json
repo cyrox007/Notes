@@ -37,7 +37,8 @@
       "messenger_e2ee_devices",
       "messenger_e2ee_prekeys",
       "messenger_e2ee_mailbox",
-      "messenger_e2ee_events"
+      "messenger_e2ee_events",
+      "messenger_e2ee_attachments"
     ],
     "schemas": [
       "database/messenger_module_schema.sql"
