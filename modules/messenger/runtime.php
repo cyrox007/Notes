@@ -36,6 +36,7 @@ $runtimeFiles = [
     '/controllers/MessagerController.php',
     '/controllers/MessengerE2eeRelayController.php',
     '/controllers/MessengerE2eeMediaController.php',
+    '/controllers/MessengerE2eeAssetsController.php',
     '/controllers/MessengerRealtimeController.php',
     '/controllers/MessengerWorkspaceController.php',
     '/controllers/MessengerGroupController.php',
