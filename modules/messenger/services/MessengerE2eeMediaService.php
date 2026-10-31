@@ -110,10 +110,11 @@ final class MessengerE2eeMediaService
             }
             self::validateUid($uid);
             $result = $this->db->execute(
-                'UPDATE messenger_e2ee_attachments SET event_id = :event
+                'UPDATE messenger_e2ee_attachments SET event_id = :event_new
                  WHERE uid = :uid AND dialog_id = :dialog
-                   AND uploader_user_id = :user AND (event_id IS NULL OR event_id = :event)',
-                [':event'=>$eventId, ':uid'=>$uid, ':dialog'=>$dialogId, ':user'=>$uploader]
+                   AND uploader_user_id = :user AND (event_id IS NULL OR event_id = :event_match)',
+                [':event_new'=>$eventId, ':event_match'=>$eventId,
+                 ':uid'=>$uid, ':dialog'=>$dialogId, ':user'=>$uploader]
             );
             $affected = $result instanceof \PDOStatement ? $result->rowCount() : (int)$result;
             if ($affected !== 1) {
