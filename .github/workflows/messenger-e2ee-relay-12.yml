@@ -10,6 +10,7 @@ on:
       - 'tests/integration/messenger_e2ee_relay_12.php'
       - 'tests/integration/messenger_e2ee_file_crypto_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_bootstrap_12.mjs'
+      - 'tests/integration/messenger_e2ee_matrix_real_12.mjs'
       - '.github/workflows/messenger-e2ee-relay-12.yml'
   push:
     branches: ['feature/1.2-messenger-e2ee-relay']
@@ -55,6 +56,13 @@ jobs:
         run: |
           node --test tests/integration/messenger_e2ee_file_crypto_12.mjs
           node --test tests/integration/messenger_e2ee_matrix_bootstrap_12.mjs
+
+      - name: Проверить настоящий движок Matrix Rust Crypto 18.9.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock --ignore-scripts @matrix-org/matrix-sdk-crypto-wasm@18.9.0
+          node --test tests/integration/messenger_e2ee_matrix_real_12.mjs
 
       - name: Проверить синтаксис транспорта и маршрутов
         shell: bash
