@@ -6,6 +6,9 @@ namespace Modules\Messenger;
 
 use App\Controllers\MessagerController;
 use App\Controllers\MessengerRealtimeController;
+use App\Controllers\MessengerE2eeRelayController;
+use App\Controllers\MessengerE2eeMediaController;
+use App\Controllers\MessengerE2eeAssetsController;
 use App\Controllers\MessengerGroupController;
 use App\Controllers\MessengerVoiceController;
 use App\Controllers\MessengerCallController;
@@ -75,6 +78,22 @@ final class MessengerRuntimeProvider implements ModuleRuntimeProvider
         }
 
         $router
+            ->add('GET', '/e2ee/participants', [MessengerE2eeRelayController::class, 'participants'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_participants')
+            ->add('GET', '/e2ee/client/{str:filename}', [MessengerE2eeAssetsController::class, 'client'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_client_asset')
+            ->add('GET', '/e2ee/sdk/{str:filename}', [MessengerE2eeAssetsController::class, 'sdk'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_sdk_asset')
+            ->add('GET', '/e2ee/sdk/pkg/{str:filename}', [MessengerE2eeAssetsController::class, 'sdkPackage'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_sdk_package_asset')
+            ->add('GET', '/e2ee/devices', [MessengerE2eeRelayController::class, 'devices'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_devices')
+            ->add('POST', '/e2ee/devices', [MessengerE2eeRelayController::class, 'register'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_register')
+            ->add('POST', '/e2ee/prekeys', [MessengerE2eeRelayController::class, 'prekeys'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_prekeys')
+            ->add('POST', '/e2ee/claim', [MessengerE2eeRelayController::class, 'claim'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_claim')
+            ->add('POST', '/e2ee/send', [MessengerE2eeRelayController::class, 'send'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_send')
+            ->add('POST', '/e2ee/room-events', [MessengerE2eeRelayController::class, 'sendRoomEvent'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_room_send')
+            ->add('GET', '/e2ee/room-events', [MessengerE2eeRelayController::class, 'roomEvents'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_room_events')
+            ->add('POST', '/e2ee/upload', [MessengerE2eeMediaController::class, 'upload'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class, UploadRateLimit::class, EnforceMessengerUploadPolicy::class], 'messenger_e2ee_upload')
+            ->add('GET', '/e2ee/media/{str:uid}', [MessengerE2eeMediaController::class, 'download'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_media')
+            ->add('GET', '/e2ee/inbox', [MessengerE2eeRelayController::class, 'inbox'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_inbox')
+            ->add('POST', '/e2ee/ack', [MessengerE2eeRelayController::class, 'acknowledge'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_ack')
+            ->add('POST', '/e2ee/revoke', [MessengerE2eeRelayController::class, 'revoke'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_revoke')
             ->add('GET', '/media/{str:uid}', [MessagerController::class, 'media'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_media')
             ->add('GET', '/group-avatar/{str:uid}', [MessengerGroupController::class, 'avatar'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_group_avatar')
             ->add('POST', '/group-avatar/{str:uid}', [MessengerGroupController::class, 'uploadAvatar'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class], 'messenger_group_avatar_upload')

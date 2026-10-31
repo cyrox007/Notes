@@ -1,0 +1,44 @@
+/* Отдельная рабочая область защищённой переписки — без пересечения со старым редактором. */
+.messenger-e2ee-tab[aria-pressed="true"] { color:var(--msg-accent); background:var(--msg-accent-soft); }
+.messenger-app[data-e2ee-active="true"] #message-scroll,
+.messenger-app[data-e2ee-active="true"] #typing-indicator,
+.messenger-app[data-e2ee-active="true"] #compose-context,
+.messenger-app[data-e2ee-active="true"] #messenger-upload-status,
+.messenger-app[data-e2ee-active="true"] .messenger-composer { display:none !important; }
+.messenger-e2ee-panel[hidden], .messenger-e2ee-setup[hidden],
+.messenger-e2ee-keys[hidden] { display:none !important; }
+.messenger-e2ee-panel {
+    display:flex;flex-direction:column;flex:1;min-height:0;gap:12px;
+    padding:12px 16px;overflow:hidden;background:var(--msg-bg,#fff);
+}
+.messenger-e2ee-banner {flex:0 0 auto;padding:12px;border:1px solid var(--msg-accent,#5875ad);border-radius:10px;background:var(--msg-accent-soft,#edf4ff);}
+.messenger-e2ee-banner strong {display:block;margin-bottom:4px;}
+.messenger-e2ee-banner p {margin:4px 0 8px;font-size:13px;line-height:1.4;}
+#messenger-e2ee-status {display:block;font-size:13px;overflow-wrap:anywhere;}
+.messenger-e2ee-status--error {color:#b02020;}
+.messenger-e2ee-status--ok {color:#206840;}
+.messenger-e2ee-setup {display:flex;flex-wrap:wrap;align-items:end;gap:8px;padding:8px 0;}
+.messenger-e2ee-setup label {width:100%;font-size:13px;}
+.messenger-e2ee-setup input {flex:1 1 220px;min-width:0;padding:9px;border:1px solid var(--msg-border,#bbb);border-radius:8px;}
+.messenger-e2ee-setup p {width:100%;font-size:12px;margin:0;}
+.messenger-e2ee-keys {flex:0 1 auto;max-height:200px;min-height:0;overflow:auto;border:1px solid var(--msg-border,#ddd);border-radius:10px;padding:8px;}
+.messenger-e2ee-keys__header {display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.messenger-e2ee-device-list {display:flex;flex-direction:column;gap:8px;margin-top:8px;}
+.messenger-e2ee-device {display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px solid var(--msg-border,#ddd);padding-top:8px;}
+.messenger-e2ee-device strong {display:block;font-size:12px;}
+.messenger-e2ee-device code {font-size:11px;overflow-wrap:anywhere;user-select:all;}
+.messenger-e2ee-device p {font-size:11px;margin:3px 0 0;}
+.messenger-e2ee-messages {flex:1;min-height:100px;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:6px;}
+.messenger-e2ee-message {max-width:min(90%,500px);border-radius:12px;padding:9px 12px;background:var(--msg-accent-soft,#edf4ff);white-space:pre-wrap;overflow-wrap:anywhere;}
+.messenger-e2ee-message[data-own="true"] {align-self:flex-end;}
+.messenger-e2ee-message strong {display:block;font-size:11px;margin-bottom:4px;}
+.messenger-e2ee-composer {flex:0 0 auto;display:grid;gap:8px;}
+.messenger-e2ee-composer textarea {font:inherit;resize:vertical;min-height:60px;max-height:140px;padding:9px;border:1px solid var(--msg-border,#bbb);border-radius:10px;}
+.messenger-e2ee-composer__actions {display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:8px;}
+.messenger-e2ee-composer__actions label {cursor:pointer;}
+.messenger-e2ee-composer__actions label[aria-disabled="true"] {opacity:.5;pointer-events:none;}
+@media(max-width:600px) {
+    .messenger-e2ee-panel{padding:8px;gap:8px;}
+    .messenger-e2ee-banner{padding:9px;}
+    .messenger-e2ee-keys {max-height:160px;}
+}

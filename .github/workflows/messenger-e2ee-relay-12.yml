@@ -1,0 +1,120 @@
+name: Проверка транспорта E2EE Messenger 1.2
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/messenger/**'
+      - 'database/migrations/**'
+      - 'database/messenger_module_schema.sql'
+      - 'tests/integration/messenger_e2ee_relay_12.php'
+      - 'tests/integration/messenger_e2ee_file_crypto_12.mjs'
+      - 'tests/integration/messenger_e2ee_matrix_bootstrap_12.mjs'
+      - 'tests/integration/messenger_e2ee_matrix_transport_12.mjs'
+      - 'tests/integration/messenger_e2ee_matrix_room_12.mjs'
+      - 'tests/integration/messenger_e2ee_incoming_12.mjs'
+      - 'tests/integration/messenger_e2ee_room_keys_12.mjs'
+      - 'tests/integration/messenger_e2ee_device_trust_12.mjs'
+      - 'tests/integration/messenger_e2ee_sdk_trust_12.mjs'
+      - 'tests/integration/messenger_e2ee_http_transport_12.mjs'
+      - 'tests/integration/messenger_e2ee_conversation_12.mjs'
+      - 'tests/integration/messenger_e2ee_matrix_real_12.mjs'
+      - 'tests/integration/messenger_e2ee_matrix_signature_12.php'
+      - 'tests/integration/messenger_e2ee_ui_12.mjs'
+      - 'tools/install-messenger-e2ee-sdk.mjs'
+      - '.github/workflows/messenger-e2ee-relay-12.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: messenger-e2ee-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  messenger-e2ee-relay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: e2ee_relay_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - name: Получить исходники ветки
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, mysqli, sodium, mbstring
+          coverage: none
+
+      - name: Подготовить Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Проверить клиентское шифрование вложений и отказ при подмене
+        run: |
+          node --test tests/integration/messenger_e2ee_file_crypto_12.mjs
+          node --test tests/integration/messenger_e2ee_matrix_bootstrap_12.mjs
+          node --test tests/integration/messenger_e2ee_matrix_transport_12.mjs
+          node --test tests/integration/messenger_e2ee_matrix_room_12.mjs
+          node --test tests/integration/messenger_e2ee_incoming_12.mjs
+          node --test tests/integration/messenger_e2ee_room_keys_12.mjs
+          node --test tests/integration/messenger_e2ee_device_trust_12.mjs
+          node --test tests/integration/messenger_e2ee_sdk_trust_12.mjs
+          node --test tests/integration/messenger_e2ee_http_transport_12.mjs
+          node --test tests/integration/messenger_e2ee_conversation_12.mjs
+          node --test tests/integration/messenger_e2ee_ui_12.mjs
+
+      - name: Проверить совместимость настоящего Matrix Rust Crypto 18.9.0 и PHP
+        shell: bash
+        env:
+          E2EE_MATRIX_KEY_FIXTURE: /tmp/notes-e2ee-matrix-public-keys.json
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock --ignore-scripts @matrix-org/matrix-sdk-crypto-wasm@18.9.0
+          node --test tests/integration/messenger_e2ee_matrix_real_12.mjs
+          php tests/integration/messenger_e2ee_matrix_signature_12.php
+          node tools/install-messenger-e2ee-sdk.mjs
+          test -s modules/messenger/crypto/sdk/index.mjs
+          test -s modules/messenger/crypto/sdk/pkg/matrix_sdk_crypto_wasm_bg.js
+          test -s modules/messenger/crypto/sdk/pkg/matrix_sdk_crypto_wasm_bg.wasm
+
+      - name: Проверить синтаксис транспорта и маршрутов
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l modules/messenger/services/MessengerE2eeIdentity.php
+          php -l modules/messenger/services/MessengerE2eeRelayService.php
+          php -l modules/messenger/services/MessengerE2eeMediaService.php
+          php -l modules/messenger/controllers/MessengerE2eeMediaController.php
+          php -l modules/messenger/controllers/MessengerE2eeAssetsController.php
+          php -l modules/messenger/views/index.php
+          php -l bin/messenger_e2ee_prune.php
+          php -l modules/messenger/controllers/MessengerE2eeRelayController.php
+          php -l modules/messenger/MessengerRuntimeProvider.php
+          php -l modules/messenger/runtime.php
+          php -l tests/integration/messenger_e2ee_relay_12.php
+          php -r '$m=json_decode(file_get_contents("database/migrations/manifest.json"),true,32,JSON_THROW_ON_ERROR); if (!in_array("20261031_messenger_e2ee_relay.sql",$m["migrations"],true)) exit(1);'
+
+      - name: Проверить ключи, принадлежность, доставку и отзыв на MySQL
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: '3306'
+          DBUSER: root
+          DBPASS: root
+          DBNAME: e2ee_relay_test
+        run: php tests/integration/messenger_e2ee_relay_12.php
