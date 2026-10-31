@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { prepareEncryptedText, sendPreparedEncryptedText } from '../../modules/messenger/crypto/matrix-room-messages.mjs';
+import { prepareEncryptedText, prepareEncryptedFileMessage, sendPreparedEncryptedText } from '../../modules/messenger/crypto/matrix-room-messages.mjs';
 
 const dialog = '77777777-7777-4777-8777-777777777777';
 const encrypted = { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'encrypted-base64-not-readable',
@@ -33,4 +33,23 @@ test('запрещена отправка при неподготовленно�
         { encryptRoomEvent: async () => JSON.stringify({ body: 'Текст' }) },
         dialog, 'DEVICE_001', 'Текст', transaction));
     await assert.rejects(sendPreparedEncryptedText({ encrypted }, async () => ({ stored: false })));
+});
+
+test('секретный дескриптор вложения остаётся только в зашифрованном содержимом',async()=>{
+    const uid='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const secret={version:1,algorithm:'AES-256-GCM',attachment_uid:uid,key:'S'.repeat(43),iv:'I'.repeat(16)};
+    const captured=[];
+    const machine={encryptRoomEvent:async (...args)=>{
+        captured.push(args);
+        return JSON.stringify(encrypted);
+    }};
+    const packet=await prepareEncryptedFileMessage(
+        sdk,machine,dialog,'DEVICE_001',uid,secret,'private.jpg',transaction
+    );
+    const localContent=JSON.parse(captured[0][2]);
+    assert.equal(localContent.file.secret.key,secret.key);
+    assert.equal(localContent.body,'private.jpg');
+    assert.equal(JSON.stringify(packet).includes('private.jpg'),false);
+    assert.equal(JSON.stringify(packet).includes(secret.key),false);
+    assert.deepEqual(packet.attachment_uids,[uid]);
 });
