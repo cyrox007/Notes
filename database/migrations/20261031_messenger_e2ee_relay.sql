@@ -73,3 +73,26 @@ CREATE TABLE IF NOT EXISTS `messenger_e2ee_events` (
   CONSTRAINT `fk_messenger_e2ee_event_user` FOREIGN KEY (`sender_user_id`)
     REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- Защищённые вложения: сервер хранит исключительно шифротекст, без имени,
+-- MIME-описания, секретного ключа и содержимого исходного файла.
+CREATE TABLE IF NOT EXISTS `messenger_e2ee_attachments` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `uid` CHAR(36) NOT NULL,
+  `dialog_id` BIGINT UNSIGNED NOT NULL,
+  `uploader_user_id` INT NOT NULL,
+  `event_id` BIGINT UNSIGNED DEFAULT NULL,
+  `stored_path` VARCHAR(768) NOT NULL,
+  `size` BIGINT UNSIGNED NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `uq_messenger_e2ee_attachment_uid` (`uid`),
+  KEY `idx_messenger_e2ee_attachment_event` (`event_id`),
+  KEY `idx_messenger_e2ee_attachment_orphan` (`event_id`, `created_at`),
+  CONSTRAINT `fk_messenger_e2ee_attachment_dialog`
+    FOREIGN KEY (`dialog_id`) REFERENCES `dialogs` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_messenger_e2ee_attachment_sender`
+    FOREIGN KEY (`uploader_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_messenger_e2ee_attachment_event`
+    FOREIGN KEY (`event_id`) REFERENCES `messenger_e2ee_events` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
