@@ -20,8 +20,8 @@ $readModuleAsset = static function (string $file): string {
     $source = file_get_contents($path);
     return is_string($source) ? $source : '';
 };
-$cssFiles = ['calls.css', 'style.css', 'media.css', 'forwarding.css', 'reactions.css', 'voice.css', 'group.css', 'search.css', 'workspace-actions.css', 'storage-files.css', 'visual-refresh.css'];
-$jsFiles = ['protocol-origin.js', 'script.js', 'activity.js', 'dialog-actions.js', 'receipts.js', 'media.js', 'forwarding.js', 'reactions.js', 'voice.js', 'group.js', 'search.js', 'workspace-actions.js', 'storage-files.js', 'calls.js', 'video-recording.js'];
+$cssFiles = ['calls.css', 'style.css', 'media.css', 'forwarding.css', 'reactions.css', 'voice.css', 'group.css', 'search.css', 'workspace-actions.css', 'storage-files.css', 'visual-refresh.css', 'e2ee.css'];
+$jsFiles = ['protocol-origin.js', 'script.js', 'activity.js', 'dialog-actions.js', 'receipts.js', 'media.js', 'forwarding.js', 'reactions.js', 'voice.js', 'group.js', 'search.js', 'workspace-actions.js', 'storage-files.js', 'calls.js', 'video-recording.js', 'e2ee.js'];
 $literalOpen = '{' . 'literal}';
 $literalClose = '{/' . 'literal}';
 
@@ -96,6 +96,7 @@ ob_start();
                 <div class="messenger-chat__identity" id="chat-identity"><strong id="chat-title">Диалог</strong><span id="chat-subtitle">&nbsp;</span></div>
                 <div class="messenger-chat__actions" aria-label="Действия с чатом">
                     <button class="messenger-icon-button" id="chat-group-button" type="button" hidden title="Информация о группе" aria-label="Информация о группе"><i class="fa fa-users" aria-hidden="true"></i></button>
+                    <button class="messenger-icon-button messenger-e2ee-tab" id="chat-e2ee-button" type="button" title="Защищённая переписка — пилотный режим" aria-label="Открыть защищённую переписку" aria-pressed="false" aria-controls="messenger-e2ee-panel"><i class="fa fa-lock" aria-hidden="true"></i></button>
                     <button class="messenger-icon-button" id="chat-pin-button" type="button" title="Закрепить чат" aria-label="Закрепить чат"><i class="fa fa-thumb-tack" aria-hidden="true"></i></button>
                     <button class="messenger-icon-button" id="chat-mute-button" type="button" title="Выключить уведомления на час" aria-label="Выключить уведомления на час"><i class="fa fa-bell-slash-o" aria-hidden="true"></i></button>
                     <button class="messenger-icon-button" id="chat-archive-button" type="button" title="Архивировать чат" aria-label="Архивировать чат"><i class="fa fa-archive" aria-hidden="true"></i></button>
@@ -107,6 +108,35 @@ ob_start();
             <div class="messenger-compose-context" id="compose-context" hidden><div><strong id="compose-context-title"></strong><span id="compose-context-text"></span></div><button class="messenger-icon-button" id="compose-context-close" type="button" aria-label="Отменить"><i class="fa fa-times" aria-hidden="true"></i></button></div>
             <div class="messenger-upload-status" id="messenger-upload-status" hidden aria-live="polite"><span id="messenger-upload-text">Загрузка вложения…</span><span id="messenger-upload-percent">0%</span><progress id="messenger-upload-progress" max="100" value="0"></progress></div>
 
+            <section class="messenger-e2ee-panel" id="messenger-e2ee-panel" hidden aria-label="Защищённая переписка — пилотный режим">
+                <div class="messenger-e2ee-banner">
+                    <strong><i class="fa fa-lock" aria-hidden="true"></i> Сквозное шифрование — испытательный режим</strong>
+                    <p>Эта переписка отделена от обычной. Старые сообщения не становятся защищёнными. Для работы требуется настроить устройство и подтвердить ключи участников.</p>
+                    <span id="messenger-e2ee-status" role="status" aria-live="polite">Для начала настройте защищённое устройство.</span>
+                </div>
+                <div class="messenger-e2ee-setup" id="messenger-e2ee-setup">
+                    <label for="messenger-e2ee-passphrase">Парольная фраза для локальных ключей (не передаётся серверу)</label>
+                    <input id="messenger-e2ee-passphrase" type="password" autocomplete="new-password" minlength="16" placeholder="Не менее 16 символов">
+                    <button id="messenger-e2ee-activate" type="button" class="messenger-primary-button">Открыть ключи устройства</button>
+                    <p>При потере парольной фразы или данных браузера доступ к старым защищённым сообщениям может быть утрачен.</p>
+                </div>
+                <section class="messenger-e2ee-keys" id="messenger-e2ee-keys" hidden aria-label="Доверенные устройства">
+                    <div class="messenger-e2ee-keys__header">
+                        <strong>Устройства участников</strong>
+                        <button id="messenger-e2ee-refresh-devices" class="messenger-secondary-button" type="button">Обновить ключи</button>
+                    </div>
+                    <div id="messenger-e2ee-device-list" class="messenger-e2ee-device-list"></div>
+                </section>
+                <div class="messenger-e2ee-messages" id="messenger-e2ee-messages" aria-live="polite"></div>
+                <div class="messenger-e2ee-composer">
+                    <textarea id="messenger-e2ee-input" rows="2" maxlength="4096" aria-label="Сквозно зашифрованное сообщение" placeholder="Сообщение будет шифроваться на этом устройстве" disabled></textarea>
+                    <div class="messenger-e2ee-composer__actions">
+                        <label class="messenger-secondary-button" for="messenger-e2ee-file">Зашифровать файл</label>
+                        <input id="messenger-e2ee-file" type="file" hidden disabled>
+                        <button id="messenger-e2ee-send" type="button" class="messenger-primary-button" disabled>Отправить защищённо</button>
+                    </div>
+                </div>
+            </section>
             <footer class="messenger-composer">
                 <div class="messenger-composer__tools" aria-label="Вложения и действия">
                     <?php if (!empty($workspaceActions['tasks']) || !empty($workspaceActions['notes'])): ?>
