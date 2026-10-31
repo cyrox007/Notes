@@ -249,7 +249,8 @@ final class MessengerE2eeRelayService
                  ':recipient' => $recipient, ':device' => $targetDevice, ':txn' => $transactionId]
             );
             if ($exists !== null) {
-                if ((string) $exists['envelope_json'] !== $encoded || (int) $exists['dialog_id'] !== (int) $dialog['id']) {
+                if (json_decode((string) $exists['envelope_json'], true, 32, JSON_THROW_ON_ERROR) !== $envelope
+                    || (int) $exists['dialog_id'] !== (int) $dialog['id']) {
                     throw new DomainException('Повтор передачи с изменённым содержимым запрещён', 409);
                 }
                 $this->db->endTransaction(true);
