@@ -98,7 +98,7 @@ $changed['ciphertext'][$key4]['body'] = 'подмена';
 mustReject(fn () => $service->send(1, 'device_001', $uids[2], 'device_002', $dialogUid, $transaction, $changed), 'повтор с изменёнными данными');
 mustReject(fn () => $service->send(1, 'device_001', $uids[2], 'device_002', $dialogUid, 'session_transaction_0000003', ['plaintext' => 'secret']), 'открытый текст');
 $inbox = $service->inbox(2, 'device_002');
-assertRelay(count($inbox) === 1 && $inbox[0]['envelope'] === $envelope, 'передан исходный шифротекст');
+assertRelay(count($inbox) === 1 && $inbox[0]['envelope'] == $envelope, 'передан исходный шифротекст');
 mustReject(fn () => $service->inbox(1, 'device_002'), 'чтение чужого устройства');
 $service->acknowledge(1, 'device_001', [$inbox[0]['id']]);
 assertRelay(count($service->inbox(2, 'device_002')) === 1, 'чужой ack не удалил сообщение');
