@@ -7,8 +7,10 @@ $root = \Core\CliRuntime::loadEnvironment();
 \Core\CliRuntime::registerAutoloader($root);
 require_once $root . '/modules/messenger/services/MessengerE2eeIdentity.php';
 require_once $root . '/modules/messenger/services/MessengerE2eeRelayService.php';
+require_once $root . '/modules/messenger/services/MessengerE2eeMediaService.php';
 
 use App\Services\MessengerE2eeRelayService;
+use App\Services\MessengerE2eeMediaService;
 
 $options = getopt('', ['limit:', 'json', 'help']);
 if (isset($options['help'])) {
@@ -24,11 +26,12 @@ if (!is_string($limitRaw) || preg_match('/^[1-9][0-9]{0,3}$/D', $limitRaw) !== 1
 }
 try {
     $result = (new MessengerE2eeRelayService())->pruneExpired((int) $limitRaw);
+    $result['orphan_attachments'] = (new MessengerE2eeMediaService())->pruneOrphans((int)$limitRaw);
     $result['status'] = 'ok';
     if (isset($options['json'])) {
         echo json_encode($result, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE) . "\n";
     } else {
-        echo "Удалено истёкших пакетов: {$result['mailbox']}; использованных ключей: {$result['prekeys']}.\n";
+        echo "Удалено истёкших пакетов: {$result['mailbox']}; использованных ключей: {$result['prekeys']}; неприкреплённых файлов: {$result['orphan_attachments']}.\n";
     }
 } catch (Throwable $e) {
     error_log('Ошибка очистки E2EE: ' . get_class($e));
