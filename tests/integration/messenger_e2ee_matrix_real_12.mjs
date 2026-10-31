@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { writeFile } from 'node:fs/promises';
 import * as sdk from '@matrix-org/matrix-sdk-crypto-wasm';
 import { notesMatrixUserId } from '../../modules/messenger/crypto/matrix-device-bootstrap.mjs';
 
@@ -21,6 +22,9 @@ test('настоящий движок Matrix Rust Crypto создаёт подп
         assert.ok(keys.keys['ed25519:DEVICE_001']);
         assert.ok(keys.keys['curve25519:DEVICE_001']);
         assert.ok(keys.signatures[user]['ed25519:DEVICE_001']);
+        if (process.env.E2EE_MATRIX_KEY_FIXTURE) {
+            await writeFile(process.env.E2EE_MATRIX_KEY_FIXTURE, JSON.stringify(keys));
+        }
     } finally {
         await machine.close();
     }
