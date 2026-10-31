@@ -8,6 +8,7 @@ use App\Controllers\MessagerController;
 use App\Controllers\MessengerRealtimeController;
 use App\Controllers\MessengerE2eeRelayController;
 use App\Controllers\MessengerE2eeMediaController;
+use App\Controllers\MessengerE2eeAssetsController;
 use App\Controllers\MessengerGroupController;
 use App\Controllers\MessengerVoiceController;
 use App\Controllers\MessengerCallController;
