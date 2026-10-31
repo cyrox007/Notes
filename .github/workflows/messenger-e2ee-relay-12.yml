@@ -21,9 +21,11 @@ on:
       - 'tests/integration/messenger_e2ee_matrix_real_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_signature_12.php'
       - '.github/workflows/messenger-e2ee-relay-12.yml'
-  push:
-    branches: ['feature/1.2-messenger-e2ee-relay']
   workflow_dispatch:
+
+concurrency:
+  group: messenger-e2ee-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
