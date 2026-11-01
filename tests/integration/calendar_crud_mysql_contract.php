@@ -169,9 +169,26 @@ try {
 calendarCrudMysqlAssert($foreignRejected, 'Чужой uid должен быть неотличим от отсутствующего события');
 
 $eventId = (int) $db->fetchValue('SELECT id FROM calendar_events WHERE uid = :uid', [':uid' => $uid]);
+
+// Исторический пример проверяет DST октября 2026 года. Его экземпляры
+// постепенно выходят из 60-дневного окна напоминаний, поэтому проверяем
+// немедленное планирование на отдельном будущем событии.
+$futureStart = new DateTimeImmutable('+2 days', new DateTimeZone('UTC'));
+$futureEnd = $futureStart->modify('+1 hour');
+$futureEvent = $service->createForUser($userA, [
+    'title' => 'Проверка ближайших напоминаний',
+    'timezone' => 'UTC',
+    'starts_at' => $futureStart->format('Y-m-d\\TH:i'),
+    'ends_at' => $futureEnd->format('Y-m-d\\TH:i'),
+    'reminder_offsets' => [900, 3600],
+]);
+$futureEventId = (int) $db->fetchValue(
+    'SELECT id FROM calendar_events WHERE uid = :uid',
+    [':uid' => $futureEvent['uid']]
+);
 calendarCrudMysqlAssert(
-    (int) $db->fetchValue('SELECT COUNT(*) FROM calendar_reminders WHERE event_id = :id', [':id' => $eventId]) >= 6,
-    'Создание повторяющегося события должно сразу спланировать ближайшие напоминания'
+    (int) $db->fetchValue('SELECT COUNT(*) FROM calendar_reminders WHERE event_id = :id', [':id' => $futureEventId]) === 2,
+    'Создание будущего события должно сразу спланировать оба напоминания'
 );
 
 $updated = $service->updateForUser($userA, $uid, [
