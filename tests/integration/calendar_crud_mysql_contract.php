@@ -216,11 +216,14 @@ calendarCrudMysqlAssert(
     ) === 0,
     'После обновления не должны оставаться старые ожидающие offsets'
 );
-$daily = $service->listForUser(
-    $userA,
-    new DateTimeImmutable('2026-10-29T00:00:00Z'),
-    new DateTimeImmutable('2026-11-03T23:59:59Z')
-)['events'];
+$daily = array_values(array_filter(
+    $service->listForUser(
+        $userA,
+        new DateTimeImmutable('2026-10-29T00:00:00Z'),
+        new DateTimeImmutable('2026-11-03T23:59:59Z')
+    )['events'],
+    static fn (array $event): bool => $event['uid'] === $uid
+));
 calendarCrudMysqlAssert(count($daily) === 4, 'Ежедневное повторение до 2 ноября должно дать четыре экземпляра');
 
 $service->cancelForUser($userA, $uid);
@@ -233,7 +236,10 @@ calendarCrudMysqlAssert(
     'После удаления не должно оставаться ожидающих напоминаний'
 );
 calendarCrudMysqlAssert(
-    $service->listForUser($userA, new DateTimeImmutable('2026-10-29T00:00:00Z'), new DateTimeImmutable('2026-11-03T23:59:59Z'))['events'] === [],
+    array_filter(
+        $service->listForUser($userA, new DateTimeImmutable('2026-10-29T00:00:00Z'), new DateTimeImmutable('2026-11-03T23:59:59Z'))['events'],
+        static fn (array $event): bool => $event['uid'] === $uid
+    ) === [],
     'Отменённое событие не должно возвращаться в календарь'
 );
 
