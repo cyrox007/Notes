@@ -215,6 +215,17 @@ jobs:
           ADMIN_RBAC=$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT r.code FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN users u ON u.id=ur.user_id WHERE u.username='hosting_admin';")
           test "$ADMIN_RBAC" = 'superadmin'
 
+          # Проверяем не только наличие таблиц, но и начальные права Calendar.
+          # Раньше они добавлялись только миграцией, не запускаемой fresh install.
+          CALENDAR_TABLES=$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('calendar_events','calendar_reminders','calendar_time_blocks','calendar_item_links');")
+          test "$CALENDAR_TABLES" = "4"
+          CALENDAR_PERMISSION=$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM permissions WHERE code='calendar.use' AND module_id='calendar';")
+          test "$CALENDAR_PERMISSION" = "1"
+          CALENDAR_ROLES=$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(DISTINCT r.code) FROM roles r JOIN role_permissions rp ON rp.role_id=r.id JOIN permissions p ON p.id=rp.permission_id WHERE r.code IN ('user','admin','superadmin') AND p.code='calendar.use';")
+          test "$CALENDAR_ROLES" = "3"
+          ADMIN_CALENDAR=$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM users u JOIN user_roles ur ON ur.user_id=u.id JOIN role_permissions rp ON rp.role_id=ur.role_id JOIN permissions p ON p.id=rp.permission_id WHERE u.username='hosting_admin' AND p.code='calendar.use';")
+          test "$ADMIN_CALENDAR" = "1"
+
       - name: Fresh install healthcheck without vendor
         shell: bash
         run: |
