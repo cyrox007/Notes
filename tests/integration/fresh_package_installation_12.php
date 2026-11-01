@@ -20,6 +20,24 @@ foreach(['defects','work-permits'] as $id){
 $installer->importSchemas($host,$port,$name,$user,$pass,array_map(fn($file)=>$root.'/'.$file,$ownership->schemaFiles()));
 $missing=array_diff($ownership->tables(),$installer->existingTables($pdo));
 if($missing!==[])throw new RuntimeException('Missing owned tables: '.implode(',',$missing));
+
+// Проверяем именно начальные права после импорта схем без запуска миграций.
+// При отсутствии calendar.use модуль виден в админке, но скрыт в меню.
+$calendarPermission = $pdo->query(
+    "SELECT COUNT(*) FROM permissions WHERE code='calendar.use' AND module_id='calendar'"
+)->fetchColumn();
+if ((int)$calendarPermission !== 1) {
+    throw new RuntimeException('Чистая установка не создала разрешение calendar.use');
+}
+$calendarRoles = $pdo->query(
+    "SELECT COUNT(DISTINCT r.code) FROM roles r
+     JOIN role_permissions rp ON rp.role_id=r.id
+     JOIN permissions p ON p.id=rp.permission_id
+     WHERE p.code='calendar.use' AND r.code IN ('user','admin','superadmin')"
+)->fetchColumn();
+if ((int)$calendarRoles !== 3) {
+    throw new RuntimeException('Чистая установка не назначила calendar.use стандартным ролям');
+}
 $state=Core\SchemaReadiness::inspect($root);
 if(!$state['ready'])throw new RuntimeException('Incomplete fresh schema: '.json_encode($state));
 $temporary=tempnam(sys_get_temp_dir(),'wo-prefix-env-');
