@@ -176,6 +176,21 @@ test('Matrix Rust Crypto: второй аппарат того же пользо
         assert.deepEqual(onPeer.messages.map(item=>item.text),[plaintext]);
         assert.equal((mailboxes.get(first+':'+phoneId)||[]).length,0,
             'Устройство подтверждает получение обработанных ключей');
+
+        // Теперь телефон — самостоятельный отправитель. Собеседник должен
+        // сверить его код, иначе будущие отправки останутся заблокированными.
+        await confirmIndependentDevice({
+            userUid:first,device:serverRow,input:code,
+            fetchDevices:getDevices,localTrust:peer.trust,
+        });
+        const answer='Ответ отправлен с нового телефона без участия компьютера';
+        await phone.conversation.send(roomUid,answer);
+        assert.equal(events.length,2);
+        assert.equal(JSON.stringify(events).includes(answer),false);
+        const onPc=await pc.conversation.receive(roomUid,1);
+        const onPeerAgain=await peer.conversation.receive(roomUid,1);
+        assert.deepEqual(onPc.messages.map(item=>item.text),[answer]);
+        assert.deepEqual(onPeerAgain.messages.map(item=>item.text),[answer]);
     }finally{
         for(const machine of opened)await machine.close();
     }
