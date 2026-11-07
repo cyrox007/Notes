@@ -62,3 +62,22 @@ test('скачивание выдаёт только ограниченный ш
     });
     assert.equal((await client.downloadCiphertext(uid)).byteLength,33);
 });
+
+test('новый защищённый диалог создаётся отдельно от обычного и требует CSRF',async()=>{
+    const seen=[];
+    const recipient='22222222-2222-4222-8222-222222222222';
+    const client=createMessengerE2eeTransport({
+        getCsrfToken:()=> '0123456789abcdef',
+        fetchRequest:async(url,options)=>{
+            seen.push({url,options});
+            return {ok:true,json:async()=>({status:'ok',dialog:{uid:'room-uid',encryption_mode:'e2ee'}})};
+        }
+    });
+    const result=await client.createEncryptedDialog(recipient);
+    assert.equal(result.dialog.encryption_mode,'e2ee');
+    assert.equal(seen[0].url,'/messenger/e2ee/dialogs');
+    assert.equal(seen[0].options.method,'POST');
+    assert.equal(seen[0].options.headers['X-CSRF-Token'],'0123456789abcdef');
+    assert.deepEqual(JSON.parse(new URLSearchParams(seen[0].options.body).get('payload')),
+        {recipient_user_uid:recipient});
+});
