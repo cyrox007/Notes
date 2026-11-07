@@ -82,6 +82,7 @@ final class MessengerE2eeMediaService
              INNER JOIN user_to_dialogs member
                ON member.dialog_id = a.dialog_id AND member.user_id = :user AND member.is_deleted = 0
              INNER JOIN users u ON u.id = member.user_id AND u.is_active = 1
+             INNER JOIN dialogs d ON d.id = a.dialog_id AND d.encryption_mode = \'e2ee\'
              WHERE a.uid = :uid
                AND (a.event_id IS NOT NULL OR a.uploader_user_id = :user)
              LIMIT 1',
@@ -192,7 +193,7 @@ final class MessengerE2eeMediaService
              INNER JOIN user_to_dialogs member
                ON member.dialog_id = d.id AND member.user_id = :user AND member.is_deleted = 0
              INNER JOIN users u ON u.id = member.user_id AND u.is_active = 1
-             WHERE d.uid = :uid LIMIT 1',
+             WHERE d.uid = :uid AND d.encryption_mode = \'e2ee\' LIMIT 1',
             [':user'=>$userId, ':uid'=>$dialogUid]
         );
         if ($dialog === null) {
