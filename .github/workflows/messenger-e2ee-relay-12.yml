@@ -142,3 +142,16 @@ jobs:
         run: |
           php tests/integration/messenger_e2ee_relay_12.php
           php tests/integration/messenger_e2ee_dialog_mode_12.php
+
+      - name: Сохранить проверенную локальную поставку SDK для испытательного сайта
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notes-e2ee-sdk-pilot-${{ github.sha }}
+          path: |
+            modules/messenger/crypto/sdk/index.mjs
+            modules/messenger/crypto/sdk/pkg/matrix_sdk_crypto_wasm_bg.js
+            modules/messenger/crypto/sdk/pkg/matrix_sdk_crypto_wasm_bg.wasm
+            modules/messenger/crypto/sdk/MANIFEST.json
+          if-no-files-found: error
+          retention-days: 7
