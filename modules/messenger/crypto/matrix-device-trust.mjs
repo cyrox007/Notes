@@ -1,4 +1,4 @@
-import { notesMatrixUserId } from './matrix-device-bootstrap.mjs';
+import { notesMatrixUserId, notesMatrixRoomId } from './matrix-device-bootstrap.mjs';
 
 function assertDeviceId(deviceId) {
     if (typeof deviceId !== 'string' || !/^[A-Za-z0-9_-]{8,64}$/.test(deviceId)) {
@@ -26,6 +26,25 @@ export async function deviceFingerprint(signingKey) {
     const digest = await globalThis.crypto.subtle.digest('SHA-256',raw);
     return Array.from(new Uint8Array(digest),v=>v.toString(16).padStart(2,'0'))
         .join('').toUpperCase().match(/.{1,8}/g).join(' ');
+}
+
+
+// Теги импортированной истории НЕ содержат секретных комнатных ключей.
+// Они нужны, чтобы отдельный обработчик не выдавал импортированный сеанс
+// за криптографически подтверждённого отправителя текущего устройства.
+const ROOM = /^![0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:notes\.local$/i;
+const BASE64 = /^[A-Za-z0-9+/_-]{32,256}={0,2}$/;
+function archivedKeyIdentity(row) {
+    if (!row || !ROOM.test(row.room_id)
+        || !BASE64.test(row.session_id || '')
+        || !BASE64.test(row.sender_key || '')
+        || !BASE64.test(row.sender_claimed_keys?.ed25519 || '')) {
+        throw new TypeError('Недопустимая метка импортированного комнатного ключа');
+    }
+    return {
+        id:'restored:'+row.room_id.toLowerCase()+':'+row.session_id+':'+row.sender_key,
+        signingKey:row.sender_claimed_keys.ed25519.replace(/=+$/,''),
+    };
 }
 
 const STORE = 'devices';
@@ -95,6 +114,36 @@ export function createLocalDeviceTrust(database){
         },
         async unpin(uid,deviceId){
             await storeTransaction(database,'readwrite',s=>s.delete(key(uid,deviceId)));
+        },
+        async recordRestoredRoomKeys(rows){
+            if(!Array.isArray(rows) || rows.length<1 || rows.length>10000) {
+                throw new TypeError('Некорректное количество импортированных ключей');
+            }
+            const entries=rows.map(archivedKeyIdentity);
+            // Записываем метки одной транзакцией, после успеха импорта Matrix.
+            // Сервер Notes не участвует в этой операции.
+            await new Promise((resolve,reject)=>{
+                const txn=database.transaction(STORE,'readwrite');
+                const store=txn.objectStore(STORE);
+                for(const row of entries){
+                    store.put({signingKey:row.signingKey,origin:'local-archive'},row.id);
+                }
+                txn.oncomplete=()=>resolve();
+                txn.onerror=()=>reject(new Error('Не удалось сохранить метки восстановленных ключей'));
+                txn.onabort=()=>reject(new Error('Сохранение меток истории отменено'));
+            });
+            return entries.length;
+        },
+        async isRestoredRoomKey({dialogUid,sessionId,senderKey,senderClaimedEd25519Key}){
+            const identity=archivedKeyIdentity({
+                room_id:notesMatrixRoomId(dialogUid),session_id:sessionId,
+                sender_key:senderKey,
+                sender_claimed_keys:{ed25519:senderClaimedEd25519Key}
+            });
+            const record=await storeTransaction(database,'readonly',
+                store=>store.get(identity.id));
+            return record?.origin==='local-archive' &&
+                record.signingKey===identity.signingKey;
         }
     });
 }
