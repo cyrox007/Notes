@@ -97,7 +97,7 @@ test('Настоящий Matrix: зашифрованный экспорт во�
         const room=new sdk.RoomId(notesMatrixRoomId(dialogUid));
         const options=new sdk.EncryptionSettings();
         options.sharingStrategy=sdk.CollectStrategy.onlyTrustedDevices();
-        const packets=await alice.shareRoomKey(room,participants,options);
+        const packets=await alice.shareRoomKey(room,[senderUid,recipientUid].map(uidFor),options);
         for(const item of packets){
             await handleToDevice(alice,item,aliceId,dialogUid,async body=>{
                 const target=body.recipient_user_uid+':'+body.recipient_device_id;
