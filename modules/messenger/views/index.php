@@ -132,6 +132,23 @@ ob_start();
                         <span id="messenger-e2ee-own-id"></span>
                     </div>
                     <div id="messenger-e2ee-device-list" class="messenger-e2ee-device-list"></div>
+                    <section class="messenger-e2ee-archive" aria-label="Перенос зашифрованной истории">
+                        <strong>Перенести старую историю</strong>
+                        <p>Сохраните зашифрованный файл на старом устройстве и откройте его на новом. Файл и пароль не отправляются серверу. Для восстановления ключей нужен доступ к этому файлу и отдельная парольная фраза.</p>
+                        <label for="messenger-e2ee-archive-password">Парольная фраза для архива (не менее 16 символов, отличается от пароля устройства)</label>
+                        <input id="messenger-e2ee-archive-password" type="password" autocomplete="off" minlength="16" maxlength="1024">
+                        <label for="messenger-e2ee-archive-repeat">Повторите пароль перед созданием архива</label>
+                        <input id="messenger-e2ee-archive-repeat" type="password" autocomplete="off" minlength="16" maxlength="1024">
+                        <div class="messenger-e2ee-archive__actions">
+                            <button id="messenger-e2ee-archive-save" class="messenger-secondary-button" type="button" disabled>Сохранить зашифрованные ключи</button>
+                        </div>
+                        <label for="messenger-e2ee-archive-file">Зашифрованный файл со старого устройства</label>
+                        <input id="messenger-e2ee-archive-file" type="file" accept=".json,application/json" disabled>
+                        <div class="messenger-e2ee-archive__actions">
+                            <button id="messenger-e2ee-archive-restore" class="messenger-secondary-button" type="button" disabled>Восстановить ключи и историю</button>
+                        </div>
+                        <p>Важно: потеря файла и пароля означает потерю возможности восстановить старую историю. Не храните пароль рядом с файлом.</p>
+                    </section>
                 </section>
                 <div class="messenger-e2ee-messages" id="messenger-e2ee-messages" aria-live="polite"></div>
                 <div class="messenger-e2ee-composer">
