@@ -135,6 +135,14 @@ $dialogUid = '77777777-7777-4777-8777-777777777777';
 $transaction = 'session_transaction_0000001';
 $service->send(1, 'device_001', $uids[2], 'device_002', $dialogUid, $transaction, $envelope);
 $service->send(1, 'device_001', $uids[2], 'device_002', $dialogUid, $transaction, $envelope);
+mustReject(
+    fn () => $service->send(
+        1, 'device_001', $uids[2], 'device_002',
+        '88888888-8888-4888-8888-888888888888',
+        'session_transaction_normal_000001', $envelope
+    ),
+    'Olm-пакет нельзя отправить через обычный диалог'
+);
 assertRelay(count($service->inbox(2, 'device_002')) === 1, 'повтор не создаёт дубликат');
 mustReject(fn () => $service->send(1, 'device_001', $uids[3], 'device_002', $dialogUid, 'session_transaction_0000002', $envelope), 'чужой диалог');
 $changed = $envelope;
@@ -170,6 +178,17 @@ $encryptedRoom = [
 $roomTxn = 'room_transaction_000000001';
 $service->sendRoomEvent(1, 'device_001', $dialogUid, $roomTxn, $encryptedRoom);
 $service->sendRoomEvent(1, 'device_001', $dialogUid, $roomTxn, $encryptedRoom);
+mustReject(
+    fn () => $service->sendRoomEvent(
+        1, 'device_001', '88888888-8888-4888-8888-888888888888',
+        'room_transaction_normal_000001', $encryptedRoom
+    ),
+    'Megolm-шифротекст нельзя записать в обычный диалог'
+);
+mustReject(
+    fn () => $service->roomEvents(1, '88888888-8888-4888-8888-888888888888'),
+    'Обычный диалог не выдаёт E2EE-хронологию'
+);
 $storedEvents = $service->roomEvents(2, $dialogUid);
 assertRelay(count($storedEvents) === 1, 'повтор не создаёт второе сообщение Megolm');
 assertRelay($storedEvents[0]['encrypted'] == $encryptedRoom, 'сервер возвращает только исходный шифротекст');
