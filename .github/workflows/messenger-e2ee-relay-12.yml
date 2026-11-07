@@ -8,6 +8,7 @@ on:
       - 'database/migrations/**'
       - 'database/messenger_module_schema.sql'
       - 'tests/integration/messenger_e2ee_relay_12.php'
+      - 'tests/integration/messenger_e2ee_dialog_mode_12.php'
       - 'tests/integration/messenger_e2ee_file_crypto_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_bootstrap_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_transport_12.mjs'
@@ -108,6 +109,11 @@ jobs:
           php -l modules/messenger/MessengerRuntimeProvider.php
           php -l modules/messenger/runtime.php
           php -l tests/integration/messenger_e2ee_relay_12.php
+          php -l tests/integration/messenger_e2ee_dialog_mode_12.php
+          php -l modules/messenger/services/MessengerService.php
+          php -l modules/messenger/services/MessengerMediaService.php
+          php -l modules/messenger/services/MessengerVoiceService.php
+          php -l modules/messenger/services/MessengerForwardService.php
           php -r '$m=json_decode(file_get_contents("database/migrations/manifest.json"),true,32,JSON_THROW_ON_ERROR); if (!in_array("20261031_messenger_e2ee_relay.sql",$m["migrations"],true)) exit(1);'
 
       - name: Проверить ключи, принадлежность, доставку и отзыв на MySQL
@@ -117,4 +123,6 @@ jobs:
           DBUSER: root
           DBPASS: root
           DBNAME: e2ee_relay_test
-        run: php tests/integration/messenger_e2ee_relay_12.php
+        run: |
+          php tests/integration/messenger_e2ee_relay_12.php
+          php tests/integration/messenger_e2ee_dialog_mode_12.php
