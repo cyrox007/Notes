@@ -71,11 +71,19 @@ test('Настоящий Matrix: зашифрованный экспорт во�
         isTrusted:async(uid,device,key)=>(devices.get(uid)||[])
             .some(x=>x.device_id===device&&x.signing_key===key)
     };
+    const restoredSessions=[];
     async function read(machine,event){
         return decryptRoomTimeline(sdk,machine,dialogUid,async()=>({events:[event]}),0,
             details=>verifyPinnedRoomSender({
                 ...details,sdk,machine,localTrust:trust,fetchDevices:getDevices
-            }));
+            }),
+            details=>restoredSessions.some(session=>
+                session.room_id===notesMatrixRoomId(details.dialogUid)
+                && session.session_id===details.sessionId
+                && session.sender_key===details.senderKey
+                && session.sender_claimed_keys.ed25519===details.senderClaimedEd25519Key
+            )
+        );
     }
     try{
         const alice=await create(senderUid,aliceId);
@@ -147,7 +155,12 @@ test('Настоящий Matrix: зашифрованный экспорт во�
             archive:created.archive
         });
         assert.ok(restored.importedCount>0,'Новый телефон должен сохранить ключи старой истории');
-        assert.deepEqual((await read(bobPhone,event)).messages.map(x=>x.text),[plaintext]);
+        restoredSessions.push(...restored.sessions);
+        const recovered = await read(bobPhone,event);
+        assert.deepEqual(recovered.messages.map(x=>x.text),[plaintext]);
+        assert.equal(recovered.messages[0].restored,true);
+        assert.equal(recovered.messages[0].verified,false,
+            'Импортированная история не должна выдавать себя за живую проверку устройства');
         const duplicate=await restoreEncryptedRoomKeyArchive({
             sdk,machine:bobPhone,userUid:recipientUid,passphrase:password,
             archive:created.archive
