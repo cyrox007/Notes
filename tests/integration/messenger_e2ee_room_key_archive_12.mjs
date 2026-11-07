@@ -9,7 +9,8 @@ const other='22222222-2222-4222-8222-222222222222';
 const passphrase='Фраза-для-секретного-архива-на-двух-устройствах';
 const room='!77777777-7777-4777-8777-777777777777:notes.local';
 const original=[{room_id:room,algorithm:'m.megolm.v1.aes-sha2',session_id:'session-example',
-    sender_key:'sender_key_example',session_key:'СЕКРЕТНЫЙ КЛЮЧ НЕ ДОЛЖЕН ВЫХОДИТЬ В ФАЙЛ'}];
+    sender_key:'sender_key_example',sender_claimed_keys:{ed25519:'signing-example'},
+    session_key:'СЕКРЕТНЫЙ КЛЮЧ НЕ ДОЛЖЕН ВЫХОДИТЬ В ФАЙЛ'}];
 function fixture(){
     const records=[];
     const sdk={OlmMachine:{
