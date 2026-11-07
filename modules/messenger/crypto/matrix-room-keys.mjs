@@ -34,8 +34,12 @@ export async function rotateAndShareRoomKey({
     inFlightRooms.add(roomId);
     try {
         const participants = memberUids.map(uid => notesMatrixUserId(uid));
-        const request = machine.queryKeysForUsers(memberUids.map(uid => new sdk.UserId(notesMatrixUserId(uid))));
-        await handleKeyQuery(machine, request, async uid => getDevices(uid));
+        const request = await machine.queryKeysForUsers(
+            memberUids.map(uid => new sdk.UserId(notesMatrixUserId(uid)))
+        );
+        if (request) {
+            await handleKeyQuery(machine, request, async uid => getDevices(uid));
+        }
 
         // Нельзя допустить выборочного пропуска пользователя или устройства.
         // Публичная подпись не равна доверию: нужна локальная запись после подтверждения отпечатка.
