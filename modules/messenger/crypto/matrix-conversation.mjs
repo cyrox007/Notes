@@ -103,6 +103,26 @@ export function createE2eeConversation({sdk,machine,transport,trust,userUid,devi
         if (request) {
             await handleKeyQuery(machine,request,uid=>transport.getDevices(uid));
         }
+        // На новом устройстве локальная сверка отпечатка должна быть
+        // отражена также в Matrix до расшифровки. Без этого серверный
+        // список и локальный PIN согласованы, но decrypt отвергает текст.
+        // Не подтверждённые владельцем устройства здесь не доверяются.
+        for (const uid of original.members) {
+            const registered = (await transport.getDevices(uid))?.devices;
+            if (!Array.isArray(registered) || registered.length > 12) {
+                throw new Error('Каталог устройств недоступен для проверки отправителя');
+            }
+            for (const device of registered) {
+                if (!device?.device_id || !device?.signing_key) {
+                    throw new Error('Неизвестная идентичность устройства');
+                }
+                if (await trust.isTrusted(uid,device.device_id,device.signing_key)) {
+                    await applyPinnedDeviceTrust(
+                        sdk,machine,trust,uid,device.device_id,device.signing_key
+                    );
+                }
+            }
+        }
         const keys = await receiveDevicePackages(
             sdk,machine,deviceId,
             device=>transport.inbox(device),
