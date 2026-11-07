@@ -92,5 +92,5 @@ test('неподтверждённое, удалённое и неустанов
     await assert.rejects(decryptRoomTimeline(sdk,{decryptRoomEvent:async()=>({...decrypted,senderDevice:undefined})},
         dialogUid,fetch,0,async()=>true),/устройство/);
     await assert.rejects(decryptRoomTimeline(sdk,machine,dialogUid,fetch),
-        /проверки доверия/);
+        /проверкой доверия/);
 });
