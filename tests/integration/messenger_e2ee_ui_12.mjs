@@ -5,6 +5,7 @@ import { Script } from 'node:vm';
 
 const view = readFileSync('modules/messenger/views/index.php', 'utf8');
 const logic = readFileSync('modules/messenger/views/e2ee.js', 'utf8');
+const legacy = readFileSync('modules/messenger/views/script.js', 'utf8');
 const assets = readFileSync('modules/messenger/controllers/MessengerE2eeAssetsController.php','utf8');
 const routes = readFileSync('modules/messenger/MessengerRuntimeProvider.php','utf8');
 const css = readFileSync('modules/messenger/views/e2ee.css','utf8');
@@ -53,4 +54,13 @@ test('интерфейс не может переключать существу
     assert.ok(logic.includes("&& app.currentDialog?.encryption_mode === 'e2ee'"));
     assert.ok(routes.includes("'/e2ee/dialogs'"));
     assert.ok(routes.includes('CSRFMiddleware::class'));
+});
+
+test('обычный редактор отключён в E2EE даже при ошибке загрузки клиентского движка',()=>{
+    const source=legacy.replace(/^\{literal\}\s*/, '').replace(/\s*\{\/literal\}\s*$/, '');
+    assert.doesNotThrow(()=>new Script(source,{filename:'messenger-script.js'}));
+    assert.ok(legacy.includes("this.currentDialog.encryption_mode !== 'server_encrypted'"));
+    assert.ok(legacy.includes('this.root.dataset.dialogMode'));
+    assert.ok(css.includes('[data-dialog-mode="e2ee"] .messenger-composer'));
+    assert.ok(css.includes('[data-dialog-mode="unknown"] .messenger-composer'));
 });
