@@ -67,6 +67,9 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             if (state.active) {
                 ui.messages.replaceChildren();
                 state.rendered.clear();
+                // После повторного открытия перечитываем всю историю,
+                // иначе ранее сохранённый курсор скрывает сообщения.
+                state.cursor.delete(app.currentDialog.uid);
                 status(state.conversation
                     ? 'Отдельная зашифрованная история. Проверяйте ключи при каждом изменении участников.'
                     : 'Настройте ключи устройства. Никакое сообщение не будет отправлено открытым текстом.');
@@ -164,7 +167,6 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 ui.keys.hidden = false;
                 status('Устройство подготовлено. Сверьте отпечатки участников перед отправкой.');
                 await refreshDevices();
-                await refreshMessages();
             } catch (error) {
                 status(error?.message || 'Криптодвижок недоступен. Отправка заблокирована.', true);
             } finally {
@@ -172,6 +174,7 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 ui.passphrase.value = '';
                 state.loading = false;
                 setBusy(false);
+                if (state.conversation && state.active) void refreshMessages();
             }
         }
 
@@ -312,11 +315,11 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 await state.conversation.send(dialogUid, text);
                 if (ui.input.value.trim() === text) ui.input.value = '';
                 status('Шифротекст сохранён сервером. Ключ остался на устройстве.');
-                await refreshMessages();
             } catch (error) {
                 status(error?.message || 'Защищённая отправка отклонена', true);
             } finally {
                 setBusy(false);
+                if (state.conversation && state.active) void refreshMessages();
             }
         }
 
@@ -335,11 +338,11 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                     app.currentDialog.uid, new Uint8Array(await file.arrayBuffer()), file.name
                 );
                 status('Зашифрованный файл отправлен. Исходный файл серверу недоступен.');
-                await refreshMessages();
             } catch (error) {
                 status(error?.message || 'Не удалось отправить зашифрованный файл', true);
             } finally {
                 setBusy(false);
+                if (state.conversation && state.active) void refreshMessages();
             }
         }
 
