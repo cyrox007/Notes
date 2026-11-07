@@ -483,6 +483,83 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             }
         }
 
+        function clearArchiveSecrets() {
+            ui.archivePassword.value = '';
+            ui.archiveRepeat.value = '';
+            ui.archiveFile.value = '';
+        }
+
+        async function saveRoomKeyArchive() {
+            if (state.pending || !state.machine || state.disposed || !state.active) return;
+            const passphrase = String(ui.archivePassword.value);
+            if (passphrase !== ui.archiveRepeat.value) {
+                status('Пароль архива и повторное подтверждение не совпадают.', true);
+                return;
+            }
+            setBusy(true);
+            status('Шифруем архив комнатных ключей только на этом устройстве…');
+            try {
+                const {archive,keyCount} = await state.archiveApi.createEncryptedRoomKeyArchive({
+                    sdk:state.sdk,machine:state.machine,userUid:app.userUid,passphrase
+                });
+                const blob = new Blob([archive],{type:'application/json'});
+                const url = URL.createObjectURL(blob);
+                try {
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = 'notes-e2ee-room-keys-'
+                        + new Date().toISOString().slice(0,10) + '.json';
+                    document.body.append(link);
+                    link.click();
+                    link.remove();
+                } finally {
+                    pageScope.setTimeout(() => URL.revokeObjectURL(url),30000);
+                }
+                status('Сохранён зашифрованный архив: '+keyCount
+                    +' ключей. Держите файл и пароль отдельно.');
+            } catch (error) {
+                status(error?.message || 'Не удалось зашифровать ключи истории',true);
+            } finally {
+                clearArchiveSecrets();
+                setBusy(false);
+            }
+        }
+
+        async function restoreRoomKeyArchive() {
+            if (state.pending || !state.machine || state.disposed || !state.active) return;
+            const file = ui.archiveFile.files?.[0];
+            if (!file || file.size < 1 || file.size > 12 * 1024 * 1024) {
+                status('Выберите архив Notes размером не более 12 МиБ.',true);
+                return;
+            }
+            const passphrase = String(ui.archivePassword.value);
+            const dialogUid = app.currentDialog?.uid;
+            const generation = state.generation;
+            setBusy(true);
+            status('Восстанавливаем старые комнатные ключи локально…');
+            try {
+                const archive = await file.text();
+                const result = await state.archiveApi.restoreEncryptedRoomKeyArchive({
+                    sdk:state.sdk,machine:state.machine,userUid:app.userUid,
+                    archive,passphrase
+                });
+                if (state.disposed || !state.active || state.generation !== generation
+                    || app.currentDialog?.uid !== dialogUid) return;
+                state.cursor.delete(dialogUid);
+                state.rendered.clear();
+                ui.messages.replaceChildren();
+                status('Обработано '+result.totalCount+' комнатных ключей, новых: '
+                    +result.importedCount+'. Повторно читаем историю.');
+            } catch (error) {
+                status(error?.message || 'Не удалось восстановить ключи истории',true);
+                return;
+            } finally {
+                clearArchiveSecrets();
+                setBusy(false);
+            }
+            void refreshMessages();
+        }
+
         async function startEncryptedDialog() {
             const selected = app.currentDialog;
             if (!selected || selected.encryption_mode === 'e2ee') {
@@ -539,6 +616,8 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             }
             void startEncryptedDialog();
         });
+        ui.archiveSave.addEventListener('click', () => void saveRoomKeyArchive());
+        ui.archiveRestore.addEventListener('click', () => void restoreRoomKeyArchive());
         ui.activate.addEventListener('click', () => void initialize());
         ui.refresh.addEventListener('click', () => void refreshDevices().catch(
             (error) => status(error?.message || 'Не удалось получить устройства', true)
