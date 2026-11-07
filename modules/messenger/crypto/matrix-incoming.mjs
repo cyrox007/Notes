@@ -122,11 +122,24 @@ export async function decryptRoomTimeline(sdk, machine, dialogUid, fetchEvents, 
     const messages = [];
     for (let index = 0; index < converted.length; index++) {
         const result = await machine.decryptRoomEvent(JSON.stringify(converted[index]), room, settings);
-        const senderDeviceId = result?.senderDevice?.toString?.();
-        const sender = result?.sender?.toString?.();
-        if (!senderDeviceId || senderDeviceId !== rows[index]?.sender_device_id) {
-            throw new Error('Криптодвижок не подтвердил устройство отправителя');
+        const deviceFromCrypto = result?.senderDevice?.toString?.();
+        const deviceFromEvent = rows[index]?.sender_device_id;
+        // У импортированных из локального архива Megolm-ключей Matrix
+        // может не восстановить senderDevice. Это НЕ разрешение доверять
+        // серверному идентификатору: при отсутствии метаданных устройства
+        // ниже обязательно сверяются ПРИВЯЗАННЫЕ К КЛЮЧУ Ed25519 и Curve25519
+        // с проверенной идентичностью из локального Matrix и реестра.
+        if (deviceFromCrypto && deviceFromCrypto !== deviceFromEvent) {
+            throw new Error('Устройство отправителя не совпало с криптодвижком');
         }
+        if (!deviceFromCrypto && (
+            typeof result?.senderClaimedEd25519Key !== 'string'
+            || typeof result?.senderCurve25519Key !== 'string'
+        )) {
+            throw new Error('Нет криптографического подтверждения архивного ключа');
+        }
+        const senderDeviceId = deviceFromCrypto || deviceFromEvent;
+        const sender = result?.sender?.toString?.() || converted[index].sender;
         if (await verifySender({
             senderUid: rows[index].sender_uid,
             senderDeviceId,
