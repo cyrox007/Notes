@@ -23,6 +23,7 @@ on:
       - 'tests/integration/messenger_e2ee_http_transport_12.mjs'
       - 'tests/integration/messenger_e2ee_conversation_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_real_12.mjs'
+      - 'tests/e2e/messenger_e2ee_browser_12.mjs'
       - 'tests/integration/messenger_e2ee_two_devices_real_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_signature_12.php'
       - 'tests/integration/messenger_e2ee_ui_12.mjs'
@@ -91,7 +92,7 @@ jobs:
           E2EE_MATRIX_KEY_FIXTURE: /tmp/notes-e2ee-matrix-public-keys.json
         run: |
           set -euo pipefail
-          npm install --no-save --no-package-lock --ignore-scripts @matrix-org/matrix-sdk-crypto-wasm@18.9.0
+          npm install --no-save --no-package-lock --ignore-scripts @matrix-org/matrix-sdk-crypto-wasm@18.9.0 playwright@1.55.0
           node --test tests/integration/messenger_e2ee_matrix_real_12.mjs
           node --test tests/integration/messenger_e2ee_two_devices_real_12.mjs
           php tests/integration/messenger_e2ee_matrix_signature_12.php
@@ -99,6 +100,13 @@ jobs:
           test -s modules/messenger/crypto/sdk/index.mjs
           test -s modules/messenger/crypto/sdk/pkg/matrix_sdk_crypto_wasm_bg.js
           test -s modules/messenger/crypto/sdk/pkg/matrix_sdk_crypto_wasm_bg.wasm
+
+      - name: Проверить запуск локального WebAssembly в Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps chromium
+          node --test tests/e2e/messenger_e2ee_browser_12.mjs
 
       - name: Проверить синтаксис транспорта и маршрутов
         shell: bash
