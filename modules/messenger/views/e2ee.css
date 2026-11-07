@@ -5,6 +5,9 @@
 .messenger-app[data-e2ee-active="true"] #compose-context,
 .messenger-app[data-e2ee-active="true"] #messenger-upload-status,
 .messenger-app[data-e2ee-active="true"] .messenger-composer { display:none !important; }
+/* Закрываем обычную отправку и при ошибке загрузки E2EE-модуля. */
+.messenger-app[data-dialog-mode="e2ee"] .messenger-composer,
+.messenger-app[data-dialog-mode="unknown"] .messenger-composer { display:none !important; }
 .messenger-e2ee-panel[hidden], .messenger-e2ee-setup[hidden],
 .messenger-e2ee-keys[hidden] { display:none !important; }
 .messenger-e2ee-panel {
