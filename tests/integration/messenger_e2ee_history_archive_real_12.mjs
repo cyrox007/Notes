@@ -85,6 +85,7 @@ test('Настоящий Matrix: зашифрованный экспорт во�
             )
         );
     }
+    let completed=false;
     try{
         const alice=await create(senderUid,aliceId);
         const bobPc=await create(recipientUid,oldId);
@@ -168,7 +169,15 @@ test('Настоящий Matrix: зашифрованный экспорт во�
         assert.equal(duplicate.totalCount,restored.totalCount);
         assert.deepEqual((await read(bobPhone,event)).messages.map(x=>x.text),[plaintext],
             'Повторный импорт не должен портить уже прочитанную историю');
+        completed=true;
     }finally{
-        for(const machine of machines)await machine.close();
+        for(const machine of machines){
+            try {
+                await machine.close();
+            } catch(error) {
+                // Ошибка закрытия не должна скрывать первопричину падения теста.
+                if(completed)throw error;
+            }
+        }
     }
 });
