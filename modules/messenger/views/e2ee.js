@@ -363,7 +363,12 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             )) return;
             toggle.disabled = true;
             try {
-                const http = state.http || await import(clientModule('matrix-http-transport.mjs'));
+                // Диалог нельзя сделать обычным после создания. Поэтому сначала
+                // убеждаемся, что клиент способен реально запустить локальный WASM,
+                // иначе останется недоступная защищённая беседа.
+                await loadEngine();
+                await state.sdk.initAsync();
+                const http = state.http;
                 const transport = state.transport || http.createMessengerE2eeTransport({
                     messengerPath: path('/messenger'),
                     getCsrfToken: () => window.wspace?.security?.getCSRFToken?.() || ''
