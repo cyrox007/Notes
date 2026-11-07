@@ -134,7 +134,8 @@ export function createE2eeConversation({sdk,machine,transport,trust,userUid,devi
             details=>verifyPinnedRoomSender({
                 sdk,machine,localTrust:trust,
                 fetchDevices:uid=>transport.getDevices(uid),...details
-            })
+            }),
+            details=>trust.isRestoredRoomKey?.(details) ?? false
         );
         const current=validateParticipants(await transport.participants(dialogUid),userUid);
         if (current.fingerprint!==original.fingerprint) {
