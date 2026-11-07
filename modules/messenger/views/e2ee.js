@@ -40,7 +40,8 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
         };
 
         const setReady = (ready) => {
-            const allow = ready && !state.pending && state.active;
+            const allow = ready && !state.pending && state.active
+                && app.currentDialog?.encryption_mode === 'e2ee';
             ui.input.disabled = !allow;
             ui.send.disabled = !allow;
             ui.file.disabled = !allow;
@@ -55,12 +56,14 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
         };
 
         function togglePanel(visible) {
-            state.active = Boolean(visible && app.currentDialog?.uid);
+            state.active = Boolean(visible && app.currentDialog?.uid
+                && app.currentDialog?.encryption_mode === 'e2ee');
             state.generation += 1;
             panel.hidden = !state.active;
             root.dataset.e2eeActive = String(state.active);
             toggle.setAttribute('aria-pressed', String(state.active));
-            toggle.title = state.active ? 'Вернуться к обычным сообщениям' : 'Открыть защищённую переписку';
+            toggle.title = state.active ? 'Защищённый диалог — обычная отправка здесь запрещена'
+                : 'Создать отдельный защищённый диалог';
             if (state.active) {
                 ui.messages.replaceChildren();
                 state.rendered.clear();
@@ -340,12 +343,57 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             }
         }
 
+        async function startEncryptedDialog() {
+            const selected = app.currentDialog;
+            if (!selected || selected.encryption_mode === 'e2ee') {
+                togglePanel(true);
+                return;
+            }
+            if (selected.type !== 'private' || !selected.partner?.uid) {
+                window.alert('Защищённая переписка пока доступна только с одним собеседником.');
+                return;
+            }
+            if (!window.confirm(
+                'Создать отдельный защищённый диалог?\n\n'
+                + 'Обычные сообщения останутся в старом чате, а новый диалог '
+                + 'будет принимать только E2EE-шифротекст. Продолжить?'
+            )) return;
+            toggle.disabled = true;
+            try {
+                const http = state.http || await import(clientModule('matrix-http-transport.mjs'));
+                const transport = state.transport || http.createMessengerE2eeTransport({
+                    messengerPath: path('/messenger'),
+                    getCsrfToken: () => window.wspace?.security?.getCSRFToken?.() || ''
+                });
+                const result = await transport.createEncryptedDialog(selected.partner.uid);
+                const dialogUid = result?.dialog?.uid;
+                if (typeof dialogUid !== 'string' || !dialogUid) {
+                    throw new Error('Сервер не создал защищённый диалог');
+                }
+                app.pendingOpenUid = dialogUid;
+                app.sendEvent('MessangerSocket:get_dialogs', {});
+            } catch (error) {
+                window.alert(error?.message || 'Не удалось открыть защищённый диалог');
+            } finally {
+                toggle.disabled = false;
+            }
+        }
+
         const originalOpenDialog = app.openDialog.bind(app);
         app.openDialog = (uid) => {
             togglePanel(false);
             originalOpenDialog(uid);
+            if (app.currentDialog?.encryption_mode === 'e2ee') {
+                togglePanel(true);
+            }
         };
-        toggle.addEventListener('click', () => togglePanel(!state.active));
+        toggle.addEventListener('click', () => {
+            if (app.currentDialog?.encryption_mode === 'e2ee') {
+                togglePanel(true);
+                return;
+            }
+            void startEncryptedDialog();
+        });
         ui.activate.addEventListener('click', () => void initialize());
         ui.refresh.addEventListener('click', () => void refreshDevices().catch(
             (error) => status(error?.message || 'Не удалось получить устройства', true)
@@ -390,6 +438,7 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             state.machine?.close?.();
         });
         setReady(false);
+        if (app.currentDialog?.encryption_mode === 'e2ee') togglePanel(true);
     });
 })();
 });
