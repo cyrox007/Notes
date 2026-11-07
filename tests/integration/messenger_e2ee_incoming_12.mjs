@@ -90,38 +90,41 @@ test('неподтверждённое, удалённое и неустанов
     await assert.rejects(decryptRoomTimeline(sdk,machine,dialogUid,fetch,0,async()=>{throw Error('Ключ заменён');}),
         /Ключ заменён/);
     await assert.rejects(decryptRoomTimeline(sdk,{decryptRoomEvent:async()=>({...decrypted,senderDevice:undefined})},
-        dialogUid,fetch,0,async()=>{throw Error('Ключ отправителя подменён');}),/подменён/);
+        dialogUid,fetch,0,async()=>{throw Error('Ключ отправителя подменён');}),/локальным архивом/);
     await assert.rejects(decryptRoomTimeline(sdk,machine,dialogUid,fetch),
         /проверкой доверия/);
 });
 
-test('архивная история без senderDevice принимается только после проверки ключей',async()=>{
+test('архивная история не выдаётся за проверенную без явной локальной метки',async()=>{
     const rows=[{id:19,sender_uid:senderUid,sender_device_id:'DEVICE_001',
-        encrypted:{algorithm:'m.megolm.v1.aes-sha2',sender_key:'original-curve',ciphertext:'encrypted'},
+        encrypted:{algorithm:'m.megolm.v1.aes-sha2',sender_key:'original-curve',
+            session_id:'session-example-1234',ciphertext:'encrypted'},
         created_at:'2026-11-07 12:00:00'}];
-    const decrypted={sender:null,senderDevice:null,
+    const decrypted={sender:{toString:()=> '@'+senderUid+':notes.local'},senderDevice:null,
         senderCurve25519Key:'original-curve',senderClaimedEd25519Key:'original-ed',
         event:JSON.stringify({type:'m.room.message',sender:'@'+senderUid+':notes.local',
             content:{msgtype:'m.text',body:'архивное сообщение'}})};
-    let verified=0;
-    const checked=async details=>{
-        verified++;
-        assert.equal(details.senderDeviceId,'DEVICE_001');
-        assert.equal(details.senderEd25519,'original-ed');
-        assert.equal(details.senderCurve25519,'original-curve');
-        assert.equal(details.matrixSender,'@'+senderUid+':notes.local');
-        // В настоящем клиенте этот callback вызывает verifyPinnedRoomSender,
-        // сверяющий оба ключа с подтверждённой локальной записью устройства.
-        return true;
-    };
     const machine={decryptRoomEvent:async()=>decrypted};
-    const received=await decryptRoomTimeline(sdk,machine,dialogUid,async()=>({events:rows}),0,checked);
+    const fetch=async()=>({events:rows});
+    const disallowNormal=async()=>{throw Error('Не выдавать импорт за verified');};
+    await assert.rejects(decryptRoomTimeline(sdk,machine,dialogUid,fetch,0,disallowNormal),
+        /локальным архивом/);
+    await assert.rejects(decryptRoomTimeline(sdk,machine,dialogUid,fetch,0,disallowNormal,
+        async()=>false),/локальным архивом/);
+    const received=await decryptRoomTimeline(sdk,machine,dialogUid,fetch,0,disallowNormal,
+        async details=>{
+            assert.equal(details.sessionId,'session-example-1234');
+            assert.equal(details.senderKey,'original-curve');
+            assert.equal(details.senderClaimedEd25519Key,'original-ed');
+            return true;
+        });
     assert.deepEqual(received.messages.map(x=>x.text),['архивное сообщение']);
-    assert.equal(verified,1);
+    assert.equal(received.messages[0].verified,false);
+    assert.equal(received.messages[0].restored,true);
     await assert.rejects(decryptRoomTimeline(sdk,{
         decryptRoomEvent:async()=>({...decrypted,senderClaimedEd25519Key:null})
-    },dialogUid,async()=>({events:rows}),0,checked),/криптографического подтверждения/);
+    },dialogUid,fetch,0,disallowNormal,async()=>false),/локальным архивом/);
     await assert.rejects(decryptRoomTimeline(sdk,{
         decryptRoomEvent:async()=>({...decrypted,senderDevice:{toString:()=> 'DEVICE_SUBSTITUTED'}})
-    },dialogUid,async()=>({events:rows}),0,checked),/не совпало/);
+    },dialogUid,fetch,0,disallowNormal,async()=>true),/не подтвердил/);
 });
