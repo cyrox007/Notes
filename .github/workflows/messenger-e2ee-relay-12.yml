@@ -27,6 +27,7 @@ on:
       - 'tests/integration/messenger_e2ee_matrix_real_12.mjs'
       - 'tests/e2e/messenger_e2ee_browser_12.mjs'
       - 'tests/integration/messenger_e2ee_two_devices_real_12.mjs'
+      - 'tests/integration/messenger_e2ee_three_devices_real_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_signature_12.php'
       - 'tests/integration/messenger_e2ee_ui_12.mjs'
       - 'tools/install-messenger-e2ee-sdk.mjs'
@@ -99,6 +100,7 @@ jobs:
           npm install --no-save --no-package-lock --ignore-scripts @matrix-org/matrix-sdk-crypto-wasm@18.9.0 playwright@1.55.0
           node --test tests/integration/messenger_e2ee_matrix_real_12.mjs
           node --test tests/integration/messenger_e2ee_two_devices_real_12.mjs
+          node --test tests/integration/messenger_e2ee_three_devices_real_12.mjs
           php tests/integration/messenger_e2ee_matrix_signature_12.php
           node tools/install-messenger-e2ee-sdk.mjs
           test -s modules/messenger/crypto/sdk/index.mjs
