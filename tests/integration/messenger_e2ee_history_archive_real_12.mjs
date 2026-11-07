@@ -165,7 +165,9 @@ test('Настоящий Matrix: зашифрованный экспорт во�
             sdk,machine:bobPhone,userUid:recipientUid,passphrase:password,
             archive:created.archive
         });
-        assert.equal(duplicate.importedCount,0,'Повторный импорт не должен дублировать сеансы');
+        assert.equal(duplicate.totalCount,restored.totalCount);
+        assert.deepEqual((await read(bobPhone,event)).messages.map(x=>x.text),[plaintext],
+            'Повторный импорт не должен портить уже прочитанную историю');
     }finally{
         for(const machine of machines)await machine.close();
     }
