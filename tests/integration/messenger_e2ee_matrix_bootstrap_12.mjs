@@ -43,7 +43,7 @@ test('публикуются только подписанные публичн�
     const calls = [], marked = [];
     const machine = {
         outgoingRequests: async () => [{
-            id: 'request-1', type: 2, body: JSON.stringify({
+            id: 'request-1', type: 0, body: JSON.stringify({
                 device_keys: id,
                 one_time_keys: { 'signed_curve25519:77': { key: 'public-only', signatures: {} } },
             }),
@@ -59,11 +59,28 @@ test('публикуются только подписанные публичн�
     assert.equal(marked.length, 1);
     assert.equal(marked[0][0], 'request-1');
 });
+test('запрос поиска устройств не принимается за публикацию собственной идентичности',async()=>{
+    const marked=[],sent=[];
+    const machine={
+        outgoingRequests:async()=>[
+            {id:'query',type:1,body:JSON.stringify({device_keys:{[userId]:[]}})},
+            {id:'upload',type:0,body:JSON.stringify({device_keys:id})}
+        ],
+        markRequestAsSent:async(...args)=>marked.push(args),
+    };
+    const result=await publishInitialKeys(machine,user,device,async(...args)=>sent.push(args));
+    assert.equal(result.registered,true);
+    assert.equal(sent.length,1);
+    assert.equal(sent[0][0],'/e2ee/devices');
+    assert.equal(marked.length,1);
+    assert.equal(marked[0][0],'upload');
+});
+
 
 test('неподписанный ключ, резервный ключ и сетевой отказ не подтверждаются движку', async () => {
     const marked = [];
     const machine = (body) => ({
-        outgoingRequests: async () => [{ id: 'r', type: 2, body: JSON.stringify(body) }],
+        outgoingRequests: async () => [{ id: 'r', type: 0, body: JSON.stringify(body) }],
         markRequestAsSent: async (...args) => marked.push(args),
     });
     await assert.rejects(publishInitialKeys(machine({ device_keys: { ...id, signatures: {} } }), user, device, async () => {}));
