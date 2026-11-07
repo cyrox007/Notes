@@ -200,6 +200,18 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 ui.passphrase.value = '';
                 state.loading = false;
                 setBusy(false);
+                if (state.disposed) {
+                    // Если навигация закрыла страницу во время инициализации,
+                    // освобождаем устройство только после завершения открытия.
+                    try {
+                        await state.machine?.close?.();
+                    } catch (_) { /* Передаём безопасность блокировке браузера. */ }
+                    state.database?.close?.();
+                    state.lease?.release();
+                    state.lease = null;
+                    state.machine = null;
+                    return;
+                }
                 if (state.conversation && state.active) void refreshMessages();
             }
         }
@@ -469,6 +481,9 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             state.disposed = true;
             state.active = false;
             state.generation += 1;
+            // Инициализация сама закроет только что открытое устройство в
+            // finally; преждевременный unlock вызовет гонку между вкладками.
+            if (state.loading) return;
             const machine = state.machine;
             const lease = state.lease;
             state.machine = null;
