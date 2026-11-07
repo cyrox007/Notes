@@ -129,7 +129,7 @@ export async function decryptRoomTimeline(sdk, machine, dialogUid, fetchEvents, 
             // У старого импортированного сеанса бывает неизвестно исходное
             // устройство. Он доступен для чтения только по локальной метке,
             // записанной ПОСЛЕ успешного импорта. verified никогда не true.
-            if (sender !== notesMatrixUserId(rows[index].sender_uid)
+            if ((sender && sender !== notesMatrixUserId(rows[index].sender_uid))
                 || result?.senderCurve25519Key !== rows[index].encrypted.sender_key
                 || typeof verifyRestoredSender !== 'function'
                 || await verifyRestoredSender({
