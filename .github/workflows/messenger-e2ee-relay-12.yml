@@ -8,6 +8,8 @@ on:
       - 'database/migrations/**'
       - 'database/messenger_module_schema.sql'
       - 'tests/integration/messenger_e2ee_relay_12.php'
+      - 'tests/integration/messenger_e2ee_csp_12.php'
+      - 'core/SecurityHeaders.php'
       - 'tests/integration/messenger_e2ee_dialog_mode_12.php'
       - 'tests/integration/messenger_e2ee_file_crypto_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_bootstrap_12.mjs'
@@ -113,6 +115,8 @@ jobs:
           php -l modules/messenger/MessengerRuntimeProvider.php
           php -l modules/messenger/runtime.php
           php -l tests/integration/messenger_e2ee_relay_12.php
+          php -l tests/integration/messenger_e2ee_csp_12.php
+          php tests/integration/messenger_e2ee_csp_12.php
           php -l tests/integration/messenger_e2ee_dialog_mode_12.php
           php -l modules/messenger/services/MessengerService.php
           php -l modules/messenger/services/MessengerMediaService.php
