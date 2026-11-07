@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS `dialogs` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `uid` CHAR(36) NOT NULL,
     `type` ENUM('private', 'group', 'saved') NOT NULL DEFAULT 'private',
+    `encryption_mode` ENUM('server_encrypted','e2ee') NOT NULL DEFAULT 'server_encrypted',
     `name` VARCHAR(120) DEFAULT NULL,
     `avatar` VARCHAR(255) DEFAULT NULL,
     `created_by` INT DEFAULT NULL,
@@ -242,3 +243,33 @@ CREATE TABLE IF NOT EXISTS `messenger_e2ee_attachments` (
   CONSTRAINT `fk_messenger_e2ee_attachment_event`
     FOREIGN KEY (`event_id`) REFERENCES `messenger_e2ee_events` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- На уровне БД не допускаем ошибочную запись обычного сообщения
+-- или незашифрованного вложения в E2EE-диалог. В триггере одно выражение,
+-- поэтому он совместим с простым SQL-импортом на обычном хостинге.
+DROP TRIGGER IF EXISTS `messenger_reject_plain_e2ee_message`;
+CREATE TRIGGER `messenger_reject_plain_e2ee_message`
+BEFORE INSERT ON `messages`
+FOR EACH ROW
+SET NEW.dialog_id = IF(
+    (SELECT d.encryption_mode FROM `dialogs` d WHERE d.id = NEW.dialog_id) = 'e2ee',
+    NULL, NEW.dialog_id
+);
+
+DROP TRIGGER IF EXISTS `messenger_reject_plain_e2ee_attachment`;
+CREATE TRIGGER `messenger_reject_plain_e2ee_attachment`
+BEFORE INSERT ON `messenger_attachments`
+FOR EACH ROW
+SET NEW.dialog_id = IF(
+    (SELECT d.encryption_mode FROM `dialogs` d WHERE d.id = NEW.dialog_id) = 'e2ee',
+    NULL, NEW.dialog_id
+);
+
+-- Запрещаем тихое изменение режима существующего диалога.
+DROP TRIGGER IF EXISTS `messenger_immutable_encryption_mode`;
+CREATE TRIGGER `messenger_immutable_encryption_mode`
+BEFORE UPDATE ON `dialogs`
+FOR EACH ROW
+SET NEW.encryption_mode = IF(
+    NEW.encryption_mode <> OLD.encryption_mode, NULL, NEW.encryption_mode
+);
