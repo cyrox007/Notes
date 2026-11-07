@@ -82,3 +82,19 @@ test('ключи E2EE открываются только под межвкла�
     assert.ok(logic.includes('state.lease?.release()'));
     assert.ok(logic.includes('lease?.release()'));
 });
+
+test('второе E2EE-устройство подтверждается сравнением кода, а не одним нажатием',()=>{
+    assert.ok(view.includes('id="messenger-e2ee-own-code"'));
+    assert.ok(view.includes('id="messenger-e2ee-own-id"'));
+    assert.ok(logic.includes("import(clientModule('matrix-device-pairing.mjs'))"));
+    assert.ok(assets.includes("'matrix-device-pairing.mjs'"));
+    assert.ok(logic.includes('state.pairing.deviceComparisonCode('));
+    assert.ok(logic.includes('state.pairing.confirmIndependentDevice('));
+    assert.ok(logic.includes('fetchDevices: uid => state.transport.getDevices(uid)'));
+    assert.equal(logic.includes('window.confirm('),false,
+        'Нельзя подтверждать чужое устройство одним согласием без ввода кода');
+    assert.ok(logic.includes('opened.machine.identityKeys'),
+        'Код своего устройства должен исходить из локального криптодвижка');
+    assert.ok(logic.includes('trust.pin(userUid, deviceId, ownSigning'),
+        'Свой ключ подтверждается из локальной машины, а не из серверного ответа');
+});
