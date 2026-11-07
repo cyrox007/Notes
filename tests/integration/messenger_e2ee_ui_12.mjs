@@ -25,7 +25,7 @@ test('клиентская интеграция корректна синтак�
     const source=logic.replace(/^\{literal\}\s*/, '').replace(/\s*\{\/literal\}\s*$/, '');
     assert.doesNotThrow(()=>new Script(source,{filename:'e2ee.js'}));
     for(const name of ['createE2eeConversation','sendFile','receiveFile','publishInitialKeys',
-        'createLocalDeviceTrust','state.trust.pin','app.openDialog']) {
+        'createLocalDeviceTrust','state.pairing.confirmIndependentDevice','app.openDialog']) {
         assert.ok(logic.includes(name), 'Не подключён '+name);
     }
     assert.equal(logic.includes('MessangerSocket:message_send'),false,
