@@ -103,9 +103,10 @@ export async function receiveDevicePackages(sdk, machine, deviceId, fetchInbox, 
  * Для показа текста требуется подтверждённая идентичность отправителя.
  * Отказ одного события не превращается в пустое сообщение.
  */
-export async function decryptRoomTimeline(sdk, machine, dialogUid, fetchEvents, after = 0) {
+export async function decryptRoomTimeline(sdk, machine, dialogUid, fetchEvents, after = 0, verifySender) {
     if (!sdk?.RoomId || !sdk?.DecryptionSettings
-        || sdk?.TrustRequirement?.CrossSigned === undefined || !machine?.decryptRoomEvent) {
+        || sdk?.TrustRequirement?.Untrusted === undefined || !machine?.decryptRoomEvent
+        || typeof verifySender !== 'function') {
         throw new Error('Криптодвижок с проверкой доверия недоступен');
     }
     if (!Number.isSafeInteger(after) || after < 0) {
@@ -114,10 +115,28 @@ export async function decryptRoomTimeline(sdk, machine, dialogUid, fetchEvents, 
     const rows = (await fetchEvents(dialogUid, after))?.events;
     const converted = checkedRoomEvents(rows, dialogUid);
     const room = new sdk.RoomId(notesMatrixRoomId(dialogUid));
-    const settings = new sdk.DecryptionSettings(sdk.TrustRequirement.CrossSigned);
+    // В Notes подтверждение Ed25519 пока ручное, а не через cross-signing.
+    // Разрешаем движку выполнить криптографическую расшифровку, но НЕ
+    // отдаём результат интерфейсу до отдельной строгой проверки устройства.
+    const settings = new sdk.DecryptionSettings(sdk.TrustRequirement.Untrusted);
     const messages = [];
     for (let index = 0; index < converted.length; index++) {
         const result = await machine.decryptRoomEvent(JSON.stringify(converted[index]), room, settings);
+        const senderDeviceId = result?.senderDevice?.toString?.();
+        const sender = result?.sender?.toString?.();
+        if (!senderDeviceId || senderDeviceId !== rows[index]?.sender_device_id) {
+            throw new Error('Криптодвижок не подтвердил устройство отправителя');
+        }
+        if (await verifySender({
+            senderUid: rows[index].sender_uid,
+            senderDeviceId,
+            matrixSender: sender,
+            senderEd25519: result?.senderClaimedEd25519Key,
+            senderCurve25519: result?.senderCurve25519Key,
+            encryptedSenderKey: rows[index].encrypted.sender_key,
+        }) !== true) {
+            throw new Error('Отпечаток устройства отправителя не подтверждён');
+        }
         const decrypted = JSON.parse(result?.event || '');
         if (decrypted.type !== 'm.room.message'
             || decrypted.sender !== converted[index].sender) {
