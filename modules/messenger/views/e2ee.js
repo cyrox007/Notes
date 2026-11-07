@@ -24,7 +24,12 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             messages: document.getElementById('messenger-e2ee-messages'),
             input: document.getElementById('messenger-e2ee-input'),
             file: document.getElementById('messenger-e2ee-file'),
-            send: document.getElementById('messenger-e2ee-send')
+            send: document.getElementById('messenger-e2ee-send'),
+            archivePassword: document.getElementById('messenger-e2ee-archive-password'),
+            archiveRepeat: document.getElementById('messenger-e2ee-archive-repeat'),
+            archiveFile: document.getElementById('messenger-e2ee-archive-file'),
+            archiveSave: document.getElementById('messenger-e2ee-archive-save'),
+            archiveRestore: document.getElementById('messenger-e2ee-archive-restore')
         };
         const path = (resource) => typeof window.wspace?.path === 'function'
             ? window.wspace.path(resource) : resource;
@@ -32,7 +37,7 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
         const state = {
             active: false, pending: false, loading: false, sdk: null,
             machine: null, transport: null, trust: null, conversation: null,
-            pairing: null,
+            pairing: null, archiveApi: null,
             session: null, lease: null, disposed: false,
             currentDevice: '', cursor: new Map(), rendered: new Set(), database: null,
             generation: 0
@@ -57,6 +62,10 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             state.pending = busy;
             ui.activate.disabled = busy;
             ui.refresh.disabled = busy;
+            const archiveAvailable = !busy && Boolean(state.machine) && !state.disposed;
+            ui.archiveSave.disabled = !archiveAvailable;
+            ui.archiveRestore.disabled = !archiveAvailable;
+            ui.archiveFile.disabled = !archiveAvailable;
             setReady(Boolean(state.conversation));
         };
 
@@ -111,16 +120,18 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 import(clientModule('matrix-device-bootstrap.mjs')),
                 import(clientModule('matrix-device-session.mjs')),
                 import(clientModule('matrix-device-pairing.mjs')),
+                import(clientModule('matrix-room-key-archive.mjs')),
                 import(clientModule('matrix-http-transport.mjs')),
                 import(clientModule('matrix-device-trust.mjs')),
                 import(clientModule('matrix-conversation.mjs'))
             ]);
-            const [sdk, bootstrap, sessions, pairing, http, trust, conversations] = modules;
+            const [sdk, bootstrap, sessions, pairing, archiveApi, http, trust, conversations] = modules;
             if (!sdk.OlmMachine?.initialize) throw new Error('Локальный криптодвижок не установлен.');
             state.sdk = sdk;
             state.bootstrap = bootstrap;
             state.session = sessions;
             state.pairing = pairing;
+            state.archiveApi = archiveApi;
             state.http = http;
             state.trustApi = trust;
             state.conversations = conversations;
@@ -200,6 +211,9 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 });
                 ui.setup.hidden = true;
                 ui.keys.hidden = false;
+                ui.archiveSave.disabled = false;
+                ui.archiveRestore.disabled = false;
+                ui.archiveFile.disabled = false;
                 status('Устройство подготовлено. Сверьте отпечатки участников перед отправкой.');
                 await refreshDevices();
             } catch (error) {
