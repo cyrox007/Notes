@@ -245,6 +245,81 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             }
         }
 
+        async function confirmPairing(row, typed) {
+            if (!state.active || !state.conversation || state.disposed) {
+                throw new Error('Защищённый диалог уже закрыт');
+            }
+            const dialogUid = app.currentDialog?.uid;
+            const generation = state.generation;
+            const live = await state.transport.participants(dialogUid);
+            if (dialogUid !== app.currentDialog?.uid || generation !== state.generation) {
+                throw new Error('Диалог изменился во время сверки устройства');
+            }
+            if (!Array.isArray(live?.members) || !live.members.includes(row.uid)) {
+                throw new Error('Устройство больше не принадлежит участникам диалога');
+            }
+            await state.pairing.confirmIndependentDevice({
+                userUid: row.uid, device: row.device, input: typed,
+                fetchDevices: uid => state.transport.getDevices(uid),
+                localTrust: state.trust
+            });
+            await refreshDevices();
+            status('Ключ устройства подтверждён по независимому коду.');
+        }
+
+        async function submitPairing(row, entry, verify, submit) {
+            verify.disabled = true;
+            submit.disabled = true;
+            const typed = entry.value;
+            entry.value = '';
+            try {
+                await confirmPairing(row, typed);
+            } catch (error) {
+                status(error?.message || 'Код сравнения не подтверждён', true);
+            } finally {
+                verify.disabled = false;
+                submit.disabled = false;
+            }
+        }
+
+        function createPairingControls(row) {
+            const verify = document.createElement('button');
+            verify.type = 'button';
+            verify.className = 'messenger-secondary-button';
+            verify.textContent = 'Сверить код другого устройства';
+
+            const form = document.createElement('form');
+            form.className = 'messenger-e2ee-pairing-form';
+            form.hidden = true;
+
+            const label = document.createElement('label');
+            label.textContent = 'Введите код с экрана второго устройства: '
+                + row.device.device_id;
+            const entry = document.createElement('input');
+            entry.type = 'text';
+            entry.autocomplete = 'off';
+            entry.spellcheck = false;
+            entry.maxLength = 48;
+            entry.placeholder = 'XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX';
+            label.append(entry);
+
+            const submit = document.createElement('button');
+            submit.type = 'submit';
+            submit.className = 'messenger-secondary-button';
+            submit.textContent = 'Проверить совпадение ключей';
+            form.append(label, submit);
+
+            verify.addEventListener('click', () => {
+                form.hidden = !form.hidden;
+                if (!form.hidden) entry.focus();
+            });
+            form.addEventListener('submit', event => {
+                event.preventDefault();
+                void submitPairing(row, entry, verify, submit);
+            });
+            return { verify, form };
+        }
+
         async function refreshDevices() {
             if (!state.conversation || !app.currentDialog?.uid || !state.active) return;
             const generation = state.generation;
@@ -282,70 +357,8 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 data.append(title, code, info);
                 item.append(data);
                 if (!row.confirmed) {
-                    const verify = document.createElement('button');
-                    verify.type = 'button';
-                    verify.className = 'messenger-secondary-button';
-                    verify.textContent = 'Сверить код другого устройства';
-
-                    const form = document.createElement('form');
-                    form.className = 'messenger-e2ee-pairing-form';
-                    form.hidden = true;
-
-                    const label = document.createElement('label');
-                    const entry = document.createElement('input');
-                    entry.type = 'text';
-                    entry.autocomplete = 'off';
-                    entry.spellcheck = false;
-                    entry.maxLength = 48;
-                    entry.placeholder = 'XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX';
-                    label.textContent = 'Введите код с экрана второго устройства: '
-                        + row.device.device_id;
-                    label.append(entry);
-
-                    const submit = document.createElement('button');
-                    submit.type = 'submit';
-                    submit.className = 'messenger-secondary-button';
-                    submit.textContent = 'Проверить совпадение ключей';
-                    form.append(label, submit);
-
-                    verify.addEventListener('click', () => {
-                        form.hidden = !form.hidden;
-                        if (!form.hidden) entry.focus();
-                    });
-                    form.addEventListener('submit', (event) => {
-                        event.preventDefault();
-                        void (async () => {
-                            if (!state.active || !state.conversation || state.disposed) return;
-                            verify.disabled = true;
-                            submit.disabled = true;
-                            const supplied = entry.value;
-                            entry.value = '';
-                            try {
-                                // При переходе на другой диалог нельзя подтвердить
-                                // устройство из устаревшего списка.
-                                const live = await state.transport.participants(
-                                    app.currentDialog.uid
-                                );
-                                if (!Array.isArray(live?.members)
-                                    || !live.members.includes(row.uid)) {
-                                    throw new Error('Устройство больше не принадлежит участникам диалога');
-                                }
-                                await state.pairing.confirmIndependentDevice({
-                                    userUid: row.uid, device: row.device, input: supplied,
-                                    fetchDevices: uid => state.transport.getDevices(uid),
-                                    localTrust: state.trust
-                                });
-                                await refreshDevices();
-                                status('Ключ устройства подтверждён по независимому коду.');
-                            } catch (error) {
-                                status(error?.message || 'Код сравнения не подтверждён', true);
-                            } finally {
-                                verify.disabled = false;
-                                submit.disabled = false;
-                            }
-                        })();
-                    });
-                    item.append(verify, form);
+                    const controls = createPairingControls(row);
+                    item.append(controls.verify, controls.form);
                 }
                 ui.devices.append(item);
             }
