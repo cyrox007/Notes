@@ -38,7 +38,7 @@ final class MessengerE2eeRelayService
             'SELECT d.id FROM dialogs d
              INNER JOIN user_to_dialogs own
                ON own.dialog_id = d.id AND own.user_id = :uid AND own.is_deleted = 0
-             WHERE d.uid = :dialog LIMIT 1',
+             WHERE d.uid = :dialog AND d.encryption_mode = 'e2ee' LIMIT 1',
             [':uid' => $actor, ':dialog' => $dialogUid]
         );
         if ($dialog === null) {
@@ -59,6 +59,48 @@ final class MessengerE2eeRelayService
             'members' => $members,
             'fingerprint' => hash('sha256', implode("\n", $members)),
         ];
+    }
+
+    /**
+     * Создаём отдельный личный E2EE-диалог: никогда не меняем режим старого
+     * диалога с обычной историей и не выдаём его за защищённый.
+     *
+     * @return array<string,mixed>
+     */
+    public function createEncryptedDialog(int $actor, string $recipientUid): array
+    {
+        if ($actor <= 0) {
+            throw new DomainException('Требуется авторизация', 401);
+        }
+        $recipientId = $this->targetUserForCreation($recipientUid);
+        if ($recipientId === $actor) {
+            throw new InvalidArgumentException('Для защищённого диалога нужен другой пользователь');
+        }
+        $user = $this->db->fetchOne(
+            'SELECT uid FROM users WHERE id = :id AND is_active = 1 LIMIT 1',
+            [':id' => $actor]
+        );
+        if ($user === null) {
+            throw new DomainException('Аккаунт недоступен', 403);
+        }
+        return (new MessengerService($this->db))->createDialog(
+            (string) $user['uid'], 'private', [$recipientUid], null, 'e2ee'
+        );
+    }
+
+    private function targetUserForCreation(string $uid): int
+    {
+        if (preg_match('/^[a-fA-F0-9-]{36}$/D', $uid) !== 1) {
+            throw new InvalidArgumentException('Некорректный идентификатор собеседника');
+        }
+        $id = $this->db->fetchValue(
+            'SELECT id FROM users WHERE uid = :uid AND is_active = 1 LIMIT 1',
+            [':uid' => $uid]
+        );
+        if ($id === null) {
+            throw new DomainException('Собеседник не найден', 404);
+        }
+        return (int) $id;
     }
 
     /** @return list<array<string,mixed>> */
@@ -280,7 +322,7 @@ final class MessengerE2eeRelayService
                    ON s.dialog_id = d.id AND s.user_id = :sender AND s.is_deleted = 0
                  INNER JOIN user_to_dialogs r
                    ON r.dialog_id = d.id AND r.user_id = :recipient AND r.is_deleted = 0
-                 WHERE d.uid = :dialog LIMIT 1 FOR UPDATE',
+                 WHERE d.uid = :dialog AND d.encryption_mode = 'e2ee' LIMIT 1 FOR UPDATE',
                 [':sender' => $actor, ':recipient' => $recipient, ':dialog' => $dialogUid]
             );
             if ($dialog === null) {
@@ -380,7 +422,7 @@ final class MessengerE2eeRelayService
                 'SELECT d.id FROM dialogs d
                  INNER JOIN user_to_dialogs m
                    ON m.dialog_id = d.id AND m.user_id = :uid AND m.is_deleted = 0
-                 WHERE d.uid = :dialog LIMIT 1 FOR UPDATE',
+                 WHERE d.uid = :dialog AND d.encryption_mode = 'e2ee' LIMIT 1 FOR UPDATE',
                 [':uid' => $actor, ':dialog' => $dialogUid]
             );
             if ($dialog === null) {
@@ -446,7 +488,7 @@ final class MessengerE2eeRelayService
             'SELECT d.id FROM dialogs d
              INNER JOIN user_to_dialogs m
                ON m.dialog_id = d.id AND m.user_id = :uid AND m.is_deleted = 0
-             WHERE d.uid = :dialog LIMIT 1',
+             WHERE d.uid = :dialog AND d.encryption_mode = 'e2ee' LIMIT 1',
             [':uid' => $actor, ':dialog' => $dialogUid]
         );
         if ($dialog === null) {
@@ -602,6 +644,7 @@ final class MessengerE2eeRelayService
             $shared = $this->db->fetchOne(
                 'SELECT 1 FROM user_to_dialogs a
                  INNER JOIN user_to_dialogs b ON b.dialog_id = a.dialog_id
+                 INNER JOIN dialogs d ON d.id = a.dialog_id AND d.encryption_mode = 'e2ee'
                  WHERE a.user_id = :actor AND b.user_id = :target
                    AND a.is_deleted = 0 AND b.is_deleted = 0 LIMIT 1',
                 [':actor' => $actor, ':target' => $target]
