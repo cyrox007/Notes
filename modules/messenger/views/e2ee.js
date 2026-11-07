@@ -29,6 +29,7 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
         const state = {
             active: false, pending: false, loading: false, sdk: null,
             machine: null, transport: null, trust: null, conversation: null,
+            session: null, lease: null, disposed: false,
             currentDevice: '', cursor: new Map(), rendered: new Set(), database: null,
             generation: 0
         };
@@ -104,14 +105,16 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             const modules = await Promise.all([
                 import(path('/messenger/e2ee/sdk/index.mjs')),
                 import(clientModule('matrix-device-bootstrap.mjs')),
+                import(clientModule('matrix-device-session.mjs')),
                 import(clientModule('matrix-http-transport.mjs')),
                 import(clientModule('matrix-device-trust.mjs')),
                 import(clientModule('matrix-conversation.mjs'))
             ]);
-            const [sdk, bootstrap, http, trust, conversations] = modules;
+            const [sdk, bootstrap, sessions, http, trust, conversations] = modules;
             if (!sdk.OlmMachine?.initialize) throw new Error('Локальный криптодвижок не установлен.');
             state.sdk = sdk;
             state.bootstrap = bootstrap;
+            state.session = sessions;
             state.http = http;
             state.trustApi = trust;
             state.conversations = conversations;
@@ -128,18 +131,29 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             state.loading = true;
             setBusy(true);
             status('Загружается локальный криптографический движок…');
+            let opened = null;
+            let db = null;
             try {
                 await loadEngine();
                 const deviceId = deviceIdentifier(userUid);
-                const opened = await state.bootstrap.openClientMachine(
+                const lease = await state.session.acquireDeviceSession(userUid, deviceId);
+                if (state.disposed) {
+                    lease.release();
+                    throw new Error('Страница защищённой переписки закрыта');
+                }
+                state.lease = lease;
+                opened = await state.bootstrap.openClientMachine(
                     state.sdk, userUid, deviceId, passphrase
                 );
+                if (state.disposed) {
+                    throw new Error('Страница защищённой переписки закрыта');
+                }
                 const transport = state.http.createMessengerE2eeTransport({
                     messengerPath: path('/messenger'),
                     getCsrfToken: () => window.wspace?.security?.getCSRFToken?.() || ''
                 });
                 const database = state.trustApi.openTrustDatabase(userUid);
-                const db = await database;
+                db = await database;
                 const trust = state.trustApi.createLocalDeviceTrust(db);
                 await state.bootstrap.publishInitialKeys(
                     opened.machine, userUid, deviceId,
@@ -168,7 +182,19 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 status('Устройство подготовлено. Сверьте отпечатки участников перед отправкой.');
                 await refreshDevices();
             } catch (error) {
-                status(error?.message || 'Криптодвижок недоступен. Отправка заблокирована.', true);
+                // Не оставляем заблокированное устройство при ошибке инициализации.
+                // Отпускаем межвкладочную блокировку только после закрытия машины.
+                if (!state.conversation) {
+                    try {
+                        await opened?.machine?.close?.();
+                    } catch (_) { /* Исключение не даёт продолжать отправку. */ }
+                    db?.close?.();
+                    state.lease?.release();
+                    state.lease = null;
+                }
+                if (!state.disposed) {
+                    status(error?.message || 'Криптодвижок недоступен. Отправка заблокирована.', true);
+                }
             } finally {
                 // Парольная фраза не хранится в DOM после попытки открытия.
                 ui.passphrase.value = '';
@@ -440,10 +466,21 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             if (state.active && state.conversation && !state.pending) void refreshMessages();
         }, 7000);
         pageScope.onDispose(() => {
+            state.disposed = true;
             state.active = false;
             state.generation += 1;
-            state.database?.close?.();
-            state.machine?.close?.();
+            const machine = state.machine;
+            const lease = state.lease;
+            state.machine = null;
+            state.lease = null;
+            // Закрываем хранилище Matrix ДО освобождения блокировки, чтобы
+            // следующая вкладка никогда не увидела двух активных писателей.
+            void Promise.resolve().then(() => machine?.close?.())
+                .catch(() => {})
+                .finally(() => {
+                    state.database?.close?.();
+                    lease?.release();
+                });
         });
         setReady(false);
         if (app.currentDialog?.encryption_mode === 'e2ee') togglePanel(true);
