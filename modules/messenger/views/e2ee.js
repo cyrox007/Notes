@@ -382,9 +382,12 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             const item = document.createElement('article');
             item.className = 'messenger-e2ee-message';
             item.dataset.own = String(message.sender_uid === app.userUid);
+            item.dataset.restored = String(message.restored === true);
             const header = document.createElement('strong');
-            header.textContent = message.sender_uid === app.userUid
-                ? 'Вы · шифрование' : 'Участник · шифрование';
+            header.textContent = (message.sender_uid === app.userUid ? 'Вы' : 'Участник')
+                + (message.restored
+                    ? ' · из архива, подлинность не подтверждена'
+                    : ' · шифрование');
             const body = document.createElement('span');
             body.textContent = message.type === 'file' ? 'Зашифрованный файл: '
                 + message.attachment.name : message.text;
@@ -543,13 +546,15 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                     sdk:state.sdk,machine:state.machine,userUid:app.userUid,
                     archive,passphrase
                 });
+                await state.trust.recordRestoredRoomKeys(result.sessions);
                 if (state.disposed || !state.active || state.generation !== generation
                     || app.currentDialog?.uid !== dialogUid) return;
                 state.cursor.delete(dialogUid);
                 state.rendered.clear();
                 ui.messages.replaceChildren();
                 status('Обработано '+result.totalCount+' комнатных ключей, новых: '
-                    +result.importedCount+'. Повторно читаем историю.');
+                    +result.importedCount+'. Восстановленные сообщения отмечены как '
+                    +'неподтверждённые. Повторно читаем историю.');
             } catch (error) {
                 status(error?.message || 'Не удалось восстановить ключи истории',true);
                 return;
