@@ -202,6 +202,15 @@ final class MessengerService
         int $limit = self::PAGE_SIZE
     ): array {
         [$user, $dialog] = $this->requireAccess($userUid, $dialogUid);
+        if ($dialog['encryption_mode'] === 'e2ee') {
+            // У E2EE нет доступной серверу истории; никакой запасной расшифровки.
+            return [
+                'dialog' => $this->getDialogInfo($userUid, $dialogUid),
+                'messages' => [],
+                'has_more' => false,
+                'last_message_id' => null,
+            ];
+        }
         $limit = max(1, min(100, $limit));
 
         $whereBefore = '';
