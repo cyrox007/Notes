@@ -19,6 +19,8 @@ on:
       - 'tests/integration/messenger_e2ee_room_keys_12.mjs'
       - 'tests/integration/messenger_e2ee_device_trust_12.mjs'
       - 'tests/integration/messenger_e2ee_device_pairing_12.mjs'
+      - 'tests/integration/messenger_e2ee_room_key_archive_12.mjs'
+      - 'tests/integration/messenger_e2ee_room_key_archive_real_12.mjs'
       - 'tests/integration/messenger_e2ee_sender_trust_12.mjs'
       - 'tests/integration/messenger_e2ee_device_session_12.mjs'
       - 'tests/integration/messenger_e2ee_sdk_trust_12.mjs'
@@ -85,6 +87,7 @@ jobs:
           node --test tests/integration/messenger_e2ee_room_keys_12.mjs
           node --test tests/integration/messenger_e2ee_device_trust_12.mjs
           node --test tests/integration/messenger_e2ee_device_pairing_12.mjs
+          node --test tests/integration/messenger_e2ee_room_key_archive_12.mjs
           node --test tests/integration/messenger_e2ee_sender_trust_12.mjs
           node --test tests/integration/messenger_e2ee_device_session_12.mjs
           node --test tests/integration/messenger_e2ee_sdk_trust_12.mjs
@@ -102,6 +105,7 @@ jobs:
           node --test tests/integration/messenger_e2ee_matrix_real_12.mjs
           node --test tests/integration/messenger_e2ee_two_devices_real_12.mjs
           node --test tests/integration/messenger_e2ee_three_devices_real_12.mjs
+          node --test tests/integration/messenger_e2ee_room_key_archive_real_12.mjs
           node --test tests/integration/messenger_e2ee_history_archive_real_12.mjs
           php tests/integration/messenger_e2ee_matrix_signature_12.php
           node tools/install-messenger-e2ee-sdk.mjs
