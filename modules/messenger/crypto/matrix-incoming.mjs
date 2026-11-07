@@ -103,7 +103,7 @@ export async function receiveDevicePackages(sdk, machine, deviceId, fetchInbox, 
  * Для показа текста требуется подтверждённая идентичность отправителя.
  * Отказ одного события не превращается в пустое сообщение.
  */
-export async function decryptRoomTimeline(sdk, machine, dialogUid, fetchEvents, after = 0, verifySender) {
+export async function decryptRoomTimeline(sdk, machine, dialogUid, fetchEvents, after = 0, verifySender, verifyRestoredSender) {
     if (!sdk?.RoomId || !sdk?.DecryptionSettings
         || sdk?.TrustRequirement?.Untrusted === undefined || !machine?.decryptRoomEvent
         || typeof verifySender !== 'function') {
@@ -122,33 +122,41 @@ export async function decryptRoomTimeline(sdk, machine, dialogUid, fetchEvents, 
     const messages = [];
     for (let index = 0; index < converted.length; index++) {
         const result = await machine.decryptRoomEvent(JSON.stringify(converted[index]), room, settings);
-        const deviceFromCrypto = result?.senderDevice?.toString?.();
-        const deviceFromEvent = rows[index]?.sender_device_id;
-        // У импортированных из локального архива Megolm-ключей Matrix
-        // может не восстановить senderDevice. Это НЕ разрешение доверять
-        // серверному идентификатору: при отсутствии метаданных устройства
-        // ниже обязательно сверяются ПРИВЯЗАННЫЕ К КЛЮЧУ Ed25519 и Curve25519
-        // с проверенной идентичностью из локального Matrix и реестра.
-        if (deviceFromCrypto && deviceFromCrypto !== deviceFromEvent) {
-            throw new Error('Устройство отправителя не совпало с криптодвижком');
-        }
-        if (!deviceFromCrypto && (
-            typeof result?.senderClaimedEd25519Key !== 'string'
-            || typeof result?.senderCurve25519Key !== 'string'
-        )) {
-            throw new Error('Нет криптографического подтверждения архивного ключа');
-        }
-        const senderDeviceId = deviceFromCrypto || deviceFromEvent;
-        const sender = result?.sender?.toString?.() || converted[index].sender;
-        if (await verifySender({
-            senderUid: rows[index].sender_uid,
-            senderDeviceId,
-            matrixSender: sender,
-            senderEd25519: result?.senderClaimedEd25519Key,
-            senderCurve25519: result?.senderCurve25519Key,
-            encryptedSenderKey: rows[index].encrypted.sender_key,
-        }) !== true) {
-            throw new Error('Отпечаток устройства отправителя не подтверждён');
+        const senderDeviceId = result?.senderDevice?.toString?.();
+        const sender = result?.sender?.toString?.();
+        let restored = false;
+        if (!senderDeviceId) {
+            // У старого импортированного сеанса бывает неизвестно исходное
+            // устройство. Он доступен для чтения только по локальной метке,
+            // записанной ПОСЛЕ успешного импорта. verified никогда не true.
+            if (sender !== notesMatrixUserId(rows[index].sender_uid)
+                || result?.senderCurve25519Key !== rows[index].encrypted.sender_key
+                || typeof verifyRestoredSender !== 'function'
+                || await verifyRestoredSender({
+                    dialogUid,
+                    sessionId:rows[index].encrypted.session_id,
+                    senderKey:rows[index].encrypted.sender_key,
+                    senderClaimedEd25519Key:result?.senderClaimedEd25519Key
+                }) !== true) {
+                throw new Error('Исторический ключ не подтверждён локальным архивом');
+            }
+            restored = true;
+        } else {
+            // Здесь запрещён любой запасной путь через серверное поле устройства:
+            // обычный сеанс обязан иметь доказательство из криптодвижка.
+            if (senderDeviceId !== rows[index]?.sender_device_id) {
+                throw new Error('Криптодвижок не подтвердил устройство отправителя');
+            }
+            if (await verifySender({
+                senderUid:rows[index].sender_uid,
+                senderDeviceId,
+                matrixSender:sender,
+                senderEd25519:result?.senderClaimedEd25519Key,
+                senderCurve25519:result?.senderCurve25519Key,
+                encryptedSenderKey:rows[index].encrypted.sender_key,
+            }) !== true) {
+                throw new Error('Отпечаток устройства отправителя не подтверждён');
+            }
         }
         const decrypted = JSON.parse(result?.event || '');
         if (decrypted.type !== 'm.room.message'
@@ -160,7 +168,8 @@ export async function decryptRoomTimeline(sdk, machine, dialogUid, fetchEvents, 
             id: rows[index].id,
             sender_uid: rows[index].sender_uid,
             created_at: rows[index].created_at,
-            verified: true,
+            verified: !restored,
+            restored,
         };
         if (content?.msgtype === 'm.text'
             && typeof content.body === 'string' && content.body.length <= 4096) {
