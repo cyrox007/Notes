@@ -100,3 +100,21 @@ test('второе E2EE-устройство подтверждается сра
     assert.ok(logic.includes('trust.pin(userUid, deviceId, ownSigning'),
         'Свой ключ подтверждается из локальной машины, а не из серверного ответа');
 });
+
+test('старые E2EE-ключи экспортируются и импортируются только в открытой OlmMachine',()=>{
+    for(const name of ['messenger-e2ee-archive-password','messenger-e2ee-archive-repeat',
+        'messenger-e2ee-archive-file','messenger-e2ee-archive-save',
+        'messenger-e2ee-archive-restore']) {
+        assert.ok(view.includes('id="'+name+'"'),'Не найден элемент '+name);
+    }
+    assert.ok(assets.includes("'matrix-room-key-archive.mjs'"));
+    assert.ok(logic.includes("import(clientModule('matrix-room-key-archive.mjs'))"));
+    assert.ok(logic.includes('state.archiveApi.createEncryptedRoomKeyArchive('));
+    assert.ok(logic.includes('state.archiveApi.restoreEncryptedRoomKeyArchive('));
+    assert.ok(logic.includes('file.size > 12 * 1024 * 1024'));
+    assert.ok(logic.includes('clearArchiveSecrets()'));
+    assert.ok(logic.includes('state.cursor.delete(dialogUid)'));
+    assert.ok(logic.includes('void refreshMessages()'));
+    assert.equal(logic.includes('uploadRoomKeyArchive('),false,
+        'Архив с секретами не должен отправляться на сервер Notes');
+});
