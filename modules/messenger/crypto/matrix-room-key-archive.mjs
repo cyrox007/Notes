@@ -132,9 +132,16 @@ export async function restoreEncryptedRoomKeyArchive({
             throw new Error('Криптодвижок обнаружил несогласованный набор ключей');
         }
     });
-    const imported = Number(result?.importedCount ?? result?.imported_count ?? importedProgress);
-    if (!Number.isSafeInteger(imported) || imported < 0 || imported > count) {
-        throw new Error('Не удалось подтвердить сохранение импортированных ключей');
+    let imported;
+    try {
+        imported = Number(result?.importedCount ?? result?.imported_count ?? importedProgress);
+        if (!Number.isSafeInteger(imported) || imported < 0 || imported > count) {
+            throw new Error('Не удалось подтвердить сохранение импортированных ключей');
+        }
+    } finally {
+        // Объект Rust обязан освободить ссылки на внутреннее состояние до
+        // закрытия OlmMachine; иначе повторный импорт может удержать заимствование.
+        result?.free?.();
     }
     // Передаём в локальное хранилище только открытые метаданные импортов.
     // Ни session_key, ни пароль, ни исходный JSON не покидают криптодвижок.
