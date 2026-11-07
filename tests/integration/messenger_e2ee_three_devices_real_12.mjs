@@ -138,7 +138,7 @@ test('Matrix Rust Crypto: второй аппарат того же пользо
         // Но ключ нового телефона ещё не подтверждён на компьютере.
         await assert.rejects(
             pc.conversation.send(roomUid,'Нельзя отправлять до подтверждения телефона'),
-            /неподтверждённое устройство/
+            /Отпечаток устройства не подтверждён|неподтверждённое устройство/
         );
         assert.equal(events.length,0);
         assert.equal((mailboxes.get(first+':'+phoneId)||[]).length,0);
