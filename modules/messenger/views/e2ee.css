@@ -45,3 +45,17 @@
     .messenger-e2ee-banner{padding:9px;}
     .messenger-e2ee-keys {max-height:160px;}
 }
+
+/* Сверка ключей второго устройства без доверия к надписи сервера. */
+.messenger-e2ee-own-device { margin:8px 0;padding:9px 10px;border-radius:8px;background:var(--msg-accent-soft,#edf4ff); }
+.messenger-e2ee-own-device[hidden] { display:none !important; }
+.messenger-e2ee-own-device strong { display:block;font-size:12px; }
+.messenger-e2ee-own-device p { margin:5px 0;font-size:12px;line-height:1.5; }
+.messenger-e2ee-own-device code { display:block;font-size:12px;line-height:1.7;letter-spacing:.04em;overflow-wrap:anywhere;user-select:all; }
+.messenger-e2ee-own-device span { display:block;font-size:11px;overflow-wrap:anywhere; }
+.messenger-e2ee-pairing-form { display:grid;gap:6px;flex:1 0 100%;margin-top:5px; }
+.messenger-e2ee-pairing-form[hidden] { display:none !important; }
+.messenger-e2ee-pairing-form label { font-size:12px;line-height:1.4; }
+.messenger-e2ee-pairing-form input { font:inherit;font-size:14px;width:100%;padding:8px;border:1px solid var(--msg-border,#bbb);border-radius:7px;letter-spacing:.04em; }
+.messenger-e2ee-pairing-form button { justify-self:start; }
+.messenger-e2ee-device { flex-wrap:wrap; }
