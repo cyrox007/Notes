@@ -77,6 +77,22 @@ calendarCrudAssert(str_contains($planner, 'calendar_event_reminder_offsets'), '�
 $migration = (string) file_get_contents($root . '/database/migrations/20261011_calendar_crud.sql');
 calendarCrudAssert(str_contains($migration, "'calendar.use'"), 'Миграция должна добавить RBAC-разрешение Calendar');
 calendarCrudAssert(str_contains($migration, 'calendar_event_reminder_offsets'), 'Миграция должна создать таблицу сохранённых напоминаний');
+ 
+// На чистой установке мастер импортирует schemas, а не всю историю migrations.
+// Поэтому собственная схема Calendar обязана создавать право и связи ролей.
+$freshCalendarSchema = (string) file_get_contents($root . '/database/calendar_schema.sql');
+calendarCrudAssert(
+    str_contains($freshCalendarSchema, "VALUES ('calendar.use', 'calendar'")
+        && str_contains($freshCalendarSchema, 'INSERT IGNORE INTO `role_permissions`')
+        && str_contains($freshCalendarSchema, "'user', 'admin', 'superadmin'"),
+    'Чистая установка должна выдавать calendar.use и привязывать его к стандартным ролям'
+);
+$installerSource = (string) file_get_contents($root . '/install.php');
+calendarCrudAssert(
+    str_contains($installerSource, '$installerDatabase->importSchemas('),
+    'Проверка схемы Calendar должна соответствовать настоящему пути чистой установки'
+);
+
 
 $manifest = json_decode((string) file_get_contents($root . '/modules/calendar/module.json'), true, 32, JSON_THROW_ON_ERROR);
 calendarCrudAssert(in_array('calendar_event_reminder_offsets', $manifest['database']['tables'] ?? [], true), 'module.json не объявляет таблицу offsets');
