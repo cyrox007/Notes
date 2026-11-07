@@ -66,3 +66,19 @@ test('обычный редактор отключён в E2EE даже при �
     assert.ok(css.includes('[data-dialog-mode="e2ee"] .messenger-composer'));
     assert.ok(css.includes('[data-dialog-mode="unknown"] .messenger-composer'));
 });
+
+test('ключи E2EE открываются только под межвкладочной блокировкой',()=>{
+    assert.ok(assets.includes("'matrix-device-session.mjs'"),
+        'Сервер должен разрешать локальный модуль блокировки');
+    assert.ok(logic.includes("import(clientModule('matrix-device-session.mjs'))"));
+    const acquire=logic.indexOf('state.session.acquireDeviceSession(userUid, deviceId)');
+    const open=logic.indexOf('state.bootstrap.openClientMachine(');
+    assert.ok(acquire>0 && open>acquire,
+        'Исключительную блокировку нужно получить до открытия OlmMachine');
+    assert.ok(logic.includes('if (state.loading) return;'),
+        'Нельзя освобождать устройство во время инициализации');
+    assert.ok(logic.includes('await state.machine?.close?.()'),
+        'Криптодвижок должен закрываться до разблокировки');
+    assert.ok(logic.includes('state.lease?.release()'));
+    assert.ok(logic.includes('lease?.release()'));
+});
