@@ -666,7 +666,8 @@ window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => 
             this.el.connection.dataset.state = state;
             if (state === 'offline') this.setConnectionTransport('none');
             if (this.el.connectionText) this.el.connectionText.textContent = text;
-            if (this.el.send) this.el.send.disabled = state !== 'online' && state !== 'fallback';
+            if (this.el.send) this.el.send.disabled = this.currentDialog?.encryption_mode === 'e2ee'
+                || (state !== 'online' && state !== 'fallback');
         }
 
         applyDialogs(dialogs) {
@@ -905,6 +906,9 @@ window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => 
 
             this.storeActiveDialogState();
             this.currentDialog = dialog;
+            this.root.dataset.dialogMode = dialog.encryption_mode || 'unknown';
+            if (this.el.input) this.el.input.disabled = dialog.encryption_mode !== 'server_encrypted';
+            if (this.el.send) this.el.send.disabled = dialog.encryption_mode !== 'server_encrypted';
             this.messages = [];
             this.replyTo = null;
             this.editing = null;
@@ -953,6 +957,9 @@ window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => 
 
         renderChatHeader() {
             if (!this.currentDialog) return;
+            this.root.dataset.dialogMode = this.currentDialog.encryption_mode || 'unknown';
+            if (this.el.input) this.el.input.disabled = this.currentDialog.encryption_mode !== 'server_encrypted';
+            if (this.el.send && this.currentDialog.encryption_mode !== 'server_encrypted') this.el.send.disabled = true;
             this.el.chatTitle.textContent = (this.currentDialog.encryption_mode === 'e2ee' ? '🔒 ' : '')
                 + (this.currentDialog.title || 'Диалог');
             const profileUser = this.currentDialog.type === 'private' ? this.currentDialog.partner : null;
@@ -1289,6 +1296,9 @@ window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => 
 
         async submitComposer() {
             if (!this.currentDialog || this.composerPending) return;
+            // Дополнительная защита: обычный редактор не отправляет содержимое E2EE,
+            // даже когда отдельный криптографический модуль не загрузился.
+            if (this.currentDialog.encryption_mode !== 'server_encrypted') return;
 
             const draftValue = this.el.input.value || '';
             const text = draftValue.trim();
@@ -1331,7 +1341,7 @@ window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => 
                 }
             } finally {
                 this.composerPending = false;
-                if (this.el.send) this.el.send.disabled = false;
+                if (this.el.send) this.el.send.disabled = this.currentDialog?.encryption_mode !== 'server_encrypted';
             }
         }
 
