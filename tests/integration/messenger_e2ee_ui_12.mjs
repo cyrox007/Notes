@@ -49,6 +49,8 @@ test('сервер отдаёт только локальные проверен
 test('интерфейс не может переключать существующий обычный чат в защищённый',()=>{
     assert.ok(logic.includes("selected.encryption_mode === 'e2ee'"));
     assert.ok(logic.includes("createEncryptedDialog(selected.partner.uid)"));
+    assert.ok(logic.includes('await state.sdk.initAsync()'),
+        'Нельзя создавать необратимый E2EE-диалог при недоступном криптодвижке');
     assert.ok(logic.includes("app.pendingOpenUid = dialogUid"));
     assert.ok(logic.includes("app.currentDialog?.encryption_mode === 'e2ee'"));
     assert.ok(logic.includes("&& app.currentDialog?.encryption_mode === 'e2ee'"));
