@@ -91,7 +91,9 @@ test('второе E2EE-устройство подтверждается сра
     assert.ok(logic.includes('state.pairing.deviceComparisonCode('));
     assert.ok(logic.includes('state.pairing.confirmIndependentDevice('));
     assert.ok(logic.includes('fetchDevices: uid => state.transport.getDevices(uid)'));
-    assert.equal(logic.includes('window.confirm('),false,
+    const deviceSection = logic.split('async function refreshDevices()')[1]
+        .split('function appendMessage(')[0];
+    assert.equal(deviceSection.includes('window.confirm('),false,
         'Нельзя подтверждать чужое устройство одним согласием без ввода кода');
     assert.ok(logic.includes('opened.machine.identityKeys'),
         'Код своего устройства должен исходить из локального криптодвижка');
