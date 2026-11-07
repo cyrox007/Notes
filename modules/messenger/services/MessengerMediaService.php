@@ -502,7 +502,7 @@ final class MessengerMediaService
              INNER JOIN dialogs d ON d.id = utd.dialog_id
              WHERE u.id = :user_id
                AND u.is_active = 1
-               AND d.uid = :dialog_uid
+               AND d.uid = :dialog_uid AND d.encryption_mode = \'server_encrypted\'
              LIMIT 1',
             [':user_id' => $userId, ':dialog_uid' => $dialogUid]
         );
