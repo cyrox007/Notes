@@ -40,7 +40,7 @@ $db = new PDO(
 );
 
 $db->exec('CREATE TABLE users (id INT NOT NULL PRIMARY KEY, uid CHAR(36) NOT NULL UNIQUE, is_active TINYINT NOT NULL DEFAULT 1) ENGINE=InnoDB');
-$db->exec('CREATE TABLE dialogs (id BIGINT UNSIGNED NOT NULL PRIMARY KEY, uid CHAR(36) NOT NULL UNIQUE) ENGINE=InnoDB');
+$db->exec("CREATE TABLE dialogs (id BIGINT UNSIGNED NOT NULL PRIMARY KEY, uid CHAR(36) NOT NULL UNIQUE, encryption_mode ENUM('server_encrypted','e2ee') NOT NULL DEFAULT 'server_encrypted') ENGINE=InnoDB");
 $db->exec('CREATE TABLE user_to_dialogs (
     dialog_id BIGINT UNSIGNED NOT NULL, user_id INT NOT NULL,
     is_deleted TINYINT NOT NULL DEFAULT 0,
@@ -63,8 +63,9 @@ foreach ($uids as $id => $uid) {
     $statement = $db->prepare('INSERT INTO users (id, uid) VALUES (?, ?)');
     $statement->execute([$id, $uid]);
 }
-$db->exec("INSERT INTO dialogs (id, uid) VALUES (7, '77777777-7777-4777-8777-777777777777')");
-$db->exec('INSERT INTO user_to_dialogs (dialog_id, user_id) VALUES (7, 1), (7, 2)');
+$db->exec("INSERT INTO dialogs (id, uid, encryption_mode) VALUES (7, '77777777-7777-4777-8777-777777777777', 'e2ee')");
+$db->exec("INSERT INTO dialogs (id, uid) VALUES (8, '88888888-8888-4888-8888-888888888888')");
+$db->exec('INSERT INTO user_to_dialogs (dialog_id, user_id) VALUES (7, 1), (7, 2), (8, 1), (8, 2)');
 
 /** @return array<string,mixed> */
 function signedDevice(string $uid, string $deviceId, string $secret, string $agreement): array
@@ -96,6 +97,7 @@ $members = $service->participants(1, '77777777-7777-4777-8777-777777777777');
 assertRelay($members['members'] === [$uids[1], $uids[2]], 'полный отсортированный список участников');
 assertRelay(strlen($members['fingerprint']) === 64, 'отпечаток состава участников');
 mustReject(fn () => $service->participants(3, '77777777-7777-4777-8777-777777777777'), 'посторонний не получает состав диалога');
+mustReject(fn () => $service->participants(1, '88888888-8888-4888-8888-888888888888'), 'обычный диалог не выдаётся как E2EE');
 $secret1 = sodium_crypto_sign_secretkey(sodium_crypto_sign_keypair());
 $secret2 = sodium_crypto_sign_secretkey(sodium_crypto_sign_keypair());
 $key2 = base64_encode(random_bytes(32));
