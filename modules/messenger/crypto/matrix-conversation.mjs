@@ -1,5 +1,7 @@
 import { rotateAndShareRoomKey } from './matrix-room-keys.mjs';
-import { applyPinnedDeviceTrust } from './matrix-sdk-trust.mjs';
+import { applyPinnedDeviceTrust, verifyPinnedRoomSender } from './matrix-sdk-trust.mjs';
+import { notesMatrixUserId } from './matrix-device-bootstrap.mjs';
+import { handleKeyQuery } from './matrix-transport-bridge.mjs';
 import { prepareEncryptedText, prepareEncryptedFileMessage, sendPreparedEncryptedText } from './matrix-room-messages.mjs';
 import { encryptAttachment, decryptAttachment } from './e2ee-file-crypto.mjs';
 import { receiveDevicePackages, decryptRoomTimeline } from './matrix-incoming.mjs';
@@ -89,6 +91,18 @@ export function createE2eeConversation({sdk,machine,transport,trust,userUid,devi
     }
 
     async function receive(dialogUid,after=0) {
+        const original=validateParticipants(await transport.participants(dialogUid),userUid);
+        if (!sdk?.UserId || !machine?.queryKeysForUsers) {
+            throw new Error('Криптодвижок не умеет проверять устройства входящих сообщений');
+        }
+        // Получение не должно зависеть от того, отправлял ли сам пользователь
+        // сообщения: перед обработкой ключей узнаём устройства всех участников.
+        const request=await machine.queryKeysForUsers(
+            original.members.map(uid=>new sdk.UserId(notesMatrixUserId(uid)))
+        );
+        if (request) {
+            await handleKeyQuery(machine,request,uid=>transport.getDevices(uid));
+        }
         const keys = await receiveDevicePackages(
             sdk,machine,deviceId,
             device=>transport.inbox(device),
@@ -96,8 +110,16 @@ export function createE2eeConversation({sdk,machine,transport,trust,userUid,devi
         );
         const timeline = await decryptRoomTimeline(
             sdk,machine,dialogUid,
-            (room,cursor)=>transport.roomEvents(room,cursor),after
+            (room,cursor)=>transport.roomEvents(room,cursor),after,
+            details=>verifyPinnedRoomSender({
+                sdk,machine,localTrust:trust,
+                fetchDevices:uid=>transport.getDevices(uid),...details
+            })
         );
+        const current=validateParticipants(await transport.participants(dialogUid),userUid);
+        if (current.fingerprint!==original.fingerprint) {
+            throw new Error('Состав участников изменился при чтении зашифрованной истории');
+        }
         return { ...timeline, new_keys:keys.received };
     }
     return Object.freeze({send,sendFile,receive,receiveFile});
