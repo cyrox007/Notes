@@ -15,6 +15,7 @@ final class MessengerE2eeAssetsController extends Controller
 {
     private const CLIENT_FILES = [
         'matrix-device-bootstrap.mjs',
+        'matrix-device-session.mjs',
         'matrix-http-transport.mjs',
         'matrix-device-trust.mjs',
         'matrix-sdk-trust.mjs',
