@@ -44,3 +44,13 @@ test('сервер отдаёт только локальные проверен
     assert.ok(routes.includes("'/e2ee/sdk/{str:filename}'"));
     assert.ok(routes.includes("'/e2ee/sdk/pkg/{str:filename}'"));
 });
+
+test('интерфейс не может переключать существующий обычный чат в защищённый',()=>{
+    assert.ok(logic.includes("selected.encryption_mode === 'e2ee'"));
+    assert.ok(logic.includes("createEncryptedDialog(selected.partner.uid)"));
+    assert.ok(logic.includes("app.pendingOpenUid = dialogUid"));
+    assert.ok(logic.includes("app.currentDialog?.encryption_mode === 'e2ee'"));
+    assert.ok(logic.includes("&& app.currentDialog?.encryption_mode === 'e2ee'"));
+    assert.ok(routes.includes("'/e2ee/dialogs'"));
+    assert.ok(routes.includes('CSRFMiddleware::class'));
+});
