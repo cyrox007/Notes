@@ -38,7 +38,7 @@ final class MessengerE2eeRelayService
             'SELECT d.id FROM dialogs d
              INNER JOIN user_to_dialogs own
                ON own.dialog_id = d.id AND own.user_id = :uid AND own.is_deleted = 0
-             WHERE d.uid = :dialog AND d.encryption_mode = 'e2ee' LIMIT 1',
+             WHERE d.uid = :dialog AND d.encryption_mode = \'e2ee\' LIMIT 1',
             [':uid' => $actor, ':dialog' => $dialogUid]
         );
         if ($dialog === null) {
@@ -322,7 +322,7 @@ final class MessengerE2eeRelayService
                    ON s.dialog_id = d.id AND s.user_id = :sender AND s.is_deleted = 0
                  INNER JOIN user_to_dialogs r
                    ON r.dialog_id = d.id AND r.user_id = :recipient AND r.is_deleted = 0
-                 WHERE d.uid = :dialog AND d.encryption_mode = 'e2ee' LIMIT 1 FOR UPDATE',
+                 WHERE d.uid = :dialog AND d.encryption_mode = \'e2ee\' LIMIT 1 FOR UPDATE',
                 [':sender' => $actor, ':recipient' => $recipient, ':dialog' => $dialogUid]
             );
             if ($dialog === null) {
@@ -422,7 +422,7 @@ final class MessengerE2eeRelayService
                 'SELECT d.id FROM dialogs d
                  INNER JOIN user_to_dialogs m
                    ON m.dialog_id = d.id AND m.user_id = :uid AND m.is_deleted = 0
-                 WHERE d.uid = :dialog AND d.encryption_mode = 'e2ee' LIMIT 1 FOR UPDATE',
+                 WHERE d.uid = :dialog AND d.encryption_mode = \'e2ee\' LIMIT 1 FOR UPDATE',
                 [':uid' => $actor, ':dialog' => $dialogUid]
             );
             if ($dialog === null) {
@@ -488,7 +488,7 @@ final class MessengerE2eeRelayService
             'SELECT d.id FROM dialogs d
              INNER JOIN user_to_dialogs m
                ON m.dialog_id = d.id AND m.user_id = :uid AND m.is_deleted = 0
-             WHERE d.uid = :dialog AND d.encryption_mode = 'e2ee' LIMIT 1',
+             WHERE d.uid = :dialog AND d.encryption_mode = \'e2ee\' LIMIT 1',
             [':uid' => $actor, ':dialog' => $dialogUid]
         );
         if ($dialog === null) {
@@ -644,7 +644,7 @@ final class MessengerE2eeRelayService
             $shared = $this->db->fetchOne(
                 'SELECT 1 FROM user_to_dialogs a
                  INNER JOIN user_to_dialogs b ON b.dialog_id = a.dialog_id
-                 INNER JOIN dialogs d ON d.id = a.dialog_id AND d.encryption_mode = 'e2ee'
+                 INNER JOIN dialogs d ON d.id = a.dialog_id AND d.encryption_mode = \'e2ee\'
                  WHERE a.user_id = :actor AND b.user_id = :target
                    AND a.is_deleted = 0 AND b.is_deleted = 0 LIMIT 1',
                 [':actor' => $actor, ':target' => $target]
