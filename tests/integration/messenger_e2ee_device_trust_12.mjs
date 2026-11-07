@@ -15,6 +15,7 @@ function fakeDatabase(){
         txn.objectStore=()=>({
             get(id){const r={onsuccess:null,onerror:null,result:saved.get(id)};queueMicrotask(()=>{r.onsuccess?.();txn.oncomplete?.()});return r;},
             add(value,id){const r={onsuccess:null,onerror:null,result:id};saved.set(id,value);queueMicrotask(()=>{r.onsuccess?.();txn.oncomplete?.()});return r;},
+            put(value,id){const r={onsuccess:null,onerror:null,result:id};saved.set(id,value);queueMicrotask(()=>{r.onsuccess?.();txn.oncomplete?.()});return r;},
             delete(id){const r={onsuccess:null,onerror:null,result:undefined};saved.delete(id);queueMicrotask(()=>{r.onsuccess?.();txn.oncomplete?.()});return r;}
         });
         return txn;
@@ -39,4 +40,22 @@ test('неполные и повреждённые ключи не получа�
     await assert.rejects(deviceFingerprint('AAAA'));
     const trust=createLocalDeviceTrust(fakeDatabase());
     await assert.rejects(trust.pin(uid,'bad',key,async()=>true));
+});
+
+test('метка архивной истории хранится отдельно от доверия к устройству',async()=>{
+    const trust=createLocalDeviceTrust(fakeDatabase());
+    const sessionId=Buffer.alloc(32,9).toString('base64');
+    const senderKey=Buffer.alloc(32,10).toString('base64');
+    const signing=Buffer.alloc(32,11).toString('base64');
+    const row={room_id:'!77777777-7777-4777-8777-777777777777:notes.local',
+        session_id:sessionId,sender_key:senderKey,
+        sender_claimed_keys:{ed25519:signing}};
+    assert.equal(await trust.recordRestoredRoomKeys([row]),1);
+    const check={dialogUid:'77777777-7777-4777-8777-777777777777',
+        sessionId,senderKey,senderClaimedEd25519Key:signing};
+    assert.equal(await trust.isRestoredRoomKey(check),true);
+    assert.equal(await trust.isRestoredRoomKey({...check,senderClaimedEd25519Key:key}),false);
+    assert.equal(await trust.isRestoredRoomKey({...check,sessionId:Buffer.alloc(32,12).toString('base64')}),false);
+    assert.equal(await trust.isTrusted(uid,device,signing),false,
+        'Метка импорта не должна превращаться в доверенный ключ устройства');
 });
