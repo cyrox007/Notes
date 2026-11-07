@@ -39,7 +39,8 @@ function parseKeys(raw) {
             || typeof key.session_key !== 'string'
             || key.session_key.length < 16
             || typeof key.session_id !== 'string'
-            || typeof key.sender_key !== 'string') {
+            || typeof key.sender_key !== 'string'
+            || typeof key.sender_claimed_keys?.ed25519 !== 'string') {
             throw new Error('В архиве найдены чужие комнаты или неправильные сеансы');
         }
     }
@@ -135,5 +136,13 @@ export async function restoreEncryptedRoomKeyArchive({
     if (!Number.isSafeInteger(imported) || imported < 0 || imported > count) {
         throw new Error('Не удалось подтвердить сохранение импортированных ключей');
     }
-    return {totalCount:count,importedCount:imported};
+    // Передаём в локальное хранилище только открытые метаданные импортов.
+    // Ни session_key, ни пароль, ни исходный JSON не покидают криптодвижок.
+    const sessions=JSON.parse(raw).map(item=>({
+        room_id:item.room_id,
+        session_id:item.session_id,
+        sender_key:item.sender_key,
+        sender_claimed_keys:{ed25519:item.sender_claimed_keys.ed25519}
+    }));
+    return {totalCount:count,importedCount:imported,sessions};
 }
