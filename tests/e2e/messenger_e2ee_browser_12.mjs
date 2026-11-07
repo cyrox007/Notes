@@ -13,6 +13,7 @@ const allowed=new Map([
     ['/messenger/e2ee/sdk/pkg/matrix_sdk_crypto_wasm_bg.js','sdk/pkg/matrix_sdk_crypto_wasm_bg.js'],
     ['/messenger/e2ee/sdk/pkg/matrix_sdk_crypto_wasm_bg.wasm','sdk/pkg/matrix_sdk_crypto_wasm_bg.wasm'],
     ['/messenger/e2ee/client/matrix-device-bootstrap.mjs','matrix-device-bootstrap.mjs'],
+    ['/messenger/e2ee/client/matrix-device-session.mjs','matrix-device-session.mjs'],
 ]);
 const uid='11111111-1111-4111-8111-111111111111';
 
@@ -86,6 +87,46 @@ test('Chromium: Matrix WASM загружается локально и ключ�
             return signer;
         },uid);
         assert.equal(second,first.signer,'Повторное открытие должно восстанавливать то же устройство');
+
+        // Две реальные вкладки в одном браузерном профиле делят IndexedDB.
+        // Только одна вправе открывать OlmMachine для одного device_id.
+        const key=await page.evaluate(async userUid=>{
+            const api=await import('/messenger/e2ee/client/matrix-device-session.mjs');
+            window.__notesE2eeLease=await api.acquireDeviceSession(userUid,'DEVICE_BROWSER_001');
+            const held=await navigator.locks.query();
+            return held.held.find(item=>item.name.includes('DEVICE_BROWSER_001'))?.name;
+        },uid);
+        assert.ok(key,'Первая вкладка удерживает Web Locks до закрытия устройства');
+
+        const competing=await context.newPage();
+        await competing.goto(origin,{waitUntil:'domcontentloaded'});
+        const refusal=await competing.evaluate(async userUid=>{
+            const api=await import('/messenger/e2ee/client/matrix-device-session.mjs');
+            try{
+                const lock=await api.acquireDeviceSession(userUid,'DEVICE_BROWSER_001');
+                lock.release();
+                return 'ОШИБКА: вторая вкладка получила тот же ключ';
+            }catch(error){
+                return error.message;
+            }
+        },uid);
+        assert.match(refusal,/уже открыто в другой вкладке/);
+
+        // Уход со страницы автоматически освобождает удерживаемую блокировку.
+        await page.close();
+        await competing.waitForFunction(async name=>{
+            const state=await navigator.locks.query();
+            return !state.held.some(row=>row.name===name);
+        },key);
+        const afterClose=await competing.evaluate(async userUid=>{
+            const api=await import('/messenger/e2ee/client/matrix-device-session.mjs');
+            const lease=await api.acquireDeviceSession(userUid,'DEVICE_BROWSER_001');
+            lease.release();
+            return true;
+        },uid);
+        assert.equal(afterClose,true,'После закрытия вкладки второе окно получает доступ к ключам');
+        await competing.close();
+
         assert.equal(pageErrors.length,0,pageErrors.join('; '));
         assert.ok(requests.includes('/messenger/e2ee/sdk/index.mjs'));
         assert.ok(requests.includes('/messenger/e2ee/sdk/pkg/matrix_sdk_crypto_wasm_bg.wasm'));
