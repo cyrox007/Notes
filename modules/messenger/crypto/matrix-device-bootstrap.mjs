@@ -46,7 +46,10 @@ export async function openClientMachine(sdk, userUid, deviceId, passphrase) {
 function outgoingUploads(requests) {
     const matches = [];
     for (const request of requests) {
-        if (typeof request?.body !== 'string' || !request.id || request.type === undefined) continue;
+        // Matrix Rust Crypto: KeysUpload=0, KeysQuery=1, KeysClaim=2.
+        // Поле device_keys встречается и в запросе поиска устройств,
+        // но это НЕ наша собственная подписанная идентичность.
+        if (typeof request?.body !== 'string' || !request.id || request.type !== 0) continue;
         let body;
         try {
             body = JSON.parse(request.body);
