@@ -185,11 +185,16 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 // Не оставляем заблокированное устройство при ошибке инициализации.
                 // Отпускаем межвкладочную блокировку только после закрытия машины.
                 if (!state.conversation) {
+                    let closed = true;
                     try {
                         await opened?.machine?.close?.();
-                    } catch (_) { /* Исключение не даёт продолжать отправку. */ }
+                    } catch (_) {
+                        // Не выдаём блокировку второму окну, если закрытие
+                        // криптодвижка завершилось ошибкой.
+                        closed = false;
+                    }
                     db?.close?.();
-                    state.lease?.release();
+                    if (closed) state.lease?.release();
                     state.lease = null;
                 }
                 if (!state.disposed) {
@@ -203,11 +208,14 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 if (state.disposed) {
                     // Если навигация закрыла страницу во время инициализации,
                     // освобождаем устройство только после завершения открытия.
+                    let closed = true;
                     try {
                         await state.machine?.close?.();
-                    } catch (_) { /* Передаём безопасность блокировке браузера. */ }
+                    } catch (_) {
+                        closed = false;
+                    }
                     state.database?.close?.();
-                    state.lease?.release();
+                    if (closed) state.lease?.release();
                     state.lease = null;
                     state.machine = null;
                     return;
@@ -491,10 +499,14 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             // Закрываем хранилище Matrix ДО освобождения блокировки, чтобы
             // следующая вкладка никогда не увидела двух активных писателей.
             void Promise.resolve().then(() => machine?.close?.())
-                .catch(() => {})
-                .finally(() => {
+                .then(() => {
                     state.database?.close?.();
                     lease?.release();
+                })
+                .catch(() => {
+                    // Если закрытие Matrix не завершилось, оставляем
+                    // эксклюзивную блокировку до уничтожения вкладки.
+                    state.database?.close?.();
                 });
         });
         setReady(false);
