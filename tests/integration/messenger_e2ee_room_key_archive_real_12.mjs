@@ -145,19 +145,32 @@ test('настоящий Matrix: новая независимая OlmMachine в
             sdk,machine:newDevice,userUid:owner,passphrase,archive
         });
         assert.ok(restored.importedCount>=1);
+        const isRestored=async({dialogUid,sessionId,senderKey,senderClaimedEd25519Key})=>
+            dialogUid===dialog && restored.sessions.some(item=>
+                item.room_id===notesMatrixRoomId(dialog)
+                && item.session_id===sessionId && item.sender_key===senderKey
+                && item.sender_claimed_keys.ed25519===senderClaimedEd25519Key);
+        // Импорт сам по себе не даёт обычного verified-доверия.
+        await assert.rejects(decryptRoomTimeline(
+            sdk,newDevice,dialog,async()=>({events:rows}),0,verifier(newDevice),
+            async()=>false
+        ),/локальным архивом/);
         const newHistory=await decryptRoomTimeline(
-            sdk,newDevice,dialog,async()=>({events:rows}),0,verifier(newDevice)
+            sdk,newDevice,dialog,async()=>({events:rows}),0,verifier(newDevice),isRestored
         );
         assert.deepEqual(newHistory.messages.map(m=>m.text),[plaintext]);
+        assert.equal(newHistory.messages[0].verified,false);
+        assert.equal(newHistory.messages[0].restored,true);
         // Повторная попытка не должна повреждать уже импортированный ключ.
         const again=await restoreEncryptedRoomKeyArchive({
             sdk,machine:newDevice,userUid:owner,passphrase,archive
         });
         assert.equal(again.totalCount,restored.totalCount);
         const repeat=await decryptRoomTimeline(
-            sdk,newDevice,dialog,async()=>({events:rows}),0,verifier(newDevice)
+            sdk,newDevice,dialog,async()=>({events:rows}),0,verifier(newDevice),isRestored
         );
         assert.deepEqual(repeat.messages.map(m=>m.text),[plaintext]);
+        assert.equal(repeat.messages[0].verified,false);
     }finally{
         for(const machine of opened)await machine.close();
     }
