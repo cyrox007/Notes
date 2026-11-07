@@ -98,3 +98,20 @@ CREATE TABLE IF NOT EXISTS `calendar_item_links` (
 INSERT INTO `calendar_runtime_state` (`state_key`, `last_http_run_at`)
 VALUES ('reminder_http_fallback', NULL)
 ON DUPLICATE KEY UPDATE `state_key` = VALUES(`state_key`);
+
+-- Первичная установка использует готовые схемы и не выполняет историю миграций.
+-- Разрешение календаря должно появляться именно из схемы владельца модуля:
+-- иначе Calendar обнаруживается, но остаётся скрытым в боковом меню.
+-- Историческая миграция 20261011_calendar_crud.sql остаётся неизменной
+-- для обновления существующих установок.
+INSERT INTO `permissions` (`code`, `module_id`, `description`)
+VALUES ('calendar.use', 'calendar', 'Использование личного Calendar и напоминаний')
+ON DUPLICATE KEY UPDATE
+    `module_id` = VALUES(`module_id`),
+    `description` = VALUES(`description`);
+
+INSERT IGNORE INTO `role_permissions` (`role_id`, `permission_id`)
+SELECT r.id, p.id
+FROM `roles` r
+JOIN `permissions` p ON p.code = 'calendar.use'
+WHERE r.code IN ('user', 'admin', 'superadmin');
