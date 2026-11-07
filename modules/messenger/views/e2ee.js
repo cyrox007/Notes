@@ -18,6 +18,9 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             keys: document.getElementById('messenger-e2ee-keys'),
             refresh: document.getElementById('messenger-e2ee-refresh-devices'),
             devices: document.getElementById('messenger-e2ee-device-list'),
+            own: document.getElementById('messenger-e2ee-own-device'),
+            ownCode: document.getElementById('messenger-e2ee-own-code'),
+            ownId: document.getElementById('messenger-e2ee-own-id'),
             messages: document.getElementById('messenger-e2ee-messages'),
             input: document.getElementById('messenger-e2ee-input'),
             file: document.getElementById('messenger-e2ee-file'),
@@ -29,6 +32,7 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
         const state = {
             active: false, pending: false, loading: false, sdk: null,
             machine: null, transport: null, trust: null, conversation: null,
+            pairing: null,
             session: null, lease: null, disposed: false,
             currentDevice: '', cursor: new Map(), rendered: new Set(), database: null,
             generation: 0
@@ -106,15 +110,17 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 import(path('/messenger/e2ee/sdk/index.mjs')),
                 import(clientModule('matrix-device-bootstrap.mjs')),
                 import(clientModule('matrix-device-session.mjs')),
+                import(clientModule('matrix-device-pairing.mjs')),
                 import(clientModule('matrix-http-transport.mjs')),
                 import(clientModule('matrix-device-trust.mjs')),
                 import(clientModule('matrix-conversation.mjs'))
             ]);
-            const [sdk, bootstrap, sessions, http, trust, conversations] = modules;
+            const [sdk, bootstrap, sessions, pairing, http, trust, conversations] = modules;
             if (!sdk.OlmMachine?.initialize) throw new Error('Локальный криптодвижок не установлен.');
             state.sdk = sdk;
             state.bootstrap = bootstrap;
             state.session = sessions;
+            state.pairing = pairing;
             state.http = http;
             state.trustApi = trust;
             state.conversations = conversations;
@@ -155,6 +161,15 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 const database = state.trustApi.openTrustDatabase(userUid);
                 db = await database;
                 const trust = state.trustApi.createLocalDeviceTrust(db);
+                const identityKeys = opened.machine.identityKeys;
+                if (!identityKeys?.ed25519?.toBase64 || !identityKeys?.curve25519?.toBase64) {
+                    throw new Error('Криптодвижок не раскрыл публичные ключи своего устройства');
+                }
+                const ownSigning = identityKeys.ed25519.toBase64();
+                const ownAgreement = identityKeys.curve25519.toBase64();
+                const ownCode = await state.pairing.deviceComparisonCode({
+                    userUid, deviceId, signingKey: ownSigning, agreementKey: ownAgreement
+                });
                 await state.bootstrap.publishInitialKeys(
                     opened.machine, userUid, deviceId,
                     (route, body) => {
@@ -168,6 +183,12 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                     }
                 );
 
+                // Собственный ключ получен непосредственно от локальной OlmMachine.
+                // Подтверждать его через серверный список устройств не требуется.
+                await trust.pin(userUid, deviceId, ownSigning, () => true);
+                ui.ownCode.textContent = ownCode;
+                ui.ownId.textContent = 'Идентификатор: ' + deviceId;
+                ui.own.hidden = false;
                 state.machine = opened.machine;
                 state.currentDevice = deviceId;
                 state.transport = transport;
