@@ -125,6 +125,12 @@ ob_start();
                         <strong>Устройства участников</strong>
                         <button id="messenger-e2ee-refresh-devices" class="messenger-secondary-button" type="button">Обновить ключи</button>
                     </div>
+                    <div class="messenger-e2ee-own-device" id="messenger-e2ee-own-device" hidden>
+                        <strong>Код этого устройства</strong>
+                        <p>Для подключения второго устройства откройте Notes на нём и покажите этот код на первом устройстве. Сверяйте код непосредственно между устройствами, не по сообщению из чата.</p>
+                        <code id="messenger-e2ee-own-code" aria-label="Код подтверждения собственного устройства"></code>
+                        <span id="messenger-e2ee-own-id"></span>
+                    </div>
                     <div id="messenger-e2ee-device-list" class="messenger-e2ee-device-list"></div>
                 </section>
                 <div class="messenger-e2ee-messages" id="messenger-e2ee-messages" aria-live="polite"></div>
