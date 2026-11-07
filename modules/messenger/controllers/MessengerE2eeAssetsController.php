@@ -23,6 +23,7 @@ final class MessengerE2eeAssetsController extends Controller
         'matrix-transport-bridge.mjs',
         'matrix-room-keys.mjs',
         'matrix-room-messages.mjs',
+        'matrix-room-key-archive.mjs',
         'matrix-incoming.mjs',
         'matrix-conversation.mjs',
         'e2ee-file-crypto.mjs',
