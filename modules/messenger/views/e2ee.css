@@ -59,3 +59,11 @@
 .messenger-e2ee-pairing-form input { font:inherit;font-size:14px;width:100%;padding:8px;border:1px solid var(--msg-border,#bbb);border-radius:7px;letter-spacing:.04em; }
 .messenger-e2ee-pairing-form button { justify-self:start; }
 .messenger-e2ee-device { flex-wrap:wrap; }
+
+/* Архив комнатных ключей обрабатывается локально, без серверной загрузки. */
+.messenger-e2ee-archive { display:grid;gap:7px;border-top:1px solid var(--msg-border,#ddd);padding-top:12px;margin-top:10px; }
+.messenger-e2ee-archive strong { font-size:13px; }
+.messenger-e2ee-archive p { font-size:12px;line-height:1.5;margin:2px 0; }
+.messenger-e2ee-archive label { font-size:12px; }
+.messenger-e2ee-archive input { font:inherit;min-width:0;max-width:100%;padding:8px;border:1px solid var(--msg-border,#ddd);border-radius:7px; }
+.messenger-e2ee-archive__actions { display:flex;flex-wrap:wrap;gap:8px; }
