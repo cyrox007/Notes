@@ -20,7 +20,7 @@ let source = fs.readFileSync(scriptPath, 'utf8')
     .replace(/^\{literal\}\s*/u, '')
     .replace(/\s*\{\/literal\}\s*$/u, '');
 
-const bootstrapMarker = "document.addEventListener('DOMContentLoaded'";
+const bootstrapMarker = 'pageScope.onInit( () => {';
 if (!source.includes(bootstrapMarker)) {
     fail('не найден bootstrap MessengerApp');
 }
@@ -48,6 +48,14 @@ const context = {
         },
         wspace: {
             path: (value) => value,
+            page: {
+                register(_name, callback) {
+                    callback({
+                        onInit() {},
+                        fetch(...args) { return context.fetch(...args); },
+                    });
+                },
+            },
         },
         setTimeout,
         clearTimeout,
