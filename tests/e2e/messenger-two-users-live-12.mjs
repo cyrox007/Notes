@@ -51,7 +51,7 @@ try {
         .locator('input[type="checkbox"]').check();
     await alice.locator('#create-chat-button').click();
     await alice.waitForFunction(() => document.querySelector('#chat-active')?.hidden === false, null, { timeout: 30000 });
-    await alice.locator('#message-list[aria-busy="false"]').waitFor({ timeout: 30000 });
+    await alice.waitForFunction(() => document.querySelector('#message-list')?.getAttribute('aria-busy') === 'false', null, { timeout: 30000 });
 
     const first = marker + '-отправитель';
     await alice.locator('#message-input').fill(first);
@@ -78,7 +78,7 @@ try {
 
     await bob.locator('.messenger-dialog-item').first().waitFor({ timeout: 30000 });
     await bob.locator('.messenger-dialog-item').first().click();
-    await bob.locator('#message-list[aria-busy="false"]').waitFor({ timeout: 30000 });
+    await bob.waitForFunction(() => document.querySelector('#message-list')?.getAttribute('aria-busy') === 'false', null, { timeout: 30000 });
     await displayed(bob, first);
     console.log('[OK] Второй участник получил первое сообщение');
 
