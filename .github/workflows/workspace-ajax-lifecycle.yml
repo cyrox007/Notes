@@ -98,7 +98,7 @@ jobs:
           require_once 'core/DatabaseOwnership.php';
           $schemas = array_map(
               static fn (string $path): string => getcwd() . '/' . $path,
-              Core\\DatabaseOwnership::fromPackageRoot(getcwd())->schemaFiles()
+              Core\DatabaseOwnership::fromPackageRoot(getcwd())->schemaFiles()
           );
           foreach ([
               'database/migrations/20261017_mutation_commands.sql',
@@ -107,7 +107,7 @@ jobs:
           ] as $migration) {
               $schemas[] = getcwd() . '/' . $migration;
           }
-          (new Core\\InstallerDatabaseService())->importSchemas(
+          (new Core\InstallerDatabaseService())->importSchemas(
               getenv('DBHOST'),
               (int) getenv('DBPORT'),
               getenv('DBNAME'),
