@@ -1,4 +1,4 @@
-name: Calendar 1.1 — браузерный жизненный цикл
+name: Calendar — браузерный жизненный цикл
 
 on:
   push:
@@ -19,7 +19,7 @@ on:
       - 'tests/support/ci_license_fixture.php'
       - '.github/workflows/calendar-browser-lifecycle.yml'
   pull_request:
-    branches: ['1.1']
+    branches: ['1.1', '1.2']
     paths:
       - 'modules/calendar/**'
       - 'core/**'
@@ -62,10 +62,10 @@ jobs:
       - name: Получить исходники
         uses: actions/checkout@v4
 
-      - name: Подготовить PHP 8.2
+      - name: Подготовить PHP 8.3
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.3'
           extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo
           coverage: none
 
