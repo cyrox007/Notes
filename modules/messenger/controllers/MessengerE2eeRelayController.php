@@ -176,8 +176,7 @@ final class MessengerE2eeRelayController extends Controller
     {
         $this->handle($request, static function (MessengerE2eeRelayService $service, int $user) use ($request): array {
             $body = self::payload($request);
-            $service->revoke($user, self::field($body, 'device_id'));
-            return ['revoked' => true];
+            return $service->revoke($user, self::field($body, 'device_id'));
         });
     }
 

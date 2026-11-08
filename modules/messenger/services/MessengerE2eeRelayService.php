@@ -654,11 +654,53 @@ final class MessengerE2eeRelayService
         ];
     }
 
-    public function revoke(int $actor, string $deviceId): void
+    /**
+     * Отзыв меняет эпоху безопасности КАЖДОЙ действующей защищённой комнаты.
+     * Изменение и отзыв устройства атомарны: ошибку нельзя скрыть частичным
+     * изменением списка устройств или комнат.
+     *
+     * @return array{revoked:bool,rooms_affected:int}
+     */
+    public function revoke(int $actor, string $deviceId): array
     {
         self::validateDeviceId($deviceId);
         $this->db->beginTransaction();
         try {
+            // Сначала фиксируем комнаты по возрастанию ID: отправители
+            // тоже блокируют dialogs перед проверкой своего устройства.
+            // Обратный порядок (устройство -> комната) создаёт взаимную блокировку.
+            $rooms = $this->db->fetchAll(
+                'SELECT d.id FROM dialogs d
+                 INNER JOIN user_to_dialogs member
+                   ON member.dialog_id = d.id
+                  AND member.user_id = :uid AND member.is_deleted = 0
+                 WHERE d.encryption_mode = \'e2ee\'
+                 ORDER BY d.id ASC',
+                [':uid' => $actor]
+            );
+            $locked = [];
+            foreach ($rooms as $room) {
+                $dialogId = (int) $room['id'];
+                $dialog = $this->db->fetchOne(
+                    'SELECT id FROM dialogs WHERE id = :id
+                     AND encryption_mode = \'e2ee\' FOR UPDATE',
+                    [':id' => $dialogId]
+                );
+                if ($dialog === null) {
+                    continue;
+                }
+                // Если пользователь покинул комнату за время ожидания
+                // блокировки, больше не меняем её криптографическое состояние.
+                $member = $this->db->fetchOne(
+                    'SELECT 1 FROM user_to_dialogs WHERE dialog_id = :dialog
+                     AND user_id = :uid AND is_deleted = 0 LIMIT 1',
+                    [':dialog' => $dialogId, ':uid' => $actor]
+                );
+                if ($member !== null) {
+                    $locked[] = $dialogId;
+                }
+            }
+
             $this->ownDevice($actor, $deviceId, true);
             $this->db->execute(
                 'UPDATE messenger_e2ee_devices SET revoked_at = CURRENT_TIMESTAMP
@@ -666,15 +708,29 @@ final class MessengerE2eeRelayService
                 [':uid' => $actor, ':did' => $deviceId]
             );
             $this->db->execute(
-                'DELETE FROM messenger_e2ee_prekeys WHERE user_id = :uid AND device_id = :did',
+                'DELETE FROM messenger_e2ee_prekeys
+                 WHERE user_id = :uid AND device_id = :did',
                 [':uid' => $actor, ':did' => $deviceId]
             );
+            // Удаляем как ожидающие входящие ключи, так и не доставленные
+            // ключи, ранее отправленные с уже скомпрометированного устройства.
             $this->db->execute(
                 'DELETE FROM messenger_e2ee_mailbox
-                 WHERE recipient_user_id = :uid AND recipient_device_id = :did',
-                [':uid' => $actor, ':did' => $deviceId]
+                 WHERE (recipient_user_id = :recipient AND recipient_device_id = :recipient_device)
+                    OR (sender_user_id = :sender AND sender_device_id = :sender_device)',
+                [':recipient' => $actor, ':recipient_device' => $deviceId,
+                 ':sender' => $actor, ':sender_device' => $deviceId]
             );
+            foreach ($locked as $dialogId) {
+                $this->db->execute(
+                    'UPDATE dialogs
+                     SET e2ee_membership_version = e2ee_membership_version + 1
+                     WHERE id = :id AND encryption_mode = \'e2ee\'',
+                    [':id' => $dialogId]
+                );
+            }
             $this->db->endTransaction(true);
+            return ['revoked' => true, 'rooms_affected' => count($locked)];
         } catch (Throwable $e) {
             $this->db->endTransaction(false);
             throw $e;
