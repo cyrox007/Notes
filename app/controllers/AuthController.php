@@ -387,10 +387,20 @@ class AuthController extends Controller
         bool $usedRecoveryCode,
         string $redirectRoute = 'main'
     ): void {
+        $epoch = DatabaseManager::getInstance()->fetchValue(
+            'SELECT auth_session_epoch FROM users
+             WHERE id = :user AND is_active = 1 AND account_status = :status LIMIT 1',
+            [':user' => $userId, ':status' => 'active']
+        );
+        if (!SessionSecurity::matchesAuthSessionEpoch(1, $epoch)
+            && (!is_numeric($epoch) || (int) $epoch < 1)) {
+            throw new RuntimeException('Не удалось подтвердить версию авторизации пользователя');
+        }
         if (!session_regenerate_id(true)) {
             throw new RuntimeException('Не удалось обновить идентификатор сессии');
         }
 
+        $request->setSession('auth_session_epoch', (int) $epoch);
         $request->setSession('auth', true);
         $request->setSession('user_id', $userId);
         $request->setSession('user_uid', $userUid);

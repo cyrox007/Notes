@@ -77,6 +77,7 @@ final class DatabaseOwnership
         '20261021_notification_action_tokens.sql',
         '20261023_notification_receipt_attestations.sql',
         '20261017_mutation_commands.sql',
+        '20261108_auth_session_epoch.sql',
     ];
 
     /**

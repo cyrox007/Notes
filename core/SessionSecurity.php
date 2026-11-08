@@ -81,6 +81,26 @@ final class SessionSecurity
     }
 
     /**
+     * Старые PHP-сеансы без отметки соответствуют исходной версии 1.
+     * Это сохраняет авторизацию при обновлении 1.1, но первое повышение
+     * версии отзовёт также сеансы, созданные до внедрения этого механизма.
+     */
+    public static function matchesAuthSessionEpoch(mixed $sessionEpoch, mixed $currentEpoch): bool
+    {
+        $stored = $sessionEpoch === null ? 1 : $sessionEpoch;
+        if (!is_int($stored) || $stored < 1) {
+            return false;
+        }
+        if (is_int($currentEpoch)) {
+            return $currentEpoch >= 1 && $stored === $currentEpoch;
+        }
+        if (!is_string($currentEpoch) || preg_match('/^[1-9][0-9]{0,9}$/D', $currentEpoch) !== 1) {
+            return false;
+        }
+        return $stored === (int) $currentEpoch;
+    }
+
+    /**
      * Re-issue the current session cookie after login/session-id rotation so the
      * authenticated session survives a normal browser restart.
      */
