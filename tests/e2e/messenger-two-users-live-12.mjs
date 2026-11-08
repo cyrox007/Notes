@@ -54,7 +54,31 @@ try {
     await alice.waitForFunction(() => document.querySelector('#message-list')?.getAttribute('aria-busy') === 'false', null, { timeout: 30000 });
 
     const first = marker + '-отправитель';
+    await alice.evaluate(() => {
+        const input = document.querySelector('#message-input');
+        window.__messengerInputTrace = [];
+        const trace = window.__messengerInputTrace;
+        const field = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+        Object.defineProperty(input, 'value', {
+            configurable: true,
+            get() { return field.get.call(this); },
+            set(next) {
+                trace.push({ event: 'setter', length: String(next).length, stack: new Error().stack?.slice(0, 900) });
+                field.set.call(this, next);
+            }
+        });
+        input.addEventListener('input', () => trace.push({ event: 'input', length: input.value.length }), true);
+        input.addEventListener('change', () => trace.push({ event: 'change', length: input.value.length }), true);
+        input.addEventListener('keydown', event => trace.push({ event: 'keydown', key: event.key }), true);
+    });
     await alice.locator('#message-input').fill(first);
+    console.log('[Изменения ввода]', await alice.evaluate(() => ({
+        trace: window.__messengerInputTrace,
+        currentDialog: window.wspace?.messenger?.currentDialog?.uid || null,
+        composerPending: window.wspace?.messenger?.composerPending,
+        sameInput: window.wspace?.messenger?.el?.input === document.querySelector('#message-input'),
+        defaultValue: document.querySelector('#message-input')?.defaultValue
+    })));
     assert.equal(await alice.locator('#message-input').inputValue(), first, 'Набранный текст исчез до нажатия кнопки');
     console.log('[Перед отправкой]', await alice.evaluate(() => ({
         visible: !document.querySelector('#chat-active')?.hidden,
