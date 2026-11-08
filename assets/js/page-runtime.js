@@ -61,8 +61,13 @@
                 const mutation = !['GET', 'HEAD', 'OPTIONS'].includes(method);
                 const blocking = mutation && workspaceReadOnly !== true;
                 if (disposed) throw new DOMException('Page disposed', 'AbortError');
+                // Когда раздел покинули, останавливаем и его фоновые чтения.
+                // Явный сигнал запроса сохраняет приоритет, если он уже передан.
+                const options = requestOptions.signal
+                    ? requestOptions
+                    : { ...requestOptions, signal: controller.signal };
                 if (blocking) pending++;
-                try { return await window.fetch(input, requestOptions); }
+                try { return await window.fetch(input, options); }
                 finally { if (blocking) pending--; }
             },
             visit(url, options) { return disposed ? Promise.resolve(false) : wspace.navigation.visit(url, options); },
