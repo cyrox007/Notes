@@ -364,11 +364,9 @@ window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => 
         }
 
         async sendEventConfirmed(action, data = {}) {
-            if (this.socket && this.socket.readyState === WebSocket.OPEN && this.socketAuthorized) {
-                this.socket.send(JSON.stringify({ action, data }));
-                return true;
-            }
-
+            // Отправка в открытый WebSocket подтверждает только передачу байтов,
+            // но не запись в БД. Операции редактора выполняем через HTTP
+            // с проверкой ответа обработчика; WebSocket продолжает доставлять события.
             return this.sendHttpEventConfirmed(action, data);
         }
 
