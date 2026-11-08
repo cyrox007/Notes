@@ -12,6 +12,7 @@ const requests = [];
 const document = {
     readyState: 'loading',
     addEventListener(name, listener) { listeners.set(name, listener); },
+    querySelectorAll() { return []; },
 };
 
 const window = {
@@ -80,6 +81,19 @@ mutation.resolve({ ok: true });
 await saving;
 assert.equal(await window.wspace.page.mayLeave(), true, 'после сохранения навигация не восстановлена');
 
+window.fetch = (_url, options) => new Promise((_resolve, reject) => {
+    options.signal?.addEventListener('abort', () => {
+        reject(new DOMException('Страница закрыта', 'AbortError'));
+    }, { once: true });
+});
+const unfinishedReading = scope.fetch('/messenger/realtime/action', {
+    method: 'POST',
+    workspaceReadOnly: true,
+});
+window.wspace.page.dispose();
+await assert.rejects(unfinishedReading, error => error.name === 'AbortError',
+    'после ухода со страницы фоновый запрос не был отменён');
+
 const readonly = messenger.match(/workspaceReadOnly:\s*\[([\s\S]*?)\]\.includes\(action\)/);
 assert.ok(readonly, 'Messenger не помечает фоновые запросы чтения');
 const actions = [...readonly[1].matchAll(/'([^']+)'/g)].map(match => match[1]);
@@ -94,4 +108,4 @@ assert.ok(
     'обновление билета продолжает блокировать навигацию'
 );
 
-console.log('[OK] Фоновое чтение Messenger не блокирует переход; сохранение блокирует до подтверждения');
+console.log('[OK] Чтение Messenger не блокирует переход и отменяется при уходе; сохранение блокирует до подтверждения');
