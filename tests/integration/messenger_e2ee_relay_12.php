@@ -245,7 +245,80 @@ $db->exec('UPDATE user_to_dialogs SET e2ee_join_version = 2
            WHERE dialog_id = 7 AND user_id = 2');
 assertRelay(count($service->roomEvents(2, $dialogUid)) === 1,
     'после повторного вступления старая история недоступна');
-$service->revoke(2, 'device_002');
-mustReject(fn () => $service->inbox(2, 'device_002'), 'отозванное устройство не получает очередь');
-mustReject(fn () => $service->register(2, 'device_002', $identity2), 'повторное создание отозванного ID');
-echo "OK: ключи, права, одноразовая выдача, очередь, повторы и отзыв\n";
+// Несколько комнат у владельца устройства: отзыв меняет версии всех,
+ // но не затрагивает чужие защищённые комнаты.
+$db->exec("INSERT INTO dialogs (id, uid, encryption_mode, e2ee_membership_version)
+           VALUES
+           (9, '99999999-9999-4999-8999-999999999999', 'e2ee', 4),
+           (10, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'e2ee', 3)");
+$db->exec("INSERT INTO user_to_dialogs (dialog_id, user_id)
+           VALUES (9,1),(9,2),(10,1),(10,3)");
+$secondDialog = '99999999-9999-4999-8999-999999999999';
+$unaffectedDialog = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+$envelopeFromLost = [
+    'algorithm' => 'm.olm.v1.curve25519-aes-sha2',
+    'sender_key' => $key4,
+    'ciphertext' => [$key2 => ['body' => base64_encode(random_bytes(120)), 'type' => 0]],
+];
+$service->send(2, 'device_002', $uids[1], 'device_001',
+    $secondDialog, 'lost_sender_packet_00001', $envelopeFromLost, 4);
+$service->send(1, 'device_001', $uids[2], 'device_002',
+    $secondDialog, 'lost_recipient_packet_001', $envelope, 4);
+assertRelay(count($service->inbox(1, 'device_001')) === 1,
+    'до отзыва исходящий пакет устройства ждёт выдачи');
+assertRelay(count($service->inbox(2, 'device_002')) === 2,
+    'до отзыва входящие пакеты двух комнат доступны устройству');
+mustReject(fn () => $service->revoke(2, 'device_not_registered'),
+    'неизвестное устройство не должно запускать смену эпох');
+assertRelay($service->participants(1, $secondDialog)['membership_version'] === 4,
+    'ошибочная попытка отзыва не изменила ключевой состав');
+
+$revokeResult = $service->revoke(2, 'device_002');
+assertRelay($revokeResult === ['revoked' => true, 'rooms_affected' => 2],
+    'отзыв затрагивает именно две защищённые комнаты');
+assertRelay($service->participants(1, $dialogUid)['membership_version'] === 3,
+    'ключевая эпоха первой комнаты повышена');
+assertRelay($service->participants(1, $secondDialog)['membership_version'] === 5,
+    'ключевая эпоха второй комнаты повышена');
+assertRelay($service->participants(1, $unaffectedDialog)['membership_version'] === 3,
+    'комната без отозванного владельца не затронута');
+assertRelay(count($service->inbox(1, 'device_001')) === 0,
+    'недоставленный ключ от скомпрометированного отправителя удалён');
+assertRelay((int) $db->query(
+    "SELECT COUNT(*) FROM messenger_e2ee_mailbox WHERE
+      (sender_user_id = 2 AND sender_device_id = 'device_002')
+      OR (recipient_user_id = 2 AND recipient_device_id = 'device_002')"
+)->fetchColumn() === 0, 'очереди входящих и исходящих пакетов устройства очищены');
+assertRelay(count($service->devices(1, $uids[2])) === 0,
+    'отозванное устройство исчезло из публичного списка');
+mustReject(fn () => $service->inbox(2, 'device_002'),
+    'отозванное устройство не получает очередь');
+mustReject(fn () => $service->register(2, 'device_002', $identity2),
+    'повторное создание отозванного ID запрещено');
+mustReject(fn () => $service->revoke(2, 'device_002'),
+    'повторный отзыв не должен менять версии комнат');
+assertRelay($service->participants(1, $secondDialog)['membership_version'] === 5,
+    'повторный отзыв не повысил версию');
+
+mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid,
+    'revoked_room_old_00001', $encryptedRoom, [], 2),
+    'первая комната отклоняет сообщение до отзыва');
+mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $secondDialog,
+    'revoked_room_old_00002', $encryptedRoom, [], 4),
+    'вторая комната отклоняет сообщение до отзыва');
+mustReject(fn () => $service->send(1, 'device_001', $uids[2], 'device_002',
+    $secondDialog, 'old_target_packet_00001', $envelope, 5),
+    'новый ключ нельзя направить отозванному получателю');
+mustReject(fn () => $service->send(2, 'device_002', $uids[1], 'device_001',
+    $secondDialog, 'old_sender_packet_00001', $envelopeFromLost, 5),
+    'отозванное устройство не может публиковать новые ключи');
+$service->sendRoomEvent(1, 'device_001', $dialogUid,
+    'revoked_room_new_00001', $encryptedRoom, [], 3);
+$service->sendRoomEvent(1, 'device_001', $secondDialog,
+    'revoked_room_new_00002', $encryptedRoom, [], 5);
+$service->sendRoomEvent(1, 'device_001', $unaffectedDialog,
+    'unaffected_room_0000001', $encryptedRoom, [], 3);
+assertRelay(count($service->roomEvents(1, $secondDialog)) === 1,
+    'новая эпоха позволяет отправку действующему устройству');
+
+echo "OK: ключи, права, одноразовая выдача, очередь, атомарный отзыв и все комнаты\n";
