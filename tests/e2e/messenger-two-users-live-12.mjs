@@ -95,11 +95,29 @@ try {
     await displayed(alice, second);
     console.log('[OK] Двусторонний обмен подтверждён');
 
+    const fileCaption = marker + '-вложение';
+    await alice.locator('#message-input').click();
+    await alice.locator('#message-input').pressSequentially(fileCaption, { delay: 2 });
+    assert.equal(await alice.locator('#message-input').inputValue(), fileCaption,
+        'Черновик подписи вложения исчез до отправки');
+    await alice.locator('#message-file-input').setInputFiles({
+        name: 'проверка-messenger.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('Контрольное вложение для проверки сохранения', 'utf8'),
+    });
+    await displayed(alice, fileCaption);
+    await displayed(bob, fileCaption);
+    assert.equal(await alice.locator('#message-input').inputValue(), '',
+        'После подтверждённой записи вложения подпись не очищена');
+    console.log('[OK] Вложение отправлено и доставлено после подтверждённой записи');
+
     await Promise.all([alice.reload(), bob.reload()]);
     await displayed(alice, first);
     await displayed(alice, second);
+    await displayed(alice, fileCaption);
     await displayed(bob, first);
     await displayed(bob, second);
+    await displayed(bob, fileCaption);
     assert.deepEqual(errors, [], 'Ошибка JavaScript в настоящем браузере');
 
     await writeFile('/tmp/notes-messenger-12-marker', marker, { mode: 0o600 });
