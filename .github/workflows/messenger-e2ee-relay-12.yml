@@ -125,6 +125,7 @@ jobs:
         run: |
           set -euo pipefail
           php -l modules/messenger/services/MessengerE2eeIdentity.php
+          php -l modules/messenger/services/MessengerGroupService.php
           php -l modules/messenger/services/MessengerE2eeRelayService.php
           php -l modules/messenger/services/MessengerE2eeMediaService.php
           php -l modules/messenger/controllers/MessengerE2eeMediaController.php
@@ -142,7 +143,7 @@ jobs:
           php -l modules/messenger/services/MessengerMediaService.php
           php -l modules/messenger/services/MessengerVoiceService.php
           php -l modules/messenger/services/MessengerForwardService.php
-          php -r '$m=json_decode(file_get_contents("database/migrations/manifest.json"),true,32,JSON_THROW_ON_ERROR); if (!in_array("20261031_messenger_e2ee_relay.sql",$m["migrations"],true)) exit(1);'
+          php -r '$m=json_decode(file_get_contents("database/migrations/manifest.json"),true,32,JSON_THROW_ON_ERROR); if (!in_array("20261108_messenger_e2ee_membership_epochs.sql",$m["migrations"],true)) exit(1);'
 
       - name: Проверить ключи, принадлежность, доставку и отзыв на MySQL
         env:

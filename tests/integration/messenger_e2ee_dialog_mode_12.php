@@ -12,6 +12,7 @@ require_once $root . '/core/PrefixPDO.php';
 require_once $root . '/core/DatabaseManager.php';
 require_once $root . '/core/Uuid.php';
 require_once $root . '/modules/messenger/services/MessengerService.php';
+require_once $root . '/modules/messenger/services/MessengerGroupService.php';
 require_once $root . '/modules/messenger/services/MessengerE2eeRelayService.php';
 
 function assertMode(bool $value, string $reason): void
@@ -77,6 +78,10 @@ $db->exec("CREATE TABLE `user_to_dialogs` (
     role ENUM('owner','admin','member') NOT NULL DEFAULT 'member',
     joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_read_message_id BIGINT UNSIGNED DEFAULT NULL,
+    last_delivered_message_id BIGINT UNSIGNED DEFAULT NULL,
+    archived_at DATETIME DEFAULT NULL,
+    muted_until DATETIME DEFAULT NULL,
+    pinned_at DATETIME DEFAULT NULL,
     is_deleted TINYINT NOT NULL DEFAULT 0,
     UNIQUE KEY (dialog_id,user_id)
 ) ENGINE=InnoDB");
@@ -100,12 +105,22 @@ foreach (explode(';', $sql) as $statement) {
     }
 }
 
+// В тестовой комнате разрешены только необходимые поля и непрозрачная очередь.
+$db->exec('ALTER TABLE dialogs ADD COLUMN e2ee_membership_version BIGINT UNSIGNED NOT NULL DEFAULT 1');
+$db->exec('ALTER TABLE user_to_dialogs ADD COLUMN e2ee_join_version BIGINT UNSIGNED NOT NULL DEFAULT 1');
+$db->exec('CREATE TABLE messenger_e2ee_mailbox (
+    dialog_id BIGINT UNSIGNED NOT NULL, recipient_user_id INT NOT NULL
+) ENGINE=InnoDB');
+
 $uid1 = '11111111-1111-4111-8111-111111111111';
 $uid2 = '22222222-2222-4222-8222-222222222222';
+$uid3 = '33333333-3333-4333-8333-333333333333';
 $db->prepare('INSERT INTO users (id,uid,username,firstname,lastname) VALUES (?,?,?,?,?)')
     ->execute([1,$uid1,'user1','Первый','Тест']);
 $db->prepare('INSERT INTO users (id,uid,username,firstname,lastname) VALUES (?,?,?,?,?)')
     ->execute([2,$uid2,'user2','Второй','Тест']);
+$db->prepare('INSERT INTO users (id,uid,username,firstname,lastname) VALUES (?,?,?,?,?)')
+    ->execute([3,$uid3,'user3','Третий','Тест']);
 
 $manager = DatabaseManager::forConnection($db);
 $legacy = new MessengerService($manager);
@@ -162,5 +177,34 @@ assertMode(count($relay->participants(1, $protected['uid'])['members']) === 2,
     'оба участника защищённого диалога должны иметь доступ к составу');
 assertMode((int) $db->query('SELECT COUNT(*) FROM messages')->fetchColumn() === 1,
     'неуспешная обычная отправка не сохранила сообщение');
+
+$sourceGroup = $legacy->createDialog($uid1, 'group', [$uid2], 'Исходная группа');
+$encryptedGroup = $relay->createEncryptedGroup(1, $sourceGroup['uid']);
+assertMode($encryptedGroup['type'] === 'group'
+    && $encryptedGroup['encryption_mode'] === 'e2ee'
+    && $encryptedGroup['uid'] !== $sourceGroup['uid'],
+    'новая защищённая группа не подменяет обычную');
+assertMode($relay->participants(1, $encryptedGroup['uid'])['membership_version'] === 1,
+    'исходный состав начинается с первой версии');
+$groups = new \App\Services\MessengerGroupService($manager);
+$groups->addMembers($uid1, $encryptedGroup['uid'], [$uid3]);
+assertMode($relay->participants(1, $encryptedGroup['uid'])['membership_version'] === 2,
+    'добавление меняет версию состава');
+$groups->addMembers($uid1, $encryptedGroup['uid'], [$uid3]);
+assertMode($relay->participants(1, $encryptedGroup['uid'])['membership_version'] === 2,
+    'повторное добавление участника не повышает версию');
+$groups->removeMember($uid1, $encryptedGroup['uid'], $uid3);
+assertMode($relay->participants(1, $encryptedGroup['uid'])['membership_version'] === 3,
+    'исключение участника повышает версию');
+mustRejectMode(fn () => $relay->participants(3, $encryptedGroup['uid']),
+    'исключённому не виден состав комнаты');
+$groups->addMembers($uid1, $encryptedGroup['uid'], [$uid3]);
+assertMode($relay->participants(1, $encryptedGroup['uid'])['membership_version'] === 4,
+    'повторное вступление создаёт очередную эпоху');
+$joined = $db->prepare('SELECT e2ee_join_version FROM user_to_dialogs
+    WHERE dialog_id = (SELECT id FROM dialogs WHERE uid = :uid) AND user_id = 3');
+$joined->execute([':uid' => $encryptedGroup['uid']]);
+assertMode((int) $joined->fetchColumn() === 4,
+    'поздно вступившему не открывается прежняя история');
 
 echo "[OK] Раздельные режимы Messenger, неизменяемый диалог, запрет старого транспорта, DBPREFIX\n";

@@ -81,3 +81,21 @@ test('новый защищённый диалог создаётся отдел
     assert.deepEqual(JSON.parse(new URLSearchParams(seen[0].options.body).get('payload')),
         {recipient_user_uid:recipient});
 });
+
+
+test('групповой защищённый диалог создаётся отдельно с CSRF',async()=>{
+ const calls=[];
+ const client=createMessengerE2eeTransport({
+  getCsrfToken:()=> 'csrf_token_for_group_12345',
+  fetchRequest:async(url,options)=>{
+   calls.push({url,options});
+   return {ok:true,json:async()=>({status:'ok',dialog:{uid:'e2ee-room',type:'group',encryption_mode:'e2ee'}})};
+  }
+ });
+ const group=await client.createEncryptedGroup('source-group-uid');
+ assert.equal(group.dialog.type,'group');
+ assert.equal(calls[0].url,'/messenger/e2ee/groups');
+ assert.deepEqual(JSON.parse(new URLSearchParams(calls[0].options.body).get('payload')),
+  {source_dialog_uid:'source-group-uid'});
+ assert.equal(calls[0].options.headers['X-CSRF-Token'],'csrf_token_for_group_12345');
+});

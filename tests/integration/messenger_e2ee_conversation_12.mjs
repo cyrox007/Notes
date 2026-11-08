@@ -16,7 +16,7 @@ const sdk={
  CollectStrategy:{onlyTrustedDevices:()=>({trusted:true})},
  LocalTrust:{Verified:1}
 };
-function harness(fingerprints=['a'.repeat(64),'a'.repeat(64)]){
+function harness(fingerprints=['a'.repeat(64),'a'.repeat(64)],versions=[1,1]){
  let checks=0,posts=0;
  const uploads=[];
  const machine={
@@ -29,10 +29,10 @@ function harness(fingerprints=['a'.repeat(64),'a'.repeat(64)]){
   encryptRoomEvent:async()=>JSON.stringify(envelope)
  };
  const transport={
-  participants:async()=>({members:[uid],fingerprint:fingerprints[Math.min(checks++,fingerprints.length-1)]}),
+  participants:async()=>{const index=Math.min(checks++,fingerprints.length-1);return {members:[uid],fingerprint:fingerprints[index],membership_version:versions[Math.min(index,versions.length-1)]};},
   getDevices:async()=>({devices:[{device_id:deviceId,signing_key:'A'.repeat(43),identity:{device_keys:{user_id:matrixUid,device_id:deviceId}}}]}),
   uploadCiphertext:async(...args)=>{uploads.push(args);return{uid:args[1]};},
-  sendRoomEvent:async(payload)=>{posts++;assert.equal(payload.encrypted.algorithm,envelope.algorithm);assert.equal(JSON.stringify(payload).includes('секрет'),false);return{stored:true};},
+  sendRoomEvent:async(payload)=>{posts++;assert.equal(payload.membership_version,versions[0]);assert.equal(payload.encrypted.algorithm,envelope.algorithm);assert.equal(JSON.stringify(payload).includes('секрет'),false);return{stored:true};},
  };
  return {client:createE2eeConversation({sdk,machine,transport,trust:{isTrusted:async()=>true},userUid:uid,deviceId}),posts:()=>posts,uploads:()=>uploads};
 }
@@ -45,6 +45,16 @@ test('изменение состава во время раздачи блок�
  const h=harness(['a'.repeat(64),'b'.repeat(64)]);
  await assert.rejects(h.client.send(room,'секрет'));
  assert.equal(h.posts(),0);
+});
+test('при новой версии прежний ключ нельзя использовать даже с тем же списком',async()=>{
+ const h=harness(['a'.repeat(64),'a'.repeat(64)],[3,4]);
+ await assert.rejects(h.client.send(room,'секрет'));
+ assert.equal(h.posts(),0);
+});
+test('успешный шифротекст закреплён за версией состава',async()=>{
+ const h=harness(['a'.repeat(64),'a'.repeat(64)],[7,7]);
+ await h.client.send(room,'шифротекст');
+ assert.equal(h.posts(),1);
 });
 test('состав участников без владельца или отпечатка запрещает отправку',async()=>{
  const client=createE2eeConversation({sdk,machine:{},transport:{participants:async()=>({members:[],fingerprint:'x'})},trust:{},userUid:uid,deviceId});
