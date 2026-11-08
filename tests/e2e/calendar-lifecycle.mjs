@@ -233,7 +233,7 @@ try {
     });
     return { status: response.status, body: await response.json().catch(() => null) };
   }, { uid: eventUid, path: basePath });
-  if (foreignRead.status !== 422 || foreignRead.body?.code !== 'invalid_calendar_request') {
+  if (foreignRead.status !== 404 || foreignRead.body?.code !== 'calendar_not_found') {
     throw new Error(`Чтение чужого события завершилось неожиданно: ${JSON.stringify(foreignRead)}`);
   }
   await bobContext.close();
