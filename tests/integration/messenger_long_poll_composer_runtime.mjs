@@ -142,7 +142,7 @@ function response(status, payload) {
     };
 }
 
-async function expectFailure(label, fetchImpl) {
+async function expectFailure(label, fetchImpl, expectedToast = 'Резервный канал временно недоступен') {
     const { app, input, send, toasts } = makeApp();
     context.fetch = fetchImpl;
 
@@ -152,7 +152,7 @@ async function expectFailure(label, fetchImpl) {
     assert(app.replyTo?.uid === 'reply-1', label + ': reply context потерян');
     assert(send.disabled === false, label + ': кнопка отправки осталась заблокирована');
     assert(
-        toasts.includes('Резервный канал временно недоступен'),
+        toasts.includes(expectedToast),
         label + ': пользователь не получил сообщение об отказе'
     );
 }
@@ -164,7 +164,8 @@ await expectFailure('сетевая ошибка', async () => {
 });
 await expectFailure(
     'ошибка обработчика внутри HTTP 200',
-    async () => response(200, { status: 'error', message: 'handler failed' })
+    async () => response(200, { status: 'error', message: 'Сервер отклонил сообщение' }),
+    'Сервер отклонил сообщение'
 );
 await expectFailure(
     'HTTP 200 без подтверждения записи',
@@ -236,6 +237,21 @@ await expectFailure(
     assert(sentThroughSocket === 0, 'подтверждаемая отправка обошла HTTP через WebSocket');
     assert(input.value === 'Неотправленный текст', 'WebSocket очистил неподтверждённый черновик');
     assert(toasts.length > 0, 'нет уведомления об отсутствии подтверждения');
+}
+
+{
+    const { app, toasts } = makeApp();
+    context.fetch = async () => response(200, { status: 'ok', events: [] });
+    const withoutReceipt = await app.sendEventConfirmed('MediaSocket:send', { attachment_uid: 'file-a' });
+    assert(withoutReceipt === false, 'запись вложения ошибочно подтверждена без события');
+    assert(toasts.length > 0, 'отсутствует сообщение об отказе вложения');
+
+    context.fetch = async () => response(200, {
+        status: 'ok',
+        events: [{ action: 'send_message', message: { uid: 'file-saved' } }],
+    });
+    const withReceipt = await app.sendEventConfirmed('MediaSocket:send', { attachment_uid: 'file-a' });
+    assert(withReceipt === true, 'подтверждённое вложение ошибочно отклонено');
 }
 
 console.log('[OK] Messenger сохраняет неподтверждённый черновик при HTTP/WebSocket и требует событие сохранения');
