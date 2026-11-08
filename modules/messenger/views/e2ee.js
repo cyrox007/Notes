@@ -571,14 +571,16 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 togglePanel(true);
                 return;
             }
-            if (selected.type !== 'private' || !selected.partner?.uid) {
-                window.alert('Защищённая переписка пока доступна только с одним собеседником.');
+            if (selected.type !== 'group' && (selected.type !== 'private' || !selected.partner?.uid)) {
+                window.alert('Выберите личный или групповой диалог для создания защищённой копии.');
                 return;
             }
             if (!window.confirm(
-                'Создать отдельный защищённый диалог?\n\n'
-                + 'Обычные сообщения останутся в старом чате, а новый диалог '
-                + 'будет принимать только E2EE-шифротекст. Продолжить?'
+                (selected.type === 'group'
+                    ? 'Создать отдельную защищённую группу с нынешним составом?\n\n'
+                    : 'Создать отдельный защищённый диалог?\n\n')
+                + 'Обычная история останется в старом чате. Для отправки в новой группе '
+                + 'потребуется подтверждение ключей всех устройств участников. Продолжить?'
             )) return;
             toggle.disabled = true;
             try {
@@ -592,7 +594,9 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                     messengerPath: path('/messenger'),
                     getCsrfToken: () => window.wspace?.security?.getCSRFToken?.() || ''
                 });
-                const result = await transport.createEncryptedDialog(selected.partner.uid);
+                const result = selected.type === 'group'
+                    ? await transport.createEncryptedGroup(selected.uid)
+                    : await transport.createEncryptedDialog(selected.partner.uid);
                 const dialogUid = result?.dialog?.uid;
                 if (typeof dialogUid !== 'string' || !dialogUid) {
                     throw new Error('Сервер не создал защищённый диалог');

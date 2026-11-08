@@ -96,6 +96,7 @@ export function createMessengerE2eeTransport({
 
     return Object.freeze({
         createEncryptedDialog: recipientUid=>request('dialogs','POST',{recipient_user_uid:recipientUid}),
+        createEncryptedGroup: sourceDialogUid=>request('groups','POST',{source_dialog_uid:sourceDialogUid}),
         participants: dialogUid=>request('participants','GET',null,{dialog_uid:dialogUid}),
         getDevices: userUid=>request('devices','GET',null,{user_uid:userUid}),
         registerDevice: (deviceId,identity)=>request('devices','POST',{device_id:deviceId,identity}),

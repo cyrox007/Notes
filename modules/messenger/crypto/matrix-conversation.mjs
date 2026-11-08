@@ -21,7 +21,11 @@ function validateParticipants(response, ownUserUid) {
         || !/^[a-f0-9]{64}$/.test(response.fingerprint)) {
         throw new Error('Состав участников защищённого диалога не подтверждён');
     }
-    return { members:users, fingerprint:response.fingerprint };
+    const version = response.membership_version ?? 1;
+    if (!Number.isSafeInteger(version) || version < 1) {
+        throw new Error('Некорректная версия состава защищённой группы');
+    }
+    return { members:users, fingerprint:response.fingerprint, membership_version:version };
 }
 
 /**
@@ -44,30 +48,35 @@ export function createE2eeConversation({sdk,machine,transport,trust,userUid,devi
                 sdk,machine,dialogUid,memberUids:original.members,deviceId,
                 getDevices:uid=>transport.getDevices(uid),
                 claimPrekey:(uid,device)=>transport.claimPrekey(uid,device),
-                sendToDevice:payload=>transport.sendDevicePacket(payload),
+                sendToDevice:payload=>transport.sendDevicePacket({
+                    ...payload, membership_version:original.membership_version
+                }),
                 trustedDevice:(uid,device,key)=>applyPinnedDeviceTrust(
                     sdk,machine,trust,uid,device,key
                 ).then(()=>true),
             });
             const current=validateParticipants(await transport.participants(dialogUid),userUid);
-            if(current.fingerprint!==original.fingerprint){
+            if(current.fingerprint!==original.fingerprint
+                || current.membership_version!==original.membership_version){
                 throw new Error('Состав диалога изменился во время раздачи ключей. Повторите отправку');
             }
-            return await action();
+            return await action(original);
         }finally{
             activeRoomKeys.delete(dialogUid);
         }
     }
 
     async function send(dialogUid,plaintext){
-        return withVerifiedRoom(dialogUid,async()=>{
+        return withVerifiedRoom(dialogUid,async original=>{
             const packet=await prepareEncryptedText(sdk,machine,dialogUid,deviceId,plaintext,secureTxn());
-            return sendPreparedEncryptedText(packet,(_path,payload)=>transport.sendRoomEvent(payload));
+            return sendPreparedEncryptedText(packet,(_path,payload)=>transport.sendRoomEvent({
+                ...payload, membership_version:original.membership_version
+            }));
         });
     }
 
     async function sendFile(dialogUid,input,originalName){
-        return withVerifiedRoom(dialogUid,async()=>{
+        return withVerifiedRoom(dialogUid,async original=>{
             if(!globalThis.crypto?.randomUUID){
                 throw new Error('Недоступен надёжный идентификатор зашифрованного файла');
             }
@@ -78,7 +87,9 @@ export function createE2eeConversation({sdk,machine,transport,trust,userUid,devi
             const packet=await prepareEncryptedFileMessage(
                 sdk,machine,dialogUid,deviceId,uid,secret,originalName,secureTxn()
             );
-            return sendPreparedEncryptedText(packet,(_path,payload)=>transport.sendRoomEvent(payload));
+            return sendPreparedEncryptedText(packet,(_path,payload)=>transport.sendRoomEvent({
+                ...payload, membership_version:original.membership_version
+            }));
         });
     }
 
@@ -138,7 +149,8 @@ export function createE2eeConversation({sdk,machine,transport,trust,userUid,devi
             details=>trust.isRestoredRoomKey?.(details) ?? false
         );
         const current=validateParticipants(await transport.participants(dialogUid),userUid);
-        if (current.fingerprint!==original.fingerprint) {
+        if (current.fingerprint!==original.fingerprint
+            || current.membership_version!==original.membership_version) {
             throw new Error('Состав участников изменился при чтении зашифрованной истории');
         }
         return { ...timeline, new_keys:keys.received };
