@@ -14,10 +14,10 @@ final class SocketTicket
 {
     private const DEFAULT_TTL = 120;
 
-    public static function issue(int $userId, ?int $ttl = null): string
+    public static function issue(int $userId, ?int $ttl = null, int $authSessionEpoch = 1): string
     {
-        if ($userId <= 0) {
-            throw new \InvalidArgumentException('Invalid user id');
+        if ($userId <= 0 || $authSessionEpoch < 1) {
+            throw new \InvalidArgumentException('Некорректная идентичность или версия сеанса');
         }
 
         $now = time();
@@ -26,6 +26,7 @@ final class SocketTicket
 
         $payload = [
             'sub' => $userId,
+            'sv' => $authSessionEpoch,
             'iat' => $now,
             'exp' => $now + $ttl,
             'nonce' => bin2hex(random_bytes(16)),
@@ -38,6 +39,14 @@ final class SocketTicket
     }
 
     public static function validate(string $ticket): ?int
+    {
+        return self::validateClaims($ticket)['user_id'] ?? null;
+    }
+
+    /**
+     * @return array{user_id:int,auth_session_epoch:int}|null
+     */
+    public static function validateClaims(string $ticket): ?array
     {
         if ($ticket === '' || substr_count($ticket, '.') !== 1) {
             return null;
@@ -66,11 +75,12 @@ final class SocketTicket
         }
 
         $userId = filter_var($payload['sub'] ?? null, FILTER_VALIDATE_INT);
+        $sessionEpoch = filter_var($payload['sv'] ?? 1, FILTER_VALIDATE_INT);
         $issuedAt = filter_var($payload['iat'] ?? null, FILTER_VALIDATE_INT);
         $expiresAt = filter_var($payload['exp'] ?? null, FILTER_VALIDATE_INT);
         $now = time();
 
-        if (!$userId || !$issuedAt || !$expiresAt) {
+        if (!$userId || !$sessionEpoch || $sessionEpoch < 1 || !$issuedAt || !$expiresAt) {
             return null;
         }
 
@@ -79,7 +89,7 @@ final class SocketTicket
             return null;
         }
 
-        return (int) $userId;
+        return ['user_id' => (int) $userId, 'auth_session_epoch' => (int) $sessionEpoch];
     }
 
     private static function secret(): string

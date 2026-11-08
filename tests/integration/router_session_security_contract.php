@@ -91,6 +91,24 @@ if (RequestOrigin::isSecure($trustedProxyHttp, 'https://example.test')) {
 putenv('TRUSTED_PROXY_IPS=');
 
 SessionSecurity::configure();
+// Старые PHP-сеансы исходной версии действуют только до первого отзыва.
+// Любая неизвестная или подменённая версия должна отклоняться.
+foreach ([
+    [null, 1, true],
+    [1, 1, true],
+    [null, 2, false],
+    [1, 2, false],
+    [2, 2, true],
+    [3, '3', true],
+    ['3', 3, false],
+    [0, 1, false],
+    [1, null, false],
+    [1, 'not-a-number', false],
+] as [$storedEpoch, $actualEpoch, $expected]) {
+    if (SessionSecurity::matchesAuthSessionEpoch($storedEpoch, $actualEpoch) !== $expected) {
+        failSecurityContract('Ошибка проверки версии авторизованного сеанса');
+    }
+}
 if (!SessionSecurity::isConfigured()) {
     failSecurityContract('session security was not marked configured');
 }

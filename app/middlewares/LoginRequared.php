@@ -7,6 +7,7 @@ namespace App\Middlewares;
 use App\Models\UserModel;
 use Core\Request;
 use Core\Router;
+use Core\SessionSecurity;
 
 class LoginRequared
 {
@@ -20,10 +21,10 @@ class LoginRequared
             return false;
         }
 
-        // Account availability is independent from RBAC role identity. Re-check
-        // it on every protected request so block/deactivation takes effect for
-        // already established sessions without rewriting role assignments.
-        $user = UserModel::select('id', 'is_active', 'account_status')
+        // Для каждого защищённого HTTP-запроса проверяем статус аккаунта
+        // и версию авторизации: старые PHP-сеансы блокируются после отзыва
+        // E2EE-устройства без перебора файлов или хранилища сеансов.
+        $user = UserModel::select('id', 'is_active', 'account_status', 'auth_session_epoch')
             ->where('id', '=', $userId)
             ->first();
 
@@ -31,7 +32,12 @@ class LoginRequared
             !$user
             || (int) $user->is_active !== 1
             || (string) $user->account_status !== 'active'
+            || !SessionSecurity::matchesAuthSessionEpoch(
+                $request->session('auth_session_epoch'),
+                $user->auth_session_epoch ?? null
+            )
         ) {
+            $request->unsetSession('auth_session_epoch');
             $request->unsetSession('auth');
             $request->unsetSession('user_id');
             $request->unsetSession('user_uid');

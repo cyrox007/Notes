@@ -45,7 +45,10 @@ final class MessagerController extends Controller
         $socketUrl = '';
         try {
             if (WebSocketEndpoint::enabled()) {
-                $socketTicket = SocketTicket::issue((int) $user->id);
+                $socketTicket = SocketTicket::issue(
+                    (int) $user->id, null,
+                    (int) $request->session('auth_session_epoch', 1)
+                );
                 $socketUrl = WebSocketEndpoint::browserUrl();
             }
         } catch (\Throwable $e) {
@@ -119,7 +122,9 @@ final class MessagerController extends Controller
 
             $this->responseJson([
                 'status' => 'ok',
-                'ticket' => SocketTicket::issue($userId),
+                'ticket' => SocketTicket::issue(
+                    $userId, null, (int) $request->session('auth_session_epoch', 1)
+                ),
                 'expires_in' => 120,
             ]);
         } catch (\Throwable $e) {

@@ -52,6 +52,7 @@ final class MessengerService
                 d.id AS dialog_id,
                 d.uid,
                 d.type,
+                d.encryption_mode,
                 d.name,
                 d.avatar,
                 d.updated_at,
@@ -169,6 +170,7 @@ final class MessengerService
         $info = [
             'uid' => $dialog['uid'],
             'type' => $dialog['type'],
+            'encryption_mode' => $dialog['encryption_mode'],
             'name' => $dialog['name'],
             'avatar' => $dialog['avatar'],
             'participants' => $members,
@@ -200,6 +202,15 @@ final class MessengerService
         int $limit = self::PAGE_SIZE
     ): array {
         [$user, $dialog] = $this->requireAccess($userUid, $dialogUid);
+        if ($dialog['encryption_mode'] === 'e2ee') {
+            // У E2EE нет доступной серверу истории; никакой запасной расшифровки.
+            return [
+                'dialog' => $this->getDialogInfo($userUid, $dialogUid),
+                'messages' => [],
+                'has_more' => false,
+                'last_message_id' => null,
+            ];
+        }
         $limit = max(1, min(100, $limit));
 
         $whereBefore = '';
@@ -345,14 +356,17 @@ final class MessengerService
         string $userUid,
         string $type,
         array $participantUids,
-        ?string $name = null
+        ?string $name = null,
+        string $encryptionMode = 'server_encrypted'
     ): array {
         $creator = $this->getUserByUid($userUid);
+        if (!in_array($encryptionMode, ['server_encrypted', 'e2ee'], true)) {
+            throw new InvalidArgumentException('Недопустимый режим шифрования диалога');
+        }
         $type = strtolower(trim($type));
         if (!in_array($type, ['private', 'group'], true)) {
             throw new InvalidArgumentException('Неизвестный тип диалога');
         }
-
         $participantUids = array_values(array_unique(array_filter(
             array_map(static fn ($uid): string => trim((string) $uid), $participantUids),
             static fn (string $uid): bool => $uid !== '' && $uid !== $userUid
@@ -371,7 +385,7 @@ final class MessengerService
         }
 
         if ($type === 'private') {
-            $existing = $this->findPrivateDialog((int) $creator['id'], (int) $participants[0]['id']);
+            $existing = $this->findPrivateDialog((int) $creator['id'], (int) $participants[0]['id'], $encryptionMode);
             if ($existing !== null) {
                 return $this->getDialogInfo($userUid, (string) $existing['uid']);
             }
@@ -391,11 +405,12 @@ final class MessengerService
         $this->db->beginTransaction();
         try {
             $this->db->execute(
-                'INSERT INTO dialogs (uid, type, name, created_by, created_at, updated_at)
-                 VALUES (:uid, :type, :name, :created_by, :created_at, :updated_at)',
+                'INSERT INTO dialogs (uid, type, encryption_mode, name, created_by, created_at, updated_at)
+                 VALUES (:uid, :type, :mode, :name, :created_by, :created_at, :updated_at)',
                 [
                     ':uid' => $dialogUid,
                     ':type' => $type,
+                    ':mode' => $encryptionMode,
                     ':name' => $groupName,
                     ':created_by' => (int) $creator['id'],
                     ':created_at' => $now,
@@ -445,6 +460,9 @@ final class MessengerService
         ?string $replyToUid = null
     ): array {
         [$user, $dialog] = $this->requireAccess($userUid, $dialogUid);
+        if ($dialog['encryption_mode'] !== 'server_encrypted') {
+            throw new DomainException('В защищённом диалоге запрещена обычная отправка сообщений', 409);
+        }
         $message = trim($message);
 
         if ($message === '') {
@@ -680,7 +698,7 @@ final class MessengerService
     {
         $user = $this->getUserByUid($userUid);
         $dialog = $this->db->fetchOne(
-            'SELECT id, uid, type, name, avatar, created_by, created_at, updated_at
+            'SELECT id, uid, type, encryption_mode, name, avatar, created_by, created_at, updated_at
              FROM dialogs WHERE uid = :uid LIMIT 1',
             [':uid' => $dialogUid]
         );
@@ -761,7 +779,7 @@ final class MessengerService
     }
 
     /** @return array<string,mixed>|null */
-    private function findPrivateDialog(int $firstUserId, int $secondUserId): ?array
+    private function findPrivateDialog(int $firstUserId, int $secondUserId, string $encryptionMode = 'server_encrypted'): ?array
     {
         return $this->db->fetchOne(
             'SELECT d.id, d.uid
@@ -774,13 +792,13 @@ final class MessengerService
                 ON second_member.dialog_id = d.id
                AND second_member.user_id = :second_user_id
                AND second_member.is_deleted = 0
-             WHERE d.type = "private"
+             WHERE d.type = "private" AND d.encryption_mode = :encryption_mode
                AND (
                    SELECT COUNT(*) FROM user_to_dialogs all_members
                    WHERE all_members.dialog_id = d.id AND all_members.is_deleted = 0
                ) = 2
              LIMIT 1',
-            [':first_user_id' => $firstUserId, ':second_user_id' => $secondUserId]
+            [':first_user_id' => $firstUserId, ':second_user_id' => $secondUserId, ':encryption_mode' => $encryptionMode]
         );
     }
 

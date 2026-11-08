@@ -25,6 +25,13 @@ final class SecurityHeaders
     public static function policy(): string
     {
         $nonce = self::nonce();
+        $path = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+        $isMessengerPage = is_string($path)
+            && preg_match('~(?:^|/)messenger/?$~D', $path) === 1;
+        // Движок E2EE использует WebAssembly только на странице Messenger.
+        // Не разрешаем произвольный eval JavaScript и не расширяем CSP
+        // остальных страниц, страниц ошибок или чужих путей.
+        $wasm = $isMessengerPage ? " 'wasm-unsafe-eval'" : '';
 
         return implode('; ', [
             "default-src 'self'",
@@ -33,7 +40,7 @@ final class SecurityHeaders
             "frame-ancestors 'self'",
             "form-action 'self'",
             "connect-src 'self' ws: wss:",
-            "script-src 'self' 'nonce-{$nonce}'",
+            "script-src 'self' 'nonce-{$nonce}'{$wasm}",
             "script-src-attr 'none'",
             "style-src 'self' 'nonce-{$nonce}'",
             "style-src-attr 'none'",

@@ -258,7 +258,7 @@ final class MessengerForwardService
                 ON utd.dialog_id = d.id
                AND utd.user_id = :actor_id
                AND utd.is_deleted = 0
-             WHERE d.uid = :dialog_uid
+             WHERE d.uid = :dialog_uid AND d.encryption_mode = \'server_encrypted\'
              LIMIT 1',
             [':actor_id' => $actorId, ':dialog_uid' => trim($dialogUid)]
         );

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     `role` INT NOT NULL DEFAULT 888,
     `is_active` TINYINT(1) NOT NULL DEFAULT 1,
     `account_status` ENUM('active', 'inactive', 'blocked') NOT NULL DEFAULT 'active',
+    `auth_session_epoch` INT UNSIGNED NOT NULL DEFAULT 1,
     `deletion_requested_at` DATETIME DEFAULT NULL,
     `purge_after` DATETIME DEFAULT NULL,
     `anonymized_at` DATETIME DEFAULT NULL,

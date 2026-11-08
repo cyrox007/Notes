@@ -1,0 +1,361 @@
+<?php
+
+declare(strict_types=1);
+
+require_once dirname(__DIR__, 2) . '/core/DatabaseManager.php';
+require_once dirname(__DIR__, 2) . '/core/SessionSecurity.php';
+require_once dirname(__DIR__, 2) . '/modules/messenger/services/MessengerE2eeIdentity.php';
+require_once dirname(__DIR__, 2) . '/modules/messenger/services/MessengerE2eeMediaService.php';
+require_once dirname(__DIR__, 2) . '/modules/messenger/services/MessengerE2eeRelayService.php';
+
+use App\Services\MessengerE2eeRelayService;
+use App\Services\MessengerE2eeIdentity;
+use Core\DatabaseManager;
+
+/** Сквозные проверки БД: одноразовые ключи, владение, идемпотентность и отзыв. */
+function assertRelay(bool $condition, string $description): void
+{
+    if (!$condition) {
+        throw new RuntimeException('Проверка не пройдена: ' . $description);
+    }
+}
+
+function mustReject(callable $operation, string $description): void
+{
+    try {
+        $operation();
+    } catch (DomainException | InvalidArgumentException $e) {
+        return;
+    }
+    throw new RuntimeException('Запрос ошибочно разрешён: ' . $description);
+}
+
+$host = getenv('DBHOST') ?: '127.0.0.1';
+$port = getenv('DBPORT') ?: '3306';
+$dbname = getenv('DBNAME') ?: 'e2ee_relay_test';
+$db = new PDO(
+    'mysql:host=' . $host . ';port=' . $port . ';dbname=' . $dbname . ';charset=utf8mb4',
+    getenv('DBUSER') ?: 'root',
+    getenv('DBPASS') ?: '',
+    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+);
+
+$db->exec('CREATE TABLE users (id INT NOT NULL PRIMARY KEY, uid CHAR(36) NOT NULL UNIQUE, is_active TINYINT NOT NULL DEFAULT 1, auth_session_epoch INT UNSIGNED NOT NULL DEFAULT 1) ENGINE=InnoDB');
+$db->exec("CREATE TABLE dialogs (id BIGINT UNSIGNED NOT NULL PRIMARY KEY, uid CHAR(36) NOT NULL UNIQUE, encryption_mode ENUM('server_encrypted','e2ee') NOT NULL DEFAULT 'server_encrypted') ENGINE=InnoDB");
+$db->exec('CREATE TABLE user_to_dialogs (
+    dialog_id BIGINT UNSIGNED NOT NULL, user_id INT NOT NULL,
+    joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_deleted TINYINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (dialog_id, user_id)
+) ENGINE=InnoDB');
+$schema = file_get_contents(dirname(__DIR__, 2) . '/database/migrations/20261031_messenger_e2ee_relay.sql');
+assertRelay(is_string($schema), 'файл миграции существует');
+foreach (explode(';', $schema) as $statement) {
+    $statement = preg_replace('/^\s*--[^\n]*$/m', '', $statement);
+    if (trim($statement) !== '') {
+        $db->exec($statement);
+    }
+}
+// Транспорт проверяется с установленной миграцией групповых эпох.
+$epochs = file_get_contents(dirname(__DIR__, 2)
+    . '/database/migrations/20261108_messenger_e2ee_membership_epochs.sql');
+assertRelay(is_string($epochs), 'миграция эпох существует');
+foreach (explode(';', $epochs) as $statement) {
+    $statement = trim((string) preg_replace('/^\s*--[^\n]*$/m', '', $statement));
+    if ($statement !== '') {
+        $db->exec($statement);
+    }
+}
+$uids = [
+    1 => '11111111-1111-4111-8111-111111111111',
+    2 => '22222222-2222-4222-8222-222222222222',
+    3 => '33333333-3333-4333-8333-333333333333',
+];
+foreach ($uids as $id => $uid) {
+    $statement = $db->prepare('INSERT INTO users (id, uid) VALUES (?, ?)');
+    $statement->execute([$id, $uid]);
+}
+$db->exec("INSERT INTO dialogs (id, uid, encryption_mode) VALUES (7, '77777777-7777-4777-8777-777777777777', 'e2ee')");
+$db->exec("INSERT INTO dialogs (id, uid) VALUES (8, '88888888-8888-4888-8888-888888888888')");
+$db->exec('INSERT INTO user_to_dialogs (dialog_id, user_id) VALUES (7, 1), (7, 2), (8, 1), (8, 2)');
+
+/** @return array<string,mixed> */
+function signedDevice(string $uid, string $deviceId, string $secret, string $agreement): array
+{
+    $matrixUser = MessengerE2eeIdentity::matrixUserId($uid);
+    $public = base64_encode(sodium_crypto_sign_publickey_from_secretkey($secret));
+    $device = [
+        'algorithms' => ['m.olm.v1.curve25519-aes-sha2', 'm.megolm.v1.aes-sha2'],
+        'device_id' => $deviceId,
+        'keys' => ['ed25519:' . $deviceId => $public, 'curve25519:' . $deviceId => $agreement],
+        'user_id' => $matrixUser,
+    ];
+    $signature = base64_encode(sodium_crypto_sign_detached(MessengerE2eeIdentity::canonicalJson($device), $secret));
+    $device['signatures'] = [$matrixUser => ['ed25519:' . $deviceId => $signature]];
+    return ['signing_key' => $public, 'agreement_key' => $agreement, 'device_keys' => $device];
+}
+
+/** @return array<string,mixed> */
+function signedPrekey(string $uid, string $deviceId, string $secret, string $public): array
+{
+    $key = ['key' => $public];
+    $signature = base64_encode(sodium_crypto_sign_detached(MessengerE2eeIdentity::canonicalJson($key), $secret));
+    $key['signatures'] = [MessengerE2eeIdentity::matrixUserId($uid) => ['ed25519:' . $deviceId => $signature]];
+    return $key;
+}
+
+$service = new MessengerE2eeRelayService(DatabaseManager::forConnection($db));
+$members = $service->participants(1, '77777777-7777-4777-8777-777777777777');
+assertRelay($members['members'] === [$uids[1], $uids[2]], 'полный отсортированный список участников');
+assertRelay(strlen($members['fingerprint']) === 64, 'отпечаток состава участников');
+assertRelay($members['membership_version'] === 1, 'первичная версия участников');
+mustReject(fn () => $service->participants(3, '77777777-7777-4777-8777-777777777777'), 'посторонний не получает состав диалога');
+mustReject(fn () => $service->participants(1, '88888888-8888-4888-8888-888888888888'), 'обычный диалог не выдаётся как E2EE');
+$secret1 = sodium_crypto_sign_secretkey(sodium_crypto_sign_keypair());
+$secret2 = sodium_crypto_sign_secretkey(sodium_crypto_sign_keypair());
+$key2 = base64_encode(random_bytes(32));
+$key4 = base64_encode(random_bytes(32));
+$identity1 = signedDevice($uids[1], 'device_001', $secret1, $key2);
+$identity2 = signedDevice($uids[2], 'device_002', $secret2, $key4);
+$key1 = $identity1['signing_key'];
+$key3 = $identity2['signing_key'];
+$service->register(1, 'device_001', $identity1);
+$service->register(2, 'device_002', $identity2);
+assertRelay(count($service->devices(1, $uids[2])) === 1, 'публичные ключи общих участников');
+mustReject(fn () => $service->devices(3, $uids[1]), 'выдача ключей постороннему');
+$service->register(1, 'device_001', $identity1);
+assertRelay(count($service->devices(1, $uids[1])) === 1, 'идемпотентная регистрация не создаёт второе устройство');
+mustReject(fn () => $service->register(1, 'device_001', $identity2), 'подмена зарегистрированного устройства');
+$tampered = signedDevice($uids[1], 'device_003', $secret1, base64_encode(random_bytes(32)));
+$tampered['device_keys']['algorithms'][] = 'подмена после подписи';
+mustReject(fn () => $service->register(1, 'device_003', $tampered), 'подмена подписанных ключей');
+mustReject(fn () => $service->register(1, 'bad', $identity1), 'слабый ID устройства');
+
+$prekey = base64_encode(random_bytes(32));
+mustReject(fn () => $service->publishPrekeys(2, 'device_002', ['signed_curve25519:unsigned' => ['key' => $prekey]]), 'неподписанный одноразовый ключ');
+$service->publishPrekeys(2, 'device_002', ['signed_curve25519:once' => signedPrekey($uids[2], 'device_002', $secret2, $prekey)]);
+$claimed = $service->claimPrekey(1, $uids[2], 'device_002');
+assertRelay(($claimed['key_id'] ?? '') === 'signed_curve25519:once', 'одноразовый ключ выдан');
+assertRelay($service->claimPrekey(1, $uids[2], 'device_002') === null, 'одноразовый ключ не выдан повторно');
+mustReject(fn () => $service->claimPrekey(3, $uids[2], 'device_002'), 'посторонний не получает ключи');
+
+$envelope = [
+    'algorithm' => 'm.olm.v1.curve25519-aes-sha2',
+    'sender_key' => $key2,
+    'ciphertext' => [$key4 => ['body' => base64_encode(random_bytes(120)), 'type' => 0]],
+];
+$dialogUid = '77777777-7777-4777-8777-777777777777';
+$transaction = 'session_transaction_0000001';
+$service->send(1, 'device_001', $uids[2], 'device_002', $dialogUid, $transaction, $envelope);
+$service->send(1, 'device_001', $uids[2], 'device_002', $dialogUid, $transaction, $envelope);
+mustReject(
+    fn () => $service->send(
+        1, 'device_001', $uids[2], 'device_002',
+        '88888888-8888-4888-8888-888888888888',
+        'session_transaction_normal_000001', $envelope
+    ),
+    'Olm-пакет нельзя отправить через обычный диалог'
+);
+assertRelay(count($service->inbox(2, 'device_002')) === 1, 'повтор не создаёт дубликат');
+mustReject(fn () => $service->send(1, 'device_001', $uids[3], 'device_002', $dialogUid, 'session_transaction_0000002', $envelope), 'чужой диалог');
+$changed = $envelope;
+$changed['ciphertext'][$key4]['body'] = 'подмена';
+mustReject(fn () => $service->send(1, 'device_001', $uids[2], 'device_002', $dialogUid, $transaction, $changed), 'повтор с изменёнными данными');
+mustReject(fn () => $service->send(1, 'device_001', $uids[2], 'device_002', $dialogUid, 'session_transaction_0000003', ['plaintext' => 'secret']), 'открытый текст');
+$inbox = $service->inbox(2, 'device_002');
+assertRelay(count($inbox) === 1 && $inbox[0]['envelope'] == $envelope, 'передан исходный шифротекст');
+mustReject(fn () => $service->inbox(1, 'device_002'), 'чтение чужого устройства');
+$service->acknowledge(1, 'device_001', [$inbox[0]['id']]);
+assertRelay(count($service->inbox(2, 'device_002')) === 1, 'чужой ack не удалил сообщение');
+$service->acknowledge(2, 'device_002', [$inbox[0]['id']]);
+assertRelay(count($service->inbox(2, 'device_002')) === 0, 'подтверждённое сообщение скрыто');
+$service->send(1, 'device_001', $uids[2], 'device_002', $dialogUid, $transaction, $envelope);
+assertRelay(count($service->inbox(2, 'device_002')) === 0, 'подтверждённый пакет нельзя доставить повторно');
+assertRelay((int) $db->query('SELECT COUNT(*) FROM messenger_e2ee_mailbox WHERE acknowledged_at IS NOT NULL')->fetchColumn() === 1, 'подтверждение хранится как защита от повторной отправки');
+// Подтверждённые записи остаются до срока хранения; затем очищаются.
+$db->exec('UPDATE messenger_e2ee_mailbox
+           SET expires_at = DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY)');
+$db->exec('UPDATE messenger_e2ee_prekeys
+           SET claimed_at = DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 31 DAY)
+           WHERE claimed_at IS NOT NULL');
+$removed = $service->pruneExpired(50);
+assertRelay($removed['mailbox'] === 1, 'истёкший пакет очищен после окончания окна дедупликации');
+assertRelay($removed['prekeys'] === 1, 'использованный устаревший ключ удалён');
+$encryptedRoom = [
+    'algorithm' => 'm.megolm.v1.aes-sha2',
+    'device_id' => 'device_001',
+    'sender_key' => $key2,
+    'session_id' => base64_encode(random_bytes(32)),
+    'ciphertext' => base64_encode(random_bytes(150)),
+];
+$roomTxn = 'room_transaction_000000001';
+$service->sendRoomEvent(1, 'device_001', $dialogUid, $roomTxn, $encryptedRoom);
+$service->sendRoomEvent(1, 'device_001', $dialogUid, $roomTxn, $encryptedRoom);
+mustReject(
+    fn () => $service->sendRoomEvent(
+        1, 'device_001', '88888888-8888-4888-8888-888888888888',
+        'room_transaction_normal_000001', $encryptedRoom
+    ),
+    'Megolm-шифротекст нельзя записать в обычный диалог'
+);
+mustReject(
+    fn () => $service->roomEvents(1, '88888888-8888-4888-8888-888888888888'),
+    'Обычный диалог не выдаёт E2EE-хронологию'
+);
+$storedEvents = $service->roomEvents(2, $dialogUid);
+assertRelay(count($storedEvents) === 1, 'повтор не создаёт второе сообщение Megolm');
+assertRelay($storedEvents[0]['encrypted'] == $encryptedRoom, 'сервер возвращает только исходный шифротекст');
+mustReject(fn () => $service->roomEvents(3, $dialogUid), 'чужой участник не читает зашифрованную хронологию');
+mustReject(fn () => $service->sendRoomEvent(3, 'device_001', $dialogUid, $roomTxn, $encryptedRoom), 'посторонний не отправляет зашифрованные события');
+mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid, 'room_transaction_000000002', ['plaintext' => 'секрет']), 'сервер отклоняет открытый текст');
+$tamperedRoom = $encryptedRoom;
+$tamperedRoom['ciphertext'] = base64_encode(random_bytes(150));
+mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid, $roomTxn, $tamperedRoom), 'подмена уже отправленного шифротекста');
+assertRelay(count($service->roomEvents(2, $dialogUid, $storedEvents[0]['id'])) === 0, 'постраничное чтение не повторяет события');
+
+// Новый шифротекст вложения без имени/ключа: привязка внутри транзакции.
+$fileUid = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+$db->prepare('INSERT INTO messenger_e2ee_attachments
+    (uid, dialog_id, uploader_user_id, stored_path, size) VALUES (?, ?, ?, ?, ?)')
+    ->execute([$fileUid, 7, 1, '/example/encrypted.bin', 33]);
+$fileTransaction = 'room_with_attachment_00001';
+$service->sendRoomEvent(1, 'device_001', $dialogUid, $fileTransaction, $encryptedRoom, [$fileUid]);
+$attached = $db->query("SELECT event_id FROM messenger_e2ee_attachments WHERE uid='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'")->fetchColumn();
+assertRelay((int)$attached > 0, 'зашифрованное вложение связано с событием');
+$service->sendRoomEvent(1, 'device_001', $dialogUid, $fileTransaction, $encryptedRoom, [$fileUid]);
+mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid, $fileTransaction, $encryptedRoom), 'нельзя убрать вложение повтором');
+mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid, 'room_with_attachment_00002', $encryptedRoom, [$fileUid]), 'нельзя прикрепить файл к другому сообщению');
+assertRelay((int)$db->query('SELECT COUNT(*) FROM messenger_e2ee_events')->fetchColumn() === 2, 'отклонённая привязка откатывает событие');
+// После смены состава старая эпоха не может записать новое событие или ключ.
+$db->exec('UPDATE dialogs SET e2ee_membership_version = 2 WHERE id = 7');
+assertRelay($service->participants(1, $dialogUid)['membership_version'] === 2,
+    'сервер возвращает новую версию состава');
+mustReject(fn () => $service->send(1, 'device_001', $uids[2], 'device_002',
+    $dialogUid, 'old_epoch_packet_00001', $envelope, 1),
+    'пакет старой эпохи не проходит');
+mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid,
+    'old_epoch_room_event_00001', $encryptedRoom, [], 1),
+    'шифротекст старой эпохи не проходит');
+$service->send(1, 'device_001', $uids[2], 'device_002',
+    $dialogUid, 'new_epoch_packet_00001', $envelope, 2);
+$service->sendRoomEvent(1, 'device_001', $dialogUid,
+    'new_epoch_room_event_00001', $encryptedRoom, [], 2);
+assertRelay(count($service->inbox(2, 'device_002')) === 1,
+    'пакет новой эпохи доступен получателю');
+$db->exec('UPDATE user_to_dialogs SET e2ee_join_version = 2
+           WHERE dialog_id = 7 AND user_id = 2');
+assertRelay(count($service->roomEvents(2, $dialogUid)) === 1,
+    'после повторного вступления старая история недоступна');
+// Несколько комнат у владельца устройства: отзыв меняет версии всех,
+ // но не затрагивает чужие защищённые комнаты.
+$db->exec("INSERT INTO dialogs (id, uid, encryption_mode, e2ee_membership_version)
+           VALUES
+           (9, '99999999-9999-4999-8999-999999999999', 'e2ee', 4),
+           (10, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'e2ee', 3)");
+$db->exec("INSERT INTO user_to_dialogs (dialog_id, user_id)
+           VALUES (9,1),(9,2),(10,1),(10,3)");
+$secondDialog = '99999999-9999-4999-8999-999999999999';
+$unaffectedDialog = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+$envelopeFromLost = [
+    'algorithm' => 'm.olm.v1.curve25519-aes-sha2',
+    'sender_key' => $key4,
+    'ciphertext' => [$key2 => ['body' => base64_encode(random_bytes(120)), 'type' => 0]],
+];
+$service->send(2, 'device_002', $uids[1], 'device_001',
+    $secondDialog, 'lost_sender_packet_00001', $envelopeFromLost, 4);
+$service->send(1, 'device_001', $uids[2], 'device_002',
+    $secondDialog, 'lost_recipient_packet_001', $envelope, 4);
+assertRelay(count($service->inbox(1, 'device_001')) === 1,
+    'до отзыва исходящий пакет устройства ждёт выдачи');
+assertRelay(count($service->inbox(2, 'device_002')) === 2,
+    'до отзыва входящие пакеты двух комнат доступны устройству');
+mustReject(fn () => $service->revoke(2, 'device_not_registered'),
+    'неизвестное устройство не должно запускать смену эпох');
+assertRelay($service->participants(1, $secondDialog)['membership_version'] === 4,
+    'ошибочная попытка отзыва не изменила ключевой состав');
+assertRelay((int) $db->query('SELECT auth_session_epoch FROM users WHERE id = 2')->fetchColumn() === 1,
+    'ошибочный отзыв не меняет версии веб-сеансов');
+
+// Вторая комната не даёт увеличить эпоху из-за переполнения значения.
+// Сбой происходит ПОСЛЕ блокировки комнат и изменения статуса устройства:
+// вторая ошибка должна откатить весь отзыв, включая пакеты и первую эпоху.
+$db->exec('UPDATE dialogs
+           SET e2ee_membership_version = 18446744073709551615 WHERE id = 9');
+$aborted = false;
+try {
+    $service->revoke(2, 'device_002');
+} catch (Throwable $error) {
+    $aborted = true;
+}
+assertRelay($aborted, 'невозможное повышение эпохи отменяет отзыв');
+assertRelay(count($service->devices(1, $uids[2])) === 1,
+    'при ошибке устройство остаётся активным');
+assertRelay($service->participants(1, $dialogUid)['membership_version'] === 2,
+    'при ошибке версия первой комнаты откатилась');
+assertRelay(count($service->inbox(1, 'device_001')) === 1,
+    'при ошибке исходящий ключевой пакет восстановлен');
+assertRelay(count($service->inbox(2, 'device_002')) === 2,
+    'при ошибке входящие ключи восстановлены');
+assertRelay((int) $db->query('SELECT auth_session_epoch FROM users WHERE id = 2')->fetchColumn() === 1,
+    'транзакция восстанавливает версию веб-сеансов');
+$db->exec('UPDATE dialogs SET e2ee_membership_version = 4 WHERE id = 9');
+
+$revokeResult = $service->revoke(2, 'device_002');
+assertRelay($revokeResult === [
+    'revoked' => true, 'rooms_affected' => 2, 'auth_session_epoch' => 2
+], 'отзыв затрагивает именно две защищённые комнаты и версию авторизации');
+assertRelay((int) $db->query('SELECT auth_session_epoch FROM users WHERE id = 2')->fetchColumn() === 2,
+    'другие авторизованные сеансы отозваны');
+assertRelay((int) $db->query('SELECT auth_session_epoch FROM users WHERE id = 1')->fetchColumn() === 1,
+    'сеансы других пользователей остались действующими');
+assertRelay(\Core\SessionSecurity::matchesAuthSessionEpoch(1, 2) === false
+    && \Core\SessionSecurity::matchesAuthSessionEpoch(2, 2) === true,
+    'старый сеанс потерял доступ, текущий сохранил его');
+assertRelay($service->participants(1, $dialogUid)['membership_version'] === 3,
+    'ключевая эпоха первой комнаты повышена');
+assertRelay($service->participants(1, $secondDialog)['membership_version'] === 5,
+    'ключевая эпоха второй комнаты повышена');
+assertRelay($service->participants(1, $unaffectedDialog)['membership_version'] === 3,
+    'комната без отозванного владельца не затронута');
+assertRelay(count($service->inbox(1, 'device_001')) === 0,
+    'недоставленный ключ от скомпрометированного отправителя удалён');
+assertRelay((int) $db->query(
+    "SELECT COUNT(*) FROM messenger_e2ee_mailbox WHERE
+      (sender_user_id = 2 AND sender_device_id = 'device_002')
+      OR (recipient_user_id = 2 AND recipient_device_id = 'device_002')"
+)->fetchColumn() === 0, 'очереди входящих и исходящих пакетов устройства очищены');
+assertRelay(count($service->devices(1, $uids[2])) === 0,
+    'отозванное устройство исчезло из публичного списка');
+mustReject(fn () => $service->inbox(2, 'device_002'),
+    'отозванное устройство не получает очередь');
+mustReject(fn () => $service->register(2, 'device_002', $identity2),
+    'повторное создание отозванного ID запрещено');
+mustReject(fn () => $service->revoke(2, 'device_002'),
+    'повторный отзыв не должен менять версии комнат');
+assertRelay($service->participants(1, $secondDialog)['membership_version'] === 5,
+    'повторный отзыв не повысил версию');
+assertRelay((int) $db->query('SELECT auth_session_epoch FROM users WHERE id = 2')->fetchColumn() === 2,
+    'повторный отзыв не закрыл текущий подтверждённый сеанс');
+
+mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid,
+    'revoked_room_old_00001', $encryptedRoom, [], 2),
+    'первая комната отклоняет сообщение до отзыва');
+mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $secondDialog,
+    'revoked_room_old_00002', $encryptedRoom, [], 4),
+    'вторая комната отклоняет сообщение до отзыва');
+mustReject(fn () => $service->send(1, 'device_001', $uids[2], 'device_002',
+    $secondDialog, 'old_target_packet_00001', $envelope, 5),
+    'новый ключ нельзя направить отозванному получателю');
+mustReject(fn () => $service->send(2, 'device_002', $uids[1], 'device_001',
+    $secondDialog, 'old_sender_packet_00001', $envelopeFromLost, 5),
+    'отозванное устройство не может публиковать новые ключи');
+$service->sendRoomEvent(1, 'device_001', $dialogUid,
+    'revoked_room_new_00001', $encryptedRoom, [], 3);
+$service->sendRoomEvent(1, 'device_001', $secondDialog,
+    'revoked_room_new_00002', $encryptedRoom, [], 5);
+$service->sendRoomEvent(1, 'device_001', $unaffectedDialog,
+    'unaffected_room_0000001', $encryptedRoom, [], 3);
+assertRelay(count($service->roomEvents(1, $secondDialog)) === 1,
+    'новая эпоха позволяет отправку действующему устройству');
+
+echo "OK: ключи, права, одноразовая выдача, очередь, атомарный отзыв и все комнаты\n";

@@ -194,6 +194,21 @@ jobs:
           php tests/integration/notification_center_mysql_contract.php
           php tests/integration/notification_center_delivery_mysql_contract.php
 
+      - name: Разрешить триггеры на одноразовой MySQL для тестов Messenger
+        run: |
+          set -euo pipefail
+          # Изменение только для изолированной базы CI. Настройки рабочего сервера не затрагиваются.
+          php -r '
+          $mysql = new mysqli("127.0.0.1", "root", "root", "", 3306);
+          $mysql->query("SET GLOBAL log_bin_trust_function_creators = 1");
+          $result = $mysql->query("SELECT @@GLOBAL.log_bin_trust_function_creators AS enabled");
+          if ((int) $result->fetch_assoc()["enabled"] !== 1) {
+              fwrite(STDERR, "Не удалось подготовить тестовые триггеры Messenger\n");
+              exit(1);
+          }
+          $mysql->close();
+          '
+
       - name: Проверить пользовательские подписки на MySQL
         env:
           TEST_DB_HOST: 127.0.0.1
