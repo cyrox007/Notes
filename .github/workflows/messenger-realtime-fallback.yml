@@ -2,7 +2,7 @@ name: Messenger realtime fallback
 
 on:
   pull_request:
-    branches: [dev, '1.0', master, 'release/1.0.*-rc']
+    branches: [dev, '1.0', '1.2', master, 'release/1.0.*-rc']
   push:
     branches: [dev, 'fix/messenger-transient-reconnect-20261010']
     paths:
@@ -51,6 +51,7 @@ jobs:
           php -l modules/messenger/services/MessengerActivityService.php
           php -l modules/messenger/controllers/MessengerRealtimeController.php
           php -l tests/integration/messenger_long_poll_boundary_runtime.php
+          php -l tests/integration/messenger_confirmed_action_runtime.php
           php -l tests/integration/messenger_activity_wiring_contract.php
           sed '/^{literal}$/d;/^{\/literal}$/d' modules/messenger/views/script.js > /tmp/messenger-script.js
           node --check /tmp/messenger-script.js
@@ -67,6 +68,9 @@ jobs:
 
       - name: Проверить границу Long Poll timeout
         run: php tests/integration/messenger_long_poll_boundary_runtime.php
+
+      - name: Проверить подтверждение записи и отказ Messenger
+        run: php tests/integration/messenger_confirmed_action_runtime.php
 
       - name: Проверить сохранение черновика HTTP fallback
         run: node tests/integration/messenger_long_poll_composer_runtime.mjs
