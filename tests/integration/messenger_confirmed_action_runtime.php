@@ -34,6 +34,7 @@ namespace {
 
     $send = 'MessangerSocket:message_send';
     $edit = 'MessangerSocket:edit_message';
+    $media = 'MediaSocket:send';
 
     checkMessengerAction(
         $check($send, [['action' => 'send_message', 'message' => ['uid' => 'test']]]) === null,
@@ -42,6 +43,18 @@ namespace {
     checkMessengerAction(
         $check($edit, [['action' => 'message_edited', 'message' => ['uid' => 'test']]]) === null,
         'изменённое сообщение ошибочно отклонено'
+    );
+    checkMessengerAction(
+        $check($media, [['action' => 'send_message', 'message' => ['uid' => 'file']]]) === null,
+        'сохранённое вложение ошибочно отклонено'
+    );
+    checkMessengerAction(
+        $check($media, []) === 'Не получено подтверждение сохранения сообщения',
+        'отсутствие подтверждения вложения не распознано'
+    );
+    checkMessengerAction(
+        $check($media, [['action' => 'error', 'message' => 'Вложение недоступно']]) === 'Вложение недоступно',
+        'серверный отказ вложения скрыт от пользователя'
     );
     checkMessengerAction(
         $check($send, []) === 'Не получено подтверждение сохранения сообщения',
