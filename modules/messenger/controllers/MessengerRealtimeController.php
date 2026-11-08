@@ -94,6 +94,7 @@ final class MessengerRealtimeController extends Controller
         $acknowledgements = [
             'MessangerSocket:message_send' => 'send_message',
             'MessangerSocket:edit_message' => 'message_edited',
+            'MediaSocket:send' => 'send_message',
         ];
         $expected = $acknowledgements[$action] ?? null;
         if ($expected === null) {
