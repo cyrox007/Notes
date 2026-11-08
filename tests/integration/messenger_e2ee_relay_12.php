@@ -54,6 +54,16 @@ foreach (explode(';', $schema) as $statement) {
         $db->exec($statement);
     }
 }
+// Транспорт проверяется с установленной миграцией групповых эпох.
+$epochs = file_get_contents(dirname(__DIR__, 2)
+    . '/database/migrations/20261108_messenger_e2ee_membership_epochs.sql');
+assertRelay(is_string($epochs), 'миграция эпох существует');
+foreach (explode(';', $epochs) as $statement) {
+    $statement = trim((string) preg_replace('/^\s*--[^\n]*$/m', '', $statement));
+    if ($statement !== '') {
+        $db->exec($statement);
+    }
+}
 $uids = [
     1 => '11111111-1111-4111-8111-111111111111',
     2 => '22222222-2222-4222-8222-222222222222',
@@ -96,6 +106,7 @@ $service = new MessengerE2eeRelayService(DatabaseManager::forConnection($db));
 $members = $service->participants(1, '77777777-7777-4777-8777-777777777777');
 assertRelay($members['members'] === [$uids[1], $uids[2]], 'полный отсортированный список участников');
 assertRelay(strlen($members['fingerprint']) === 64, 'отпечаток состава участников');
+assertRelay($members['membership_version'] === 1, 'первичная версия участников');
 mustReject(fn () => $service->participants(3, '77777777-7777-4777-8777-777777777777'), 'посторонний не получает состав диалога');
 mustReject(fn () => $service->participants(1, '88888888-8888-4888-8888-888888888888'), 'обычный диалог не выдаётся как E2EE');
 $secret1 = sodium_crypto_sign_secretkey(sodium_crypto_sign_keypair());
@@ -213,6 +224,26 @@ $service->sendRoomEvent(1, 'device_001', $dialogUid, $fileTransaction, $encrypte
 mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid, $fileTransaction, $encryptedRoom), 'нельзя убрать вложение повтором');
 mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid, 'room_with_attachment_00002', $encryptedRoom, [$fileUid]), 'нельзя прикрепить файл к другому сообщению');
 assertRelay((int)$db->query('SELECT COUNT(*) FROM messenger_e2ee_events')->fetchColumn() === 2, 'отклонённая привязка откатывает событие');
+// После смены состава старая эпоха не может записать новое событие или ключ.
+$db->exec('UPDATE dialogs SET e2ee_membership_version = 2 WHERE id = 7');
+assertRelay($service->participants(1, $dialogUid)['membership_version'] === 2,
+    'сервер возвращает новую версию состава');
+mustReject(fn () => $service->send(1, 'device_001', $uids[2], 'device_002',
+    $dialogUid, 'old_epoch_packet_00001', $envelope, 1),
+    'пакет старой эпохи не проходит');
+mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid,
+    'old_epoch_room_event_00001', $encryptedRoom, [], 1),
+    'шифротекст старой эпохи не проходит');
+$service->send(1, 'device_001', $uids[2], 'device_002',
+    $dialogUid, 'new_epoch_packet_00001', $envelope, 2);
+$service->sendRoomEvent(1, 'device_001', $dialogUid,
+    'new_epoch_room_event_00001', $encryptedRoom, [], 2);
+assertRelay(count($service->inbox(2, 'device_002')) === 1,
+    'пакет новой эпохи доступен получателю');
+$db->exec('UPDATE user_to_dialogs SET e2ee_join_version = 2
+           WHERE dialog_id = 7 AND user_id = 2');
+assertRelay(count($service->roomEvents(2, $dialogUid)) === 1,
+    'после повторного вступления старая история недоступна');
 $service->revoke(2, 'device_002');
 mustReject(fn () => $service->inbox(2, 'device_002'), 'отозванное устройство не получает очередь');
 mustReject(fn () => $service->register(2, 'device_002', $identity2), 'повторное создание отозванного ID');

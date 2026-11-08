@@ -53,7 +53,8 @@
       "database/migrations/20260918_messenger_retention_timestamps.sql",
       "database/migrations/20260928_messenger_activity.sql",
       "database/migrations/20261031_messenger_e2ee_relay.sql",
-      "database/migrations/20261107_messenger_e2ee_dialog_mode.sql"
+      "database/migrations/20261107_messenger_e2ee_dialog_mode.sql",
+      "database/migrations/20261108_messenger_e2ee_membership_epochs.sql"
     ]
   },
   "background": {
