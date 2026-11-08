@@ -11,7 +11,8 @@ const pages = await Promise.all(contexts.map(context => context.newPage()));
 const errors = [];
 
 async function signIn(page, username) {
-    page.on('pageerror', error => errors.push(error.message));
+    page.on('pageerror', error => { errors.push(error.message); console.log('[Ошибка страницы]', error.message); });
+    page.on('console', message => { if (message.type() === 'warning' || message.type() === 'error') console.log('[Консоль]', message.type(), message.text().slice(0, 500)); });
     page.on('response', async response => {
         if (!response.url().includes('/messenger/realtime/action')) return;
         const action = new URLSearchParams(response.request().postData() || '').get('action') || '?';
@@ -53,7 +54,21 @@ try {
 
     const first = marker + '-отправитель';
     await alice.locator('#message-input').fill(first);
+    console.log('[Перед отправкой]', await alice.evaluate(() => ({
+        visible: !document.querySelector('#chat-active')?.hidden,
+        draftLength: document.querySelector('#message-input')?.value.length,
+        sendDisabled: document.querySelector('#message-send-button')?.disabled,
+        selectedChat: document.querySelector('.messenger-dialog-item--active')?.textContent?.trim().slice(0, 80)
+    })));
     await alice.locator('#message-send-button').click();
+    await alice.waitForTimeout(800);
+    console.log('[После отправки]', await alice.evaluate(() => ({
+        draftLength: document.querySelector('#message-input')?.value.length,
+        sendDisabled: document.querySelector('#message-send-button')?.disabled,
+        html: document.querySelector('#message-list')?.textContent?.slice(0, 150),
+        notifications: document.body.innerText.slice(-500)
+    })));
+    if (errors.length > 0) console.log('[Ошибки]', errors);
     await displayed(alice, first);
     assert.equal(await alice.locator('#message-input').inputValue(), '',
         'После подтверждённого сохранения черновик не очищен');
