@@ -43,6 +43,7 @@ $db->exec('CREATE TABLE users (id INT NOT NULL PRIMARY KEY, uid CHAR(36) NOT NUL
 $db->exec("CREATE TABLE dialogs (id BIGINT UNSIGNED NOT NULL PRIMARY KEY, uid CHAR(36) NOT NULL UNIQUE, encryption_mode ENUM('server_encrypted','e2ee') NOT NULL DEFAULT 'server_encrypted') ENGINE=InnoDB");
 $db->exec('CREATE TABLE user_to_dialogs (
     dialog_id BIGINT UNSIGNED NOT NULL, user_id INT NOT NULL,
+    joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     is_deleted TINYINT NOT NULL DEFAULT 0,
     PRIMARY KEY (dialog_id, user_id)
 ) ENGINE=InnoDB');

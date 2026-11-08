@@ -87,16 +87,6 @@ final class MessengerGroupService
             $this->requireManager($this->context($userUid, $dialogUid));
             $nextVersion = $lockedVersion > 0 ? $lockedVersion + 1 : 1;
             $changed = false;
-            if ($lockedVersion > 0) {
-                $active = (int) $this->db->fetchValue(
-                    'SELECT COUNT(*) FROM user_to_dialogs
-                     WHERE dialog_id = :dialog AND is_deleted = 0',
-                    [':dialog' => $dialogId]
-                );
-                if ($active + count($users) > 100) {
-                    throw new DomainException('Группа E2EE не может содержать более 100 участников', 409);
-                }
-            }
             foreach ($users as $user) {
                 $existing = $this->db->fetchOne(
                     'SELECT id, is_deleted FROM user_to_dialogs
@@ -146,8 +136,21 @@ final class MessengerGroupService
                     );
                 }
             }
-            if ($changed && $lockedVersion > 0) {
-                $this->advanceMembershipVersion($dialogId, $nextVersion);
+            if ($lockedVersion > 0) {
+                // Считаем фактическое число участников после изменений, но до
+                // фиксации транзакции. Повторное добавление действующего участника
+                // не считается новым местом в защищённой группе.
+                $active = (int) $this->db->fetchValue(
+                    'SELECT COUNT(*) FROM user_to_dialogs
+                     WHERE dialog_id = :dialog AND is_deleted = 0',
+                    [':dialog' => $dialogId]
+                );
+                if ($active > 100) {
+                    throw new DomainException('Группа E2EE не может содержать более 100 участников', 409);
+                }
+                if ($changed) {
+                    $this->advanceMembershipVersion($dialogId, $nextVersion);
+                }
             }
             $this->touchDialog($dialogId);
             $this->db->endTransaction(true);

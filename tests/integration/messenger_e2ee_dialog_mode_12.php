@@ -207,4 +207,28 @@ $joined->execute([':uid' => $encryptedGroup['uid']]);
 assertMode((int) $joined->fetchColumn() === 4,
     'поздно вступившему не открывается прежняя история');
 
+// Граничный случай: повторное добавление в полную группу не занимает место
+// и не должно вызывать ложное переполнение или смену криптоэпохи.
+$bulk = [];
+$insertBulk = $db->prepare(
+    'INSERT INTO users (id,uid,username,firstname,lastname) VALUES (?,?,?,?,?)'
+);
+for ($id = 4; $id <= 100; $id++) {
+    $newUid = '44444444-4444-4444-8444-' . sprintf('%012d', $id);
+    $insertBulk->execute([$id, $newUid, 'group-' . $id, 'Участник', (string) $id]);
+    $bulk[] = $newUid;
+}
+$groups->addMembers($uid1, $encryptedGroup['uid'], $bulk);
+assertMode($relay->participants(1, $encryptedGroup['uid'])['membership_version'] === 5,
+    'заполненная группа получила единую новую эпоху');
+$groups->addMembers($uid1, $encryptedGroup['uid'], [$bulk[0]]);
+assertMode($relay->participants(1, $encryptedGroup['uid'])['membership_version'] === 5,
+    'повторное добавление в группу из 100 человек допустимо без смены эпохи');
+$overflowUid = '44444444-4444-4444-8444-000000000101';
+$insertBulk->execute([101, $overflowUid, 'group-overflow', 'Лишний', 'Участник']);
+mustRejectMode(fn () => $groups->addMembers($uid1, $encryptedGroup['uid'], [$overflowUid]),
+    '101-й участник должен быть отклонён до фиксации');
+assertMode($relay->participants(1, $encryptedGroup['uid'])['membership_version'] === 5,
+    'неудачное расширение группы не повысило версию');
+
 echo "[OK] Раздельные режимы Messenger, неизменяемый диалог, запрет старого транспорта, DBPREFIX\n";
