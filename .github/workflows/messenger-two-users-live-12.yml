@@ -1,4 +1,4 @@
-name: Messenger 1.2 — реальная отправка двух пользователей и MySQL
+name: Messenger 1.2 — браузерная отправка, живой WebSocket и MySQL
 
 on:
   pull_request:
@@ -172,6 +172,15 @@ jobs:
               ':lastname' => 'User',
               ':role' => 1,
           ]);
+          $stmt->execute([
+              ':uid' => 'ba5e0000-0000-4000-8000-000000000020',
+              ':username' => 'admin-outsider-user',
+              ':email' => 'admin-outsider@example.test',
+              ':password_hash' => $hash,
+              ':firstname' => 'Outsider',
+              ':lastname' => 'User',
+              ':role' => 1,
+          ]);
           PHP
 
           rm -rf /tmp/workspace-ajax-browser
@@ -211,6 +220,7 @@ jobs:
 
           printf 'E2E_USER=%s\n' 'admin-lifecycle-user' >> "$GITHUB_ENV"
           printf 'E2E_TARGET_USER=%s\n' 'admin-target-user' >> "$GITHUB_ENV"
+          printf 'E2E_OUTSIDER_USER=%s\n' 'admin-outsider-user' >> "$GITHUB_ENV"
           printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
 
       - name: Activate ephemeral CI license
@@ -251,6 +261,37 @@ jobs:
           node tests/e2e/messenger-two-users-live-12.mjs
           E2E_ENABLE_MESSENGER=1 php tests/e2e/messenger-two-users-verify-12.php
 
+
+      - name: Проверить настоящий WebSocket, восстановление соединения и права доступа
+        shell: bash
+        env:
+          E2E_ORIGIN: http://127.0.0.1:18093
+          E2E_BASE_PATH: /workspace
+        run: |
+          set -euo pipefail
+          sed -i 's/^WS_ENABLED=false$/WS_ENABLED=true/' .env
+          php ws_server/server.php check
+          : > /tmp/workspace-ajax-browser-ws.log
+          php ws_server/server.php start >/tmp/workspace-ajax-browser-ws.log 2>&1 &
+          echo $! >/tmp/workspace-ajax-browser-ws.pid
+          READY=0
+          for i in {1..60}; do
+            if php -r '$socket = @fsockopen("127.0.0.1", 27806, $code, $message, 0.25); if (is_resource($socket)) { fclose($socket); exit(0); } exit(1);'; then
+              READY=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$READY" != '1' ]]; then
+            cat /tmp/workspace-ajax-browser-ws.log >&2
+            exit 1
+          fi
+
+          node --check tests/e2e/messenger-websocket-live-12.mjs
+          php -l tests/e2e/messenger-websocket-verify-12.php
+          node tests/e2e/messenger-websocket-live-12.mjs
+          E2E_ENABLE_MESSENGER=1 php tests/e2e/messenger-websocket-verify-12.php
+
       - name: Logs on failure
         if: failure()
         shell: bash
@@ -261,11 +302,16 @@ jobs:
           cat /tmp/workspace-organizer-startup.log || true
           echo '--- application log ---'
           cat /tmp/workspace-ajax-browser/logs/app.log || true
+          echo '--- WebSocket runtime ---'
+          cat /tmp/workspace-ajax-browser-ws.log || true
 
       - name: Stop local server
         if: always()
         shell: bash
         run: |
+          if [[ -f /tmp/workspace-ajax-browser-ws.pid ]]; then
+            kill "$(cat /tmp/workspace-ajax-browser-ws.pid)" >/dev/null 2>&1 || true
+          fi
           if [[ -f /tmp/workspace-ajax-browser-http.pid ]]; then
             PID="$(cat /tmp/workspace-ajax-browser-http.pid)"
             pkill -TERM -P "$PID" >/dev/null 2>&1 || true
