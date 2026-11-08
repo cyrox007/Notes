@@ -196,6 +196,7 @@ jobs:
           BASE_PATH=/workspace/
           WS_HOST=127.0.0.1
           WS_PORT=27806
+          WS_ENABLED=false
           WS_PUBLIC_URL=ws://127.0.0.1:27806/workspace/ws
           WS_ALLOWED_ORIGINS=http://127.0.0.1:18093
           AUTH_RATE_LIMIT_ATTEMPTS=50
