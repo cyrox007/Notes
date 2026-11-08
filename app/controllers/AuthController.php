@@ -392,8 +392,9 @@ class AuthController extends Controller
              WHERE id = :user AND is_active = 1 AND account_status = :status LIMIT 1',
             [':user' => $userId, ':status' => 'active']
         );
-        if (!SessionSecurity::matchesAuthSessionEpoch(1, $epoch)
-            && (!is_numeric($epoch) || (int) $epoch < 1)) {
+        if ((!is_int($epoch) && !is_string($epoch))
+            || preg_match('/^[1-9][0-9]{0,9}$/D', (string) $epoch) !== 1
+            || (int) $epoch > 4294967295) {
             throw new RuntimeException('Не удалось подтвердить версию авторизации пользователя');
         }
         if (!session_regenerate_id(true)) {

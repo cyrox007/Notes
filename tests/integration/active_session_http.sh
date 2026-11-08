@@ -80,9 +80,36 @@ test "$STATUS" = '302'
 STATUS="$(curl -sS -o "$BEFORE_HTML" -w '%{http_code}' -c "$COOKIE" -b "$COOKIE" "${BASE_URL}/notes/")"
 test "$STATUS" = '200'
 
-# 0.14 account availability is independent from authorization identity. Revoke
-# the active session by blocking the account while preserving is_active, the
-# compatibility role and persisted RBAC role assignment.
+# Отзыв версии сеансов прекращает доступ прежней cookie без блокировки
+# самого аккаунта. Новая авторизация получает текущую версию из users.
+"${mysql_cmd[@]}" -e "UPDATE users SET auth_session_epoch=auth_session_epoch+1 WHERE id=${USER_ID}"
+test "$("${mysql_cmd[@]}" -N -B -e "SELECT auth_session_epoch FROM users WHERE id=${USER_ID}")" = '2'
+STATUS="$(curl -sS -o "$AFTER_HTML" -D "$PROTECTED_HEADERS" -w '%{http_code}' \
+  -c "$COOKIE" -b "$COOKIE" "${BASE_URL}/notes/")"
+test "$STATUS" = '302'
+assert_prefixed_login_redirect "$PROTECTED_HEADERS"
+STATUS="$(curl -sS -o "$SECOND_HTML" -D "$PROTECTED_HEADERS" -w '%{http_code}' \
+  -c "$COOKIE" -b "$COOKIE" "${BASE_URL}/tasks/")"
+test "$STATUS" = '302'
+assert_prefixed_login_redirect "$PROTECTED_HEADERS"
+
+# Повторная авторизация открывает новую версию, не возвращая старый сеанс.
+curl -sS -c "$COOKIE" -b "$COOKIE" "${BASE_URL}/auth/login" > "$LOGIN_HTML"
+TOKEN="$(extract_csrf "$LOGIN_HTML")"
+test -n "$TOKEN"
+STATUS="$(curl -sS -o "$LOGIN_POST_HTML" -D "$LOGIN_HEADERS" -w '%{http_code}' \
+  -c "$COOKIE" -b "$COOKIE" \
+  --data-urlencode "login=${USERNAME}" \
+  --data-urlencode "password=${PASSWORD}" \
+  --data-urlencode "csrf_token=${TOKEN}" \
+  "${BASE_URL}/auth/login")"
+test "$STATUS" = '302'
+STATUS="$(curl -sS -o "$BEFORE_HTML" -w '%{http_code}' \
+  -c "$COOKIE" -b "$COOKIE" "${BASE_URL}/notes/")"
+test "$STATUS" = '200'
+
+# Блокировка аккаунта по-прежнему действует независимо от версии сеанса
+# и сохранённых назначений ролей.
 "${mysql_cmd[@]}" -e "UPDATE users SET account_status='blocked' WHERE id=${USER_ID}"
 test "$("${mysql_cmd[@]}" -N -B -e "SELECT CONCAT(role,'|',is_active,'|',account_status) FROM users WHERE id=${USER_ID}")" = '888|1|blocked'
 test "$("${mysql_cmd[@]}" -N -B -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=${USER_ID} AND r.code='user'")" = '1'
@@ -99,7 +126,7 @@ STATUS="$(curl -sS -o "$SECOND_HTML" -D "$PROTECTED_HEADERS" -w '%{http_code}' \
 test "$STATUS" = '302'
 assert_prefixed_login_redirect "$PROTECTED_HEADERS"
 
-grep -Fq "UserModel::select('id', 'is_active', 'account_status')" app/middlewares/LoginRequared.php
+grep -Fq "UserModel::select('id', 'is_active', 'account_status', 'auth_session_epoch')" app/middlewares/LoginRequared.php
 grep -Fq "admin.access" app/middlewares/IsAdmin.php
 ! grep -Fq 'Config::canAuthenticate' app/middlewares/LoginRequared.php
 ! grep -Fq 'Config::isAdminRole' app/middlewares/IsAdmin.php
