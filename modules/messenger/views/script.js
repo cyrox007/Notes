@@ -406,7 +406,14 @@ window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => 
             }
 
             try {
-                await this.performHttpEvent(action, data);
+                const result = await this.performHttpEvent(action, data);
+                const expected = {
+                    'MessangerSocket:message_send': 'send_message',
+                    'MessangerSocket:edit_message': 'message_edited'
+                }[action];
+                if (expected && !result?.events?.some(event => event?.action === expected)) {
+                    throw new Error('Сервер не подтвердил сохранение сообщения');
+                }
                 return true;
             } catch (error) {
                 if (error?.code === 'session_unavailable') return false;
