@@ -93,7 +93,7 @@ jobs:
           );
           PHP
 
-      - name: Seed admin, target user and environment
+      - name: Создать двух обычных пользователей и окружение
         shell: bash
         env:
           DBHOST: 127.0.0.1
@@ -139,7 +139,7 @@ jobs:
               ':password_hash' => $hash,
               ':firstname' => 'Admin',
               ':lastname' => 'Lifecycle',
-              ':role' => 1,
+              ':role' => 888,
           ]);
           $stmt->execute([
               ':uid' => 'ba5e0000-0000-4000-8000-000000000019',
@@ -148,8 +148,19 @@ jobs:
               ':password_hash' => $hash,
               ':firstname' => 'Target',
               ':lastname' => 'User',
-              ':role' => 1,
+              ':role' => 888,
           ]);
+          // Приёмка должна проверять разрешения обычных пользователей,
+          // а не обход прав через суперпользователя.
+          $check = $pdo->query(
+              "SELECT COUNT(*) FROM user_roles ur
+               INNER JOIN roles r ON r.id=ur.role_id AND r.code='user'
+               INNER JOIN users u ON u.id=ur.user_id
+               WHERE u.username IN ('messenger-actor-12','messenger-peer-12')"
+          );
+          if ((int) $check->fetchColumn() !== 2) {
+              throw new RuntimeException('Двум обычным пользователям не назначена роль user');
+          }
           PHP
 
           rm -rf /tmp/messenger-browser-12
