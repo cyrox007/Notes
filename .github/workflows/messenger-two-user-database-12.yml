@@ -213,7 +213,7 @@ jobs:
         run: |
           set -euo pipefail
           : > /tmp/messenger-browser-12-http.log
-          PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:18093 tests/e2e/router.php >/tmp/messenger-browser-12-http.log 2>&1 &
+          PHP_CLI_SERVER_WORKERS=8 php -S 127.0.0.1:18093 tests/e2e/router.php >/tmp/messenger-browser-12-http.log 2>&1 &
           echo $! >/tmp/messenger-browser-12-http.pid
           READY=0
           for i in {1..60}; do
