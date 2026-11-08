@@ -86,22 +86,44 @@ jobs:
           php -l tests/e2e/router.php
           php tests/integration/calendar_crud_contract.php
 
-      - name: Подготовить каноническую базу
+      - name: Подготовить схему Calendar по составу пакета 1.2
         shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: calendar_browser_lifecycle
         run: |
           set -euo pipefail
-          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/messenger_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/notes_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/file_manager_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/user_fields_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/tasks_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/settings_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/module_lifecycle_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/access_control_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/audit_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/notifications_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/calendar_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/migrations/20261011_calendar_crud.sql
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          require_once 'core/PrefixPDO.php';
+          require_once 'core/InstallerEnvironmentService.php';
+          require_once 'core/InstallerDatabaseService.php';
+          require_once 'core/ModuleManifest.php';
+          require_once 'core/DatabaseOwnership.php';
+          $schemas = array_map(
+              static fn (string $path): string => getcwd() . '/' . $path,
+              Core\DatabaseOwnership::fromPackageRoot(getcwd())->schemaFiles()
+          );
+          foreach ([
+              'database/migrations/20261017_mutation_commands.sql',
+              'database/migrations/20261019_defects_foundation.sql',
+              'database/migrations/20261021_notification_action_tokens.sql',
+          ] as $migration) {
+              $schemas[] = getcwd() . '/' . $migration;
+          }
+          (new Core\InstallerDatabaseService())->importSchemas(
+              getenv('DBHOST'),
+              (int) getenv('DBPORT'),
+              getenv('DBNAME'),
+              getenv('DBUSER'),
+              getenv('DBPASS'),
+              $schemas
+          );
+          PHP
 
       - name: Создать пользователей и окружение
         shell: bash
