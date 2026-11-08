@@ -273,6 +273,28 @@ mustReject(fn () => $service->revoke(2, 'device_not_registered'),
 assertRelay($service->participants(1, $secondDialog)['membership_version'] === 4,
     'ошибочная попытка отзыва не изменила ключевой состав');
 
+// Вторая комната не даёт увеличить эпоху из-за переполнения значения.
+// Сбой происходит ПОСЛЕ блокировки комнат и изменения статуса устройства:
+// вторая ошибка должна откатить весь отзыв, включая пакеты и первую эпоху.
+$db->exec('UPDATE dialogs
+           SET e2ee_membership_version = 18446744073709551615 WHERE id = 9');
+$aborted = false;
+try {
+    $service->revoke(2, 'device_002');
+} catch (Throwable $error) {
+    $aborted = true;
+}
+assertRelay($aborted, 'невозможное повышение эпохи отменяет отзыв');
+assertRelay(count($service->devices(1, $uids[2])) === 1,
+    'при ошибке устройство остаётся активным');
+assertRelay($service->participants(1, $dialogUid)['membership_version'] === 2,
+    'при ошибке версия первой комнаты откатилась');
+assertRelay(count($service->inbox(1, 'device_001')) === 1,
+    'при ошибке исходящий ключевой пакет восстановлен');
+assertRelay(count($service->inbox(2, 'device_002')) === 2,
+    'при ошибке входящие ключи восстановлены');
+$db->exec('UPDATE dialogs SET e2ee_membership_version = 4 WHERE id = 9');
+
 $revokeResult = $service->revoke(2, 'device_002');
 assertRelay($revokeResult === ['revoked' => true, 'rooms_affected' => 2],
     'отзыв затрагивает именно две защищённые комнаты');
