@@ -35,7 +35,7 @@ final class MessengerE2eeRelayService
     public function participants(int $actor, string $dialogUid): array
     {
         $dialog = $this->db->fetchOne(
-            'SELECT d.id FROM dialogs d
+            'SELECT d.id, d.e2ee_membership_version FROM dialogs d
              INNER JOIN user_to_dialogs own
                ON own.dialog_id = d.id AND own.user_id = :uid AND own.is_deleted = 0
              WHERE d.uid = :dialog AND d.encryption_mode = \'e2ee\' LIMIT 1',
@@ -58,6 +58,7 @@ final class MessengerE2eeRelayService
         return [
             'members' => $members,
             'fingerprint' => hash('sha256', implode("\n", $members)),
+            'membership_version' => (int) $dialog['e2ee_membership_version'],
         ];
     }
 
@@ -280,10 +281,14 @@ final class MessengerE2eeRelayService
     /** @param array<string,mixed> $envelope */
     public function send(
         int $actor, string $senderDevice, string $targetUid,
-        string $targetDevice, string $dialogUid, string $transactionId, array $envelope
+        string $targetDevice, string $dialogUid, string $transactionId, array $envelope,
+        int $membershipVersion = 1
     ): void {
         self::validateDeviceId($senderDevice);
         self::validateDeviceId($targetDevice);
+        if ($membershipVersion < 1) {
+            throw new InvalidArgumentException('Некорректная версия участников');
+        }
         if (preg_match('/^[A-Za-z0-9_-]{16,80}$/D', $transactionId) !== 1) {
             throw new InvalidArgumentException('Неверный идентификатор передачи');
         }
@@ -317,7 +322,7 @@ final class MessengerE2eeRelayService
             // Блокируем членство до завершения записи. Выход из группы и отправка
             // больше не могут пройти одновременно по устаревшему списку участников.
             $dialog = $this->db->fetchOne(
-                'SELECT d.id FROM dialogs d
+                'SELECT d.id, d.e2ee_membership_version FROM dialogs d
                  INNER JOIN user_to_dialogs s
                    ON s.dialog_id = d.id AND s.user_id = :sender AND s.is_deleted = 0
                  INNER JOIN user_to_dialogs r
@@ -327,6 +332,9 @@ final class MessengerE2eeRelayService
             );
             if ($dialog === null) {
                 throw new DomainException('Нет доступа к общему диалогу', 403);
+            }
+            if ((int) $dialog['e2ee_membership_version'] !== $membershipVersion) {
+                throw new DomainException('Состав участников изменился: требуется новая раздача ключей', 409);
             }
             $sender = $this->ownDevice($actor, $senderDevice, true);
             if (!hash_equals((string) $sender['agreement_key'], (string) $envelope['sender_key'])) {
@@ -368,12 +376,13 @@ final class MessengerE2eeRelayService
             $this->db->execute(
                 'INSERT INTO messenger_e2ee_mailbox
                  (sender_user_id, sender_device_id, recipient_user_id, recipient_device_id,
-                  dialog_id, transaction_id, envelope_json, expires_at)
+                  dialog_id, membership_version, transaction_id, envelope_json, expires_at)
                  VALUES (:sender, :sender_device, :recipient, :recipient_device,
-                         :dialog, :txn, :envelope, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 14 DAY))',
+                         :dialog, :membership_version, :txn, :envelope, DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 14 DAY))',
                 [':sender' => $actor, ':sender_device' => $senderDevice,
                  ':recipient' => $recipient, ':recipient_device' => $targetDevice,
-                 ':dialog' => $dialog['id'], ':txn' => $transactionId, ':envelope' => $encoded]
+                 ':dialog' => $dialog['id'], ':membership_version' => $membershipVersion,
+                 ':txn' => $transactionId, ':envelope' => $encoded]
             );
             $this->db->endTransaction(true);
         } catch (Throwable $e) {
@@ -390,9 +399,12 @@ final class MessengerE2eeRelayService
      */
     public function sendRoomEvent(
         int $actor, string $senderDeviceId, string $dialogUid, string $transactionId,
-        array $encrypted, array $attachmentUids = []
+        array $encrypted, array $attachmentUids = [], int $membershipVersion = 1
     ): void {
         self::validateDeviceId($senderDeviceId);
+        if ($membershipVersion < 1) {
+            throw new InvalidArgumentException('Некорректная версия участников');
+        }
         if (!array_is_list($attachmentUids) || count($attachmentUids) > 5) {
             throw new InvalidArgumentException('Некорректный список зашифрованных вложений');
         }
@@ -419,7 +431,7 @@ final class MessengerE2eeRelayService
         $this->db->beginTransaction();
         try {
             $dialog = $this->db->fetchOne(
-                'SELECT d.id FROM dialogs d
+                'SELECT d.id, d.e2ee_membership_version FROM dialogs d
                  INNER JOIN user_to_dialogs m
                    ON m.dialog_id = d.id AND m.user_id = :uid AND m.is_deleted = 0
                  WHERE d.uid = :dialog AND d.encryption_mode = \'e2ee\' LIMIT 1 FOR UPDATE',
@@ -428,6 +440,9 @@ final class MessengerE2eeRelayService
             if ($dialog === null) {
                 throw new DomainException('Нет доступа к диалогу', 403);
             }
+            if ((int) $dialog['e2ee_membership_version'] !== $membershipVersion) {
+                throw new DomainException('Состав участников изменился до публикации: повторите отправку с новым ключом', 409);
+            }
             $device = $this->ownDevice($actor, $senderDeviceId, true);
             if (!hash_equals((string) $device['agreement_key'], $encrypted['sender_key'])) {
                 throw new DomainException('Ключ сообщения не принадлежит устройству', 403);
@@ -435,6 +450,7 @@ final class MessengerE2eeRelayService
             $params = [
                 ':dialog' => $dialog['id'], ':sender' => $actor,
                 ':device' => $senderDeviceId, ':txn' => $transactionId,
+                ':membership_version' => $membershipVersion,
             ];
             $existing = $this->db->fetchOne(
                 'SELECT id, encrypted_json FROM messenger_e2ee_events
@@ -461,8 +477,8 @@ final class MessengerE2eeRelayService
             }
             $this->db->execute(
                 'INSERT INTO messenger_e2ee_events
-                 (dialog_id, sender_user_id, sender_device_id, transaction_id, encrypted_json)
-                 VALUES (:dialog, :sender, :device, :txn, :encrypted)',
+                 (dialog_id, membership_version, sender_user_id, sender_device_id, transaction_id, encrypted_json)
+                 VALUES (:dialog, :membership_version, :sender, :device, :txn, :encrypted)',
                 $params + [':encrypted' => $encoded]
             );
             if ($attachmentUids !== []) {
@@ -485,7 +501,7 @@ final class MessengerE2eeRelayService
     public function roomEvents(int $actor, string $dialogUid, int $after = 0): array
     {
         $dialog = $this->db->fetchOne(
-            'SELECT d.id FROM dialogs d
+            'SELECT d.id, m.e2ee_join_version FROM dialogs d
              INNER JOIN user_to_dialogs m
                ON m.dialog_id = d.id AND m.user_id = :uid AND m.is_deleted = 0
              WHERE d.uid = :dialog AND d.encryption_mode = \'e2ee\' LIMIT 1',
@@ -500,8 +516,10 @@ final class MessengerE2eeRelayService
              FROM messenger_e2ee_events e
              INNER JOIN users u ON u.id = e.sender_user_id
              WHERE e.dialog_id = :dialog AND e.id > :after
+               AND e.membership_version >= :joined_version
              ORDER BY e.id ASC LIMIT 100',
-            [':dialog' => $dialog['id'], ':after' => max(0, $after)]
+            [':dialog' => $dialog['id'], ':after' => max(0, $after),
+             ':joined_version' => (int) $dialog['e2ee_join_version']]
         );
         return array_map(static fn (array $row): array => [
             'id' => (int) $row['id'],
@@ -522,6 +540,11 @@ final class MessengerE2eeRelayService
              FROM messenger_e2ee_mailbox m
              INNER JOIN users u ON u.id = m.sender_user_id
              INNER JOIN dialogs d ON d.id = m.dialog_id
+             INNER JOIN user_to_dialogs membership
+               ON membership.dialog_id = m.dialog_id
+              AND membership.user_id = m.recipient_user_id
+              AND membership.is_deleted = 0
+              AND membership.e2ee_join_version <= m.membership_version
              WHERE m.recipient_user_id = :uid AND m.recipient_device_id = :did
                AND m.id > :after AND m.acknowledged_at IS NULL AND m.expires_at > CURRENT_TIMESTAMP
              ORDER BY m.id ASC LIMIT 50',
