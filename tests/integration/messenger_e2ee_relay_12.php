@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/core/DatabaseManager.php';
+require_once dirname(__DIR__, 2) . '/core/SessionSecurity.php';
 require_once dirname(__DIR__, 2) . '/modules/messenger/services/MessengerE2eeIdentity.php';
 require_once dirname(__DIR__, 2) . '/modules/messenger/services/MessengerE2eeMediaService.php';
 require_once dirname(__DIR__, 2) . '/modules/messenger/services/MessengerE2eeRelayService.php';
@@ -39,7 +40,7 @@ $db = new PDO(
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
 );
 
-$db->exec('CREATE TABLE users (id INT NOT NULL PRIMARY KEY, uid CHAR(36) NOT NULL UNIQUE, is_active TINYINT NOT NULL DEFAULT 1) ENGINE=InnoDB');
+$db->exec('CREATE TABLE users (id INT NOT NULL PRIMARY KEY, uid CHAR(36) NOT NULL UNIQUE, is_active TINYINT NOT NULL DEFAULT 1, auth_session_epoch INT UNSIGNED NOT NULL DEFAULT 1) ENGINE=InnoDB');
 $db->exec("CREATE TABLE dialogs (id BIGINT UNSIGNED NOT NULL PRIMARY KEY, uid CHAR(36) NOT NULL UNIQUE, encryption_mode ENUM('server_encrypted','e2ee') NOT NULL DEFAULT 'server_encrypted') ENGINE=InnoDB");
 $db->exec('CREATE TABLE user_to_dialogs (
     dialog_id BIGINT UNSIGNED NOT NULL, user_id INT NOT NULL,
@@ -272,6 +273,8 @@ mustReject(fn () => $service->revoke(2, 'device_not_registered'),
     'неизвестное устройство не должно запускать смену эпох');
 assertRelay($service->participants(1, $secondDialog)['membership_version'] === 4,
     'ошибочная попытка отзыва не изменила ключевой состав');
+assertRelay((int) $db->query('SELECT auth_session_epoch FROM users WHERE id = 2')->fetchColumn() === 1,
+    'ошибочный отзыв не меняет версии веб-сеансов');
 
 // Вторая комната не даёт увеличить эпоху из-за переполнения значения.
 // Сбой происходит ПОСЛЕ блокировки комнат и изменения статуса устройства:
@@ -293,11 +296,21 @@ assertRelay(count($service->inbox(1, 'device_001')) === 1,
     'при ошибке исходящий ключевой пакет восстановлен');
 assertRelay(count($service->inbox(2, 'device_002')) === 2,
     'при ошибке входящие ключи восстановлены');
+assertRelay((int) $db->query('SELECT auth_session_epoch FROM users WHERE id = 2')->fetchColumn() === 1,
+    'транзакция восстанавливает версию веб-сеансов');
 $db->exec('UPDATE dialogs SET e2ee_membership_version = 4 WHERE id = 9');
 
 $revokeResult = $service->revoke(2, 'device_002');
-assertRelay($revokeResult === ['revoked' => true, 'rooms_affected' => 2],
-    'отзыв затрагивает именно две защищённые комнаты');
+assertRelay($revokeResult === [
+    'revoked' => true, 'rooms_affected' => 2, 'auth_session_epoch' => 2
+], 'отзыв затрагивает именно две защищённые комнаты и версию авторизации');
+assertRelay((int) $db->query('SELECT auth_session_epoch FROM users WHERE id = 2')->fetchColumn() === 2,
+    'другие авторизованные сеансы отозваны');
+assertRelay((int) $db->query('SELECT auth_session_epoch FROM users WHERE id = 1')->fetchColumn() === 1,
+    'сеансы других пользователей остались действующими');
+assertRelay(\Core\SessionSecurity::matchesAuthSessionEpoch(1, 2) === false
+    && \Core\SessionSecurity::matchesAuthSessionEpoch(2, 2) === true,
+    'старый сеанс потерял доступ, текущий сохранил его');
 assertRelay($service->participants(1, $dialogUid)['membership_version'] === 3,
     'ключевая эпоха первой комнаты повышена');
 assertRelay($service->participants(1, $secondDialog)['membership_version'] === 5,
@@ -321,6 +334,8 @@ mustReject(fn () => $service->revoke(2, 'device_002'),
     'повторный отзыв не должен менять версии комнат');
 assertRelay($service->participants(1, $secondDialog)['membership_version'] === 5,
     'повторный отзыв не повысил версию');
+assertRelay((int) $db->query('SELECT auth_session_epoch FROM users WHERE id = 2')->fetchColumn() === 2,
+    'повторный отзыв не закрыл текущий подтверждённый сеанс');
 
 mustReject(fn () => $service->sendRoomEvent(1, 'device_001', $dialogUid,
     'revoked_room_old_00001', $encryptedRoom, [], 2),

@@ -8,6 +8,12 @@ on:
       - 'database/migrations/**'
       - 'database/messenger_module_schema.sql'
       - 'tests/integration/messenger_e2ee_relay_12.php'
+      - 'tests/integration/messenger_auth_session_epoch_12.php'
+      - 'core/SessionSecurity.php'
+      - 'app/controllers/AuthController.php'
+      - 'app/middlewares/LoginRequared.php'
+      - 'database/migrations/20261108_auth_session_epoch.sql'
+      - 'database/core_identity_schema.sql'
       - 'tests/integration/messenger_e2ee_csp_12.php'
       - 'core/SecurityHeaders.php'
       - 'tests/integration/messenger_e2ee_dialog_mode_12.php'
@@ -126,6 +132,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          php -l modules/messenger/handlers/SocketTicket.php
+          php -l modules/messenger/socket/NativeMessengerServer.php
           php -l modules/messenger/services/MessengerE2eeIdentity.php
           php -l modules/messenger/services/MessengerGroupService.php
           php -l modules/messenger/services/MessengerE2eeRelayService.php
@@ -137,6 +145,8 @@ jobs:
           php -l modules/messenger/controllers/MessengerE2eeRelayController.php
           php -l modules/messenger/MessengerRuntimeProvider.php
           php -l modules/messenger/runtime.php
+          php -l tests/integration/messenger_auth_session_epoch_12.php
+          php tests/integration/messenger_auth_session_epoch_12.php
           php -l tests/integration/messenger_e2ee_relay_12.php
           php -l tests/integration/messenger_e2ee_csp_12.php
           php tests/integration/messenger_e2ee_csp_12.php
