@@ -54,12 +54,16 @@
                 return xhr;
             },
             async fetch(input, init = {}) {
-                const method = String(init.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+                // Чтение через POST может выполняться в фоне, не блокируя навигацию.
+                // Метаданные не передаются в браузерный fetch; запись всегда учитывается.
+                const { workspaceReadOnly, ...requestOptions } = init;
+                const method = String(requestOptions.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
                 const mutation = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+                const blocking = mutation && workspaceReadOnly !== true;
                 if (disposed) throw new DOMException('Page disposed', 'AbortError');
-                if (mutation) pending++;
-                try { return await window.fetch(input, init); }
-                finally { if (mutation) pending--; }
+                if (blocking) pending++;
+                try { return await window.fetch(input, requestOptions); }
+                finally { if (blocking) pending--; }
             },
             visit(url, options) { return disposed ? Promise.resolve(false) : wspace.navigation.visit(url, options); },
             refresh() { return current.visit(location.href, { replace: true, preserveScroll: true }); },
