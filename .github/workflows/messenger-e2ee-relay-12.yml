@@ -30,6 +30,7 @@ on:
       - 'tests/e2e/messenger_e2ee_browser_12.mjs'
       - 'tests/integration/messenger_e2ee_two_devices_real_12.mjs'
       - 'tests/integration/messenger_e2ee_three_devices_real_12.mjs'
+      - 'tests/integration/messenger_e2ee_group_epochs_real_12.mjs'
       - 'tests/integration/messenger_e2ee_history_archive_real_12.mjs'
       - 'tests/integration/messenger_e2ee_matrix_signature_12.php'
       - 'tests/integration/messenger_e2ee_ui_12.mjs'
@@ -105,6 +106,7 @@ jobs:
           node --test tests/integration/messenger_e2ee_matrix_real_12.mjs
           node --test tests/integration/messenger_e2ee_two_devices_real_12.mjs
           node --test tests/integration/messenger_e2ee_three_devices_real_12.mjs
+          node --test tests/integration/messenger_e2ee_group_epochs_real_12.mjs
           node --test tests/integration/messenger_e2ee_room_key_archive_real_12.mjs
           node --test tests/integration/messenger_e2ee_history_archive_real_12.mjs
           php tests/integration/messenger_e2ee_matrix_signature_12.php
