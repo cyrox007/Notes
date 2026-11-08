@@ -229,6 +229,13 @@ jobs:
           set -euo pipefail
           php tests/support/ci_license_fixture.php
 
+      - name: Проверить диагностику Windows без раскрытия секретов
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l bin/messenger_doctor.php
+          php bin/messenger_doctor.php
+
       - name: Start subdirectory application
         shell: bash
         run: |
@@ -294,6 +301,7 @@ jobs:
             cat /tmp/workspace-ajax-browser-http.log >&2
             exit 1
           fi
+          php bin/messenger_doctor.php
           php ws_server/server.php check
           : > /tmp/workspace-ajax-browser-ws.log
           php ws_server/server.php start >/tmp/workspace-ajax-browser-ws.log 2>&1 &
