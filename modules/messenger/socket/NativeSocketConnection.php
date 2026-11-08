@@ -27,6 +27,7 @@ final class NativeSocketConnection extends SocketConnection
     private ?float $closeDeadlineAt = null;
 
     public bool $handshakeComplete = false;
+    public ?int $authSessionEpoch = null;
     public float $acceptedAt;
     public float $lastActivityAt;
     public ?int $fragmentOpcode = null;

@@ -100,6 +100,7 @@ final class NativeMessengerServer
     private LicenseRuntimePolicy $licensePolicy;
     private Closure $maintenanceStateResolver;
     private Closure $ticketValidator;
+    private Closure $authSessionEpochChecker;
     private Closure $messengerPermissionChecker;
     private Closure $messengerEntitlementChecker;
     private Closure $userUidResolver;
@@ -123,7 +124,8 @@ final class NativeMessengerServer
         ?callable $messengerPermissionChecker = null,
         ?callable $userUidResolver = null,
         ?callable $maintenanceStateResolver = null,
-        ?callable $messengerEntitlementChecker = null
+        ?callable $messengerEntitlementChecker = null,
+        ?callable $authSessionEpochChecker = null
     ) {
         if ($this->port < 1 || $this->port > 65535) {
             throw new RuntimeException('Некорректный порт WebSocket listener');
@@ -149,7 +151,20 @@ final class NativeMessengerServer
             : static fn (): array => (new MaintenanceModeService())->state();
         $this->ticketValidator = $ticketValidator !== null
             ? Closure::fromCallable($ticketValidator)
-            : static fn (string $ticket): ?int => SocketTicket::validate($ticket);
+            : static fn (string $ticket): ?array => SocketTicket::validateClaims($ticket);
+        $this->authSessionEpochChecker = $authSessionEpochChecker !== null
+            ? Closure::fromCallable($authSessionEpochChecker)
+            : static function (int $userId, int $epoch): bool {
+                $user = UserModel::select(
+                    'is_active', 'account_status', 'auth_session_epoch'
+                )->where('id', '=', $userId)->first();
+                return $user
+                    && (int) $user->is_active === 1
+                    && (string) $user->account_status === 'active'
+                    && \Core\SessionSecurity::matchesAuthSessionEpoch(
+                        $epoch, $user->auth_session_epoch ?? null
+                    );
+            };
         $this->messengerPermissionChecker = $messengerPermissionChecker !== null
             ? Closure::fromCallable($messengerPermissionChecker)
             : static fn (int $userId): bool => (new PermissionService())->hasPermission($userId, 'messenger.use');
@@ -451,14 +466,25 @@ final class NativeMessengerServer
         $ticket = is_scalar($ticketValue) ? (string) $ticketValue : '';
 
         try {
-            $userId = ($this->ticketValidator)($ticket);
+            $claims = ($this->ticketValidator)($ticket);
         } catch (Throwable $e) {
             error_log('WebSocket ticket validation failed: ' . $e->getMessage());
             $client->rejectHttp(403, 'Forbidden');
             return false;
         }
 
-        if (!is_int($userId) || $userId < 1) {
+        // Внешние испытательные транспорты используют прежний валидатор int.
+        // Реальный слушатель всегда получает подписанные claims с эпохой.
+        $userId = is_array($claims) ? ($claims['user_id'] ?? null) : $claims;
+        $authEpoch = is_array($claims) ? ($claims['auth_session_epoch'] ?? null) : null;
+        if (!is_int($userId) || $userId < 1
+            || ($authEpoch !== null && (!is_int($authEpoch) || $authEpoch < 1))
+        ) {
+            $client->rejectHttp(403, 'Forbidden');
+            return false;
+        }
+
+        if ($authEpoch !== null && !$this->authSessionEpochActive($userId, $authEpoch)) {
             $client->rejectHttp(403, 'Forbidden');
             return false;
         }
@@ -482,6 +508,7 @@ final class NativeMessengerServer
 
         $client->uid = $userUid;
         $client->userId = $userId;
+        $client->authSessionEpoch = $authEpoch;
         $client->authenticated = true;
         $client->handshakeComplete = true;
         $this->connections[$client->uid][$client->id()] = $client;
@@ -603,6 +630,15 @@ final class NativeMessengerServer
 
         if (!$this->messengerEntitled()) {
             $this->rejectUnavailableMessenger($client);
+            return;
+        }
+        if ($client instanceof NativeSocketConnection
+            && $client->authSessionEpoch !== null
+            && !$this->authSessionEpochActive(
+                $client->userId, $client->authSessionEpoch
+            )
+        ) {
+            $client->closeWithCode(1008, 'Session revoked');
             return;
         }
 
@@ -774,6 +810,16 @@ final class NativeMessengerServer
         $client->closeWithCode(1008, 'Messenger unavailable');
     }
 
+    private function authSessionEpochActive(int $userId, int $epoch): bool
+    {
+        try {
+            return (bool) ($this->authSessionEpochChecker)($userId, $epoch);
+        } catch (Throwable $e) {
+            error_log('Проверка отзыва веб-сеанса Messenger: ' . $e::class);
+            return false;
+        }
+    }
+
     private function canUseMessenger(int $userId): bool
     {
         try {
@@ -835,6 +881,15 @@ final class NativeMessengerServer
                         continue;
                     }
                     if ($connection->isClosing()) {
+                        continue;
+                    }
+                    if ($connection->authSessionEpoch !== null
+                        && $connection->userId !== null
+                        && !$this->authSessionEpochActive(
+                            $connection->userId, $connection->authSessionEpoch
+                        )
+                    ) {
+                        $connection->closeWithCode(1008, 'Session revoked');
                         continue;
                     }
                     if ($connection->pingWithoutResponseCount >= 3) {
