@@ -176,7 +176,13 @@ final class MessengerE2eeRelayController extends Controller
     {
         $this->handle($request, static function (MessengerE2eeRelayService $service, int $user) use ($request): array {
             $body = self::payload($request);
-            return $service->revoke($user, self::field($body, 'device_id'));
+            $result = $service->revoke($user, self::field($body, 'device_id'));
+            // Оставляем подтверждённую текущую PHP-сессию действующей.
+            // У всех прочих сохранена старая версия, и LoginRequared
+            // отвергнет её до следующего обращения к защищённому маршруту.
+            $request->setSession('auth_session_epoch', $result['auth_session_epoch']);
+            unset($result['auth_session_epoch']);
+            return $result + ['other_sessions_revoked' => true];
         });
     }
 

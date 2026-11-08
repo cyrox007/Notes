@@ -659,13 +659,26 @@ final class MessengerE2eeRelayService
      * Изменение и отзыв устройства атомарны: ошибку нельзя скрыть частичным
      * изменением списка устройств или комнат.
      *
-     * @return array{revoked:bool,rooms_affected:int}
+     * @return array{revoked:bool,rooms_affected:int,auth_session_epoch:int}
      */
     public function revoke(int $actor, string $deviceId): array
     {
         self::validateDeviceId($deviceId);
         $this->db->beginTransaction();
         try {
+            // Единый порядок: users -> dialogs -> devices. Регистрация
+            // устройства также начинает с users, поэтому отзыв не должен
+            // попадать в кольцо блокировок с регистрацией.
+            $owner = $this->db->fetchOne(
+                'SELECT auth_session_epoch FROM users WHERE id = :uid FOR UPDATE',
+                [':uid' => $actor]
+            );
+            $oldEpoch = (int) ($owner['auth_session_epoch'] ?? 0);
+            if ($oldEpoch < 1 || $oldEpoch >= 4294967295) {
+                throw new DomainException('Невозможно безопасно повысить версию сеансов', 409);
+            }
+            $nextEpoch = $oldEpoch + 1;
+
             // Сначала фиксируем комнаты по возрастанию ID: отправители
             // тоже блокируют dialogs перед проверкой своего устройства.
             // Обратный порядок (устройство -> комната) создаёт взаимную блокировку.
@@ -729,8 +742,19 @@ final class MessengerE2eeRelayService
                     [':id' => $dialogId]
                 );
             }
+            // Версия всех веб-сеансов повышается атомарно с отзывом
+            // E2EE-идентичности; потерянное устройство не сохраняет доступ
+            // к обычному Notes через старую cookie.
+            $this->db->execute(
+                'UPDATE users SET auth_session_epoch = :version WHERE id = :uid',
+                [':version' => $nextEpoch, ':uid' => $actor]
+            );
             $this->db->endTransaction(true);
-            return ['revoked' => true, 'rooms_affected' => count($locked)];
+            return [
+                'revoked' => true,
+                'rooms_affected' => count($locked),
+                'auth_session_epoch' => $nextEpoch,
+            ];
         } catch (Throwable $e) {
             $this->db->endTransaction(false);
             throw $e;

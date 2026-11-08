@@ -349,6 +349,7 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 'Отозвать E2EE-устройство ' + row.device.device_id + '?\n\n'
                 + 'Оно перестанет получать новые ключи и отправлять шифротекст. '
                 + 'Во ВСЕХ ваших защищённых диалогах потребуется новая эпоха ключей. '
+                + 'Все другие веб-сеансы аккаунта станут недействительными. '
                 + 'Ранее известную устройству историю отозвать невозможно. Продолжить?'
             )) return;
             button.disabled = true;
@@ -365,6 +366,7 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 }
                 const result = await state.transport.revokeDevice(row.device.device_id);
                 if (result?.revoked !== true
+                    || result?.other_sessions_revoked !== true
                     || !Number.isSafeInteger(result.rooms_affected)
                     || result.rooms_affected < 0) {
                     throw new Error('Сервер не подтвердил полный отзыв устройства');
@@ -373,7 +375,8 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                     || dialogUid !== app.currentDialog?.uid) return;
                 status('Устройство отозвано. Изменено защищённых диалогов: '
                     + result.rooms_affected
-                    + '. Следующее сообщение потребует нового комнатного ключа.');
+                    + '. Остальные веб-сеансы закрыты; текущий сохранён. '
+                    + 'Следующее сообщение потребует нового комнатного ключа.');
                 // Отзыв уже завершён на сервере. Ошибка перерисовки не
                 // должна изображать успешный отзыв как неудачный.
                 try {
