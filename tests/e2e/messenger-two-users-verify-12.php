@@ -32,34 +32,51 @@ $pdo = new PDO(
 );
 
 $rows = $pdo->query(
-    'SELECT m.uid,m.message,m.from_user_id,m.dialog_id,u.username '
+    'SELECT m.id,m.uid,m.message,m.message_type,m.from_user_id,m.dialog_id,u.username '
     . 'FROM ' . $prefix . 'messages m '
     . 'JOIN ' . $prefix . 'users u ON u.id=m.from_user_id'
 )->fetchAll(PDO::FETCH_ASSOC);
 
-if (count($rows) !== 2) {
-    throw new RuntimeException('Ожидались ровно два реально сохранённых сообщения, получено ' . count($rows));
+if (count($rows) !== 3) {
+    throw new RuntimeException('Ожидались два текста и вложение, получено записей: ' . count($rows));
 }
 
 $senders = [];
 $dialogIds = [];
+$attachmentId = null;
+$verifiedTexts = [];
 foreach ($rows as $row) {
     if (!str_starts_with((string) $row['message'], 'v2:')) {
         throw new RuntimeException('Сообщение не зашифровано в БД');
     }
     $text = \App\Helpers\MessengerCrypto::decrypt((string) $row['message'], (string) $row['uid']);
-    if (!in_array($text, [$marker . '-отправитель', $marker . '-адресат'], true)) {
-        throw new RuntimeException('Содержимое сохранённого сообщения отличается от отправленного');
+    $expectedType = $text === $marker . '-вложение' ? 'file' : 'text';
+    if (!in_array($text, [$marker . '-отправитель', $marker . '-адресат', $marker . '-вложение'], true)
+        || (string) $row['message_type'] !== $expectedType) {
+        throw new RuntimeException('Содержимое или тип сохранённого сообщения отличается от отправленного');
+    }
+    $verifiedTexts[] = $text;
+    if ($expectedType === 'file') {
+        $attachmentId = (int) $row['id'];
     }
     $senders[] = (string) $row['username'];
     $dialogIds[] = (int) $row['dialog_id'];
 }
 
 sort($senders);
-$expected = ['admin-lifecycle-user', 'admin-target-user'];
+$expected = ['admin-lifecycle-user', 'admin-lifecycle-user', 'admin-target-user'];
 sort($expected);
-if ($senders !== $expected || count(array_unique($dialogIds)) !== 1) {
-    throw new RuntimeException('Отправители или принадлежность диалогу некорректны');
+if ($senders !== $expected || count(array_unique($dialogIds)) !== 1
+    || count(array_unique($verifiedTexts)) !== 3 || $attachmentId === null) {
+    throw new RuntimeException('Состав сообщений, отправители или принадлежность диалогу некорректны');
 }
 
-fwrite(STDOUT, "[OK] MySQL: две записи от двух участников в одном диалоге, шифрование и обратное чтение подтверждены\n");
+$attachment = $pdo->prepare(
+    'SELECT COUNT(*) FROM ' . $prefix . 'messenger_attachments WHERE message_id = :message_id'
+);
+$attachment->execute([':message_id' => $attachmentId]);
+if ((int) $attachment->fetchColumn() !== 1) {
+    throw new RuntimeException('Запись вложения не связана с сохранённым сообщением');
+}
+
+fwrite(STDOUT, "[OK] MySQL: два текста и вложение, два отправителя, единый диалог, шифрование и привязка файла подтверждены\n");
