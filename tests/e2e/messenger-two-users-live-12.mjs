@@ -55,37 +55,10 @@ try {
     await alice.waitForFunction(() => document.querySelector('#message-list')?.getAttribute('aria-busy') === 'false', null, { timeout: 30000 });
 
     const first = marker + '-отправитель';
-    await alice.evaluate(() => {
-        const input = document.querySelector('#message-input');
-        window.__trackedMessengerInput = input;
-        window.__trackedMessengerDocument = document;
-        window.__messengerInputTrace = [];
-        const trace = window.__messengerInputTrace;
-        const field = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
-        Object.defineProperty(input, 'value', {
-            configurable: true,
-            get() { return field.get.call(this); },
-            set(next) {
-                trace.push({ event: 'setter', length: String(next).length, stack: new Error().stack?.slice(0, 900) });
-                field.set.call(this, next);
-            }
-        });
-        input.addEventListener('input', () => trace.push({ event: 'input', length: input.value.length }), true);
-        input.addEventListener('change', () => trace.push({ event: 'change', length: input.value.length }), true);
-        input.addEventListener('keydown', event => trace.push({ event: 'keydown', key: event.key }), true);
-    });
-    await alice.locator('#message-input').fill(first);
-    console.log('[Изменения ввода]', await alice.evaluate(() => ({
-        trace: window.__messengerInputTrace,
-        currentDialog: window.wspace?.messenger?.currentDialog?.uid || null,
-        composerPending: window.wspace?.messenger?.composerPending,
-        sameInput: window.wspace?.messenger?.el?.input === document.querySelector('#message-input'),
-        defaultValue: document.querySelector('#message-input')?.defaultValue,
-        sameTrackedInput: window.__trackedMessengerInput === document.querySelector('#message-input'),
-        trackedInputAttached: window.__trackedMessengerInput?.isConnected,
-        sameDocument: window.__trackedMessengerDocument === document,
-        inputCount: document.querySelectorAll('#message-input').length
-    })));
+    // Набор через реальную клавиатуру проверяет пользовательский путь,
+    // в отличие от мгновенной установки значения поля автоматизатором.
+    await alice.locator('#message-input').click();
+    await alice.locator('#message-input').pressSequentially(first, { delay: 2 });
     assert.equal(await alice.locator('#message-input').inputValue(), first, 'Набранный текст исчез до нажатия кнопки');
     console.log('[Перед отправкой]', await alice.evaluate(() => ({
         visible: !document.querySelector('#chat-active')?.hidden,
@@ -114,7 +87,9 @@ try {
     console.log('[OK] Второй участник получил первое сообщение');
 
     const second = marker + '-адресат';
-    await bob.locator('#message-input').fill(second);
+    await bob.locator('#message-input').click();
+    await bob.locator('#message-input').pressSequentially(second, { delay: 2 });
+    assert.equal(await bob.locator('#message-input').inputValue(), second, 'Черновик адресата исчез до отправки');
     await bob.locator('#message-send-button').click();
     await displayed(bob, second);
     await displayed(alice, second);
