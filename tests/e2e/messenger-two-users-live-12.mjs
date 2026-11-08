@@ -12,6 +12,7 @@ const errors = [];
 
 async function signIn(page, username) {
     page.on('pageerror', error => { errors.push(error.message); console.log('[Ошибка страницы]', error.message); });
+    page.on('framenavigated', frame => { if (frame === page.mainFrame()) console.log('[Переход страницы]', frame.url()); });
     page.on('console', message => { if (message.type() === 'warning' || message.type() === 'error') console.log('[Консоль]', message.type(), message.text().slice(0, 500)); });
     page.on('response', async response => {
         if (!response.url().includes('/messenger/realtime/action')) return;
@@ -56,6 +57,8 @@ try {
     const first = marker + '-отправитель';
     await alice.evaluate(() => {
         const input = document.querySelector('#message-input');
+        window.__trackedMessengerInput = input;
+        window.__trackedMessengerDocument = document;
         window.__messengerInputTrace = [];
         const trace = window.__messengerInputTrace;
         const field = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
@@ -77,7 +80,11 @@ try {
         currentDialog: window.wspace?.messenger?.currentDialog?.uid || null,
         composerPending: window.wspace?.messenger?.composerPending,
         sameInput: window.wspace?.messenger?.el?.input === document.querySelector('#message-input'),
-        defaultValue: document.querySelector('#message-input')?.defaultValue
+        defaultValue: document.querySelector('#message-input')?.defaultValue,
+        sameTrackedInput: window.__trackedMessengerInput === document.querySelector('#message-input'),
+        trackedInputAttached: window.__trackedMessengerInput?.isConnected,
+        sameDocument: window.__trackedMessengerDocument === document,
+        inputCount: document.querySelectorAll('#message-input').length
     })));
     assert.equal(await alice.locator('#message-input').inputValue(), first, 'Набранный текст исчез до нажатия кнопки');
     console.log('[Перед отправкой]', await alice.evaluate(() => ({
