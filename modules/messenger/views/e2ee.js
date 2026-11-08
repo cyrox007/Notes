@@ -334,6 +334,61 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
             return { verify, form };
         }
 
+        /**
+         * Отзыв управляет всеми защищёнными комнатами владельца, а не только
+         * текущим диалогом. Для исключения случайного отзыва нужен явный
+         * выбор конкретного идентификатора устройства.
+         */
+        async function revokeOwnDevice(row, button) {
+            if (state.pending || state.disposed || !state.active
+                || row.uid !== app.userUid
+                || row.device.device_id === state.currentDevice) return;
+            const dialogUid = app.currentDialog?.uid;
+            const generation = state.generation;
+            if (!window.confirm(
+                'Отозвать E2EE-устройство ' + row.device.device_id + '?\n\n'
+                + 'Оно перестанет получать новые ключи и отправлять шифротекст. '
+                + 'Во ВСЕХ ваших защищённых диалогах потребуется новая эпоха ключей. '
+                + 'Ранее известную устройству историю отозвать невозможно. Продолжить?'
+            )) return;
+            button.disabled = true;
+            setBusy(true);
+            try {
+                // Не доверяем ранее показанному списку: проверяем, что
+                // устройство всё ещё имеет ту же публичную идентичность.
+                const live = (await state.transport.getDevices(app.userUid))?.devices;
+                if (!Array.isArray(live) || !live.some(device =>
+                    device.device_id === row.device.device_id
+                    && device.signing_key === row.device.signing_key
+                )) {
+                    throw new Error('Устройство уже отсутствует или его идентичность изменилась');
+                }
+                const result = await state.transport.revokeDevice(row.device.device_id);
+                if (result?.revoked !== true
+                    || !Number.isSafeInteger(result.rooms_affected)
+                    || result.rooms_affected < 0) {
+                    throw new Error('Сервер не подтвердил полный отзыв устройства');
+                }
+                if (state.disposed || generation !== state.generation
+                    || dialogUid !== app.currentDialog?.uid) return;
+                status('Устройство отозвано. Изменено защищённых диалогов: '
+                    + result.rooms_affected
+                    + '. Следующее сообщение потребует нового комнатного ключа.');
+                // Отзыв уже завершён на сервере. Ошибка перерисовки не
+                // должна изображать успешный отзыв как неудачный.
+                try {
+                    await refreshDevices();
+                } catch (_) {
+                    status('Отзыв выполнен, но список устройств пока не обновлён.', true);
+                }
+            } catch (error) {
+                status(error?.message || 'Не удалось подтвердить отзыв устройства', true);
+            } finally {
+                setBusy(false);
+                button.disabled = false;
+            }
+        }
+
         async function refreshDevices() {
             if (!state.conversation || !app.currentDialog?.uid || !state.active) return;
             const generation = state.generation;
@@ -373,6 +428,18 @@ window.wspace.page.register('modules/messenger/views/e2ee.js', (pageScope) => {
                 if (!row.confirmed) {
                     const controls = createPairingControls(row);
                     item.append(controls.verify, controls.form);
+                }
+                if (row.uid === app.userUid
+                    && row.device.device_id !== state.currentDevice) {
+                    const revoke = document.createElement('button');
+                    revoke.type = 'button';
+                    revoke.className = 'messenger-secondary-button messenger-e2ee-revoke';
+                    revoke.textContent = 'Отозвать устройство';
+                    revoke.title = 'Заблокировать устройство во всех защищённых диалогах';
+                    revoke.addEventListener('click', () =>
+                        void revokeOwnDevice(row, revoke)
+                    );
+                    item.append(revoke);
                 }
                 ui.devices.append(item);
             }

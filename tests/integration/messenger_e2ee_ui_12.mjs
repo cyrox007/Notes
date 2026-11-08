@@ -30,6 +30,12 @@ test('клиентская интеграция корректна синтак�
     }
     assert.equal(logic.includes('MessangerSocket:message_send'),false,
         'Нельзя отправлять E2EE-текст старым серверным обработчиком');
+    assert.ok(logic.includes('revokeOwnDevice(row, revoke)'),
+        'Нет подтверждаемого отзыва собственного устройства');
+    assert.ok(logic.includes('state.transport.revokeDevice(row.device.device_id)'),
+        'Интерфейс должен отзывать устройство через отдельный маршрут');
+    assert.ok(logic.includes('result.rooms_affected'),
+        'В интерфейсе не показано число защищённых комнат после отзыва');
     assert.equal(logic.includes('MediaSocket:send'),false,
         'Нельзя отправлять E2EE-файл старой функцией загрузки');
     assert.ok(logic.includes('event.stopImmediatePropagation()'),

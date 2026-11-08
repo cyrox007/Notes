@@ -99,3 +99,23 @@ test('групповой защищённый диалог создаётся о
   {source_dialog_uid:'source-group-uid'});
  assert.equal(calls[0].options.headers['X-CSRF-Token'],'csrf_token_for_group_12345');
 });
+
+
+test('отзыв своего другого устройства требует CSRF и подтверждает число комнат',async()=>{
+    const requests=[];
+    const client=createMessengerE2eeTransport({
+        getCsrfToken:()=> 'csrf_for_device_revoke_12345',
+        fetchRequest:async(url,options)=>{
+            requests.push({url,options});
+            return {ok:true,json:async()=>({status:'ok',revoked:true,rooms_affected:3})};
+        }
+    });
+    const result=await client.revokeDevice('DEVICE_STOLEN_1234');
+    assert.equal(result.revoked,true);
+    assert.equal(result.rooms_affected,3);
+    assert.equal(requests[0].url,'/messenger/e2ee/revoke');
+    assert.equal(requests[0].options.method,'POST');
+    assert.equal(requests[0].options.headers['X-CSRF-Token'],'csrf_for_device_revoke_12345');
+    assert.deepEqual(JSON.parse(new URLSearchParams(requests[0].options.body).get('payload')),
+        {device_id:'DEVICE_STOLEN_1234'});
+});
