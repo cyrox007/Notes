@@ -53,11 +53,60 @@ final class MessengerRealtimeController extends Controller
             return;
         }
 
+        $events = $connection->drainPayloads();
+        $error = $this->actionError($action, $events);
+        if ($error !== null) {
+            // Внутренний обработчик сообщает об отказе событием, а не исключением.
+            // Нельзя подтверждать сохранение только потому, что HTTP завершился успешно.
+            $this->responseJson([
+                'status' => 'error',
+                'transport' => 'long_poll',
+                'message' => $error,
+                'events' => $events,
+            ]);
+            return;
+        }
+
         $this->responseJson([
             'status' => 'ok',
             'transport' => 'long_poll',
-            'events' => $connection->drainPayloads(),
+            'events' => $events,
         ]);
+    }
+
+    /**
+     * Отделяем подтверждённую запись от успешной доставки команды обработчику.
+     *
+     * @param list<array<string, mixed>> $events
+     */
+    private function actionError(string $action, array $events): ?string
+    {
+        foreach ($events as $event) {
+            if (!in_array((string) ($event['action'] ?? ''), [
+                'error', 'MaintenanceMode', 'LicenseReadOnly', 'ModuleUnavailable',
+            ], true)) {
+                continue;
+            }
+
+            return trim((string) ($event['message'] ?? '')) ?: 'Действие отклонено сервером';
+        }
+
+        $acknowledgements = [
+            'MessangerSocket:message_send' => 'send_message',
+            'MessangerSocket:edit_message' => 'message_edited',
+        ];
+        $expected = $acknowledgements[$action] ?? null;
+        if ($expected === null) {
+            return null;
+        }
+
+        foreach ($events as $event) {
+            if (($event['action'] ?? null) === $expected) {
+                return null;
+            }
+        }
+
+        return 'Не получено подтверждение сохранения сообщения';
     }
 
     public function poll(Request $request): void
