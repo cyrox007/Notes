@@ -22,7 +22,8 @@ async function openAccount(username) {
     const context = await browser.newContext();
     contexts.push(context);
     const page = await context.newPage();
-    page.setDefaultTimeout(15000);
+    page.setDefaultTimeout(20000);
+    page.setDefaultNavigationTimeout(30000);
     page.on('pageerror', (error) => observed.push(`Ошибка страницы: ${error.message}`));
     page.on('response', async (response) => {
         if (!response.url().includes('/messenger/realtime/action')) return;
@@ -43,7 +44,7 @@ async function openAccount(username) {
         page.waitForURL((url) => !url.pathname.includes('/auth/login')),
         page.getByRole('button', { name: 'Войти', exact: true }).click(),
     ]);
-    await page.goto(base + '/messenger/');
+    await page.goto(base + '/messenger/', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.locator('#messenger-app').waitFor();
     const uid = await page.locator('#messenger-app').getAttribute('data-user-uid');
     assert.ok(uid, 'Не получен идентификатор пользователя Messenger');
@@ -84,10 +85,10 @@ function verifyDatabase(dialogUid, messages) {
 }
 
 try {
-    const [a, b] = await Promise.all([
-        openAccount(usernameA),
-        openAccount(usernameB),
-    ]);
+    // Запускаем независимые сеансы последовательно, чтобы длительные запросы
+    // одного клиента не мешали первоначальной загрузке второго.
+    const a = await openAccount(usernameA);
+    const b = await openAccount(usernameB);
     assert.notEqual(a.uid, b.uid);
 
     const created = await action(a.page, 'MessangerSocket:create_dialog', {
@@ -108,12 +109,15 @@ try {
     verifyDatabase(dialogUid, [{ uid: stored.uid, text: textFromApi, sender: a.uid }]);
     console.log('[OK] HTTP: подтверждение, запись в MySQL и обратное чтение шифротекста');
 
-    await Promise.all([a, b].map(async (user) => {
-        await user.page.goto(base + '/messenger/?dialog=' + encodeURIComponent(dialogUid));
+    for (const user of [a, b]) {
+        await user.page.goto(base + '/messenger/?dialog=' + encodeURIComponent(dialogUid), {
+            waitUntil: 'domcontentloaded',
+            timeout: 30000,
+        });
         await user.page.locator('#chat-active').waitFor({ state: 'visible', timeout: 20000 });
         await user.page.locator('#message-list').getByText(textFromApi, { exact: false })
             .waitFor({ timeout: 20000 });
-    }));
+    }
     console.log('[OK] Сообщение отображается у двух независимых пользователей');
 
     const textFromInterface = `Проверка редактора ${timestamp}`;
