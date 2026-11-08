@@ -409,7 +409,8 @@ window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => 
                 const result = await this.performHttpEvent(action, data);
                 const expected = {
                     'MessangerSocket:message_send': 'send_message',
-                    'MessangerSocket:edit_message': 'message_edited'
+                    'MessangerSocket:edit_message': 'message_edited',
+                    'MediaSocket:send': 'send_message'
                 }[action];
                 if (expected && !result?.events?.some(event => event?.action === expected)) {
                     throw new Error('Сервер не подтвердил сохранение сообщения');
@@ -418,7 +419,9 @@ window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => 
             } catch (error) {
                 if (error?.code === 'session_unavailable') return false;
                 console.warn('Messenger HTTP fallback action failed', error);
-                this.showToast('Резервный канал временно недоступен');
+                this.showToast(error?.code === 'server_rejected' && error?.message
+                    ? error.message
+                    : 'Резервный канал временно недоступен');
                 return false;
             }
         }
@@ -458,7 +461,9 @@ window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => 
 
                 const payload = await response.json();
                 if (payload?.status !== 'ok') {
-                    throw new Error(payload?.message || 'Резервный обработчик отклонил действие');
+                    const rejection = new Error(payload?.message || 'Сервер отклонил действие');
+                    rejection.code = 'server_rejected';
+                    throw rejection;
                 }
 
                 this.dispatchRealtimeEvents(payload.events);
