@@ -118,6 +118,8 @@ function makeApp(text = 'Неотправленный текст') {
 
     const toasts = [];
     app.showToast = (message) => toasts.push(String(message));
+    app.receiveMessage = () => {};
+    app.receiveEditedMessage = () => {};
 
     return { app, input, send, toasts };
 }
@@ -156,10 +158,17 @@ await expectFailure(
     'ошибка обработчика внутри HTTP 200',
     async () => response(200, { status: 'error', message: 'handler failed' })
 );
+await expectFailure(
+    'HTTP 200 без подтверждения записи',
+    async () => response(200, { status: 'ok', events: [] })
+);
 
 {
     const { app, input, send } = makeApp();
-    context.fetch = async () => response(200, { status: 'ok', events: [] });
+    context.fetch = async () => response(200, {
+        status: 'ok',
+        events: [{ action: 'send_message', message: { uid: 'saved-message' } }]
+    });
 
     await app.submitComposer();
 
@@ -188,7 +197,10 @@ await expectFailure(
     assert(requests === 1, 'повторный submit во время pending-запроса создал дубликат');
 
     input.value = 'Новый текст после отправки';
-    resolveRequest(response(200, { status: 'ok', events: [] }));
+    resolveRequest(response(200, {
+        status: 'ok',
+        events: [{ action: 'send_message', message: { uid: 'saved-message' } }]
+    }));
     await first;
 
     assert(
@@ -201,4 +213,21 @@ await expectFailure(
     );
 }
 
-console.log('[OK] Messenger HTTP fallback сохраняет неподтверждённый черновик');
+{
+    const { app, input, toasts } = makeApp();
+    let sentThroughSocket = 0;
+    app.socketAuthorized = true;
+    app.socket = {
+        readyState: context.WebSocket.OPEN,
+        send() { sentThroughSocket++; }
+    };
+    context.fetch = async () => response(200, { status: 'ok', events: [] });
+
+    await app.submitComposer();
+
+    assert(sentThroughSocket === 0, 'подтверждаемая отправка обошла HTTP через WebSocket');
+    assert(input.value === 'Неотправленный текст', 'WebSocket очистил неподтверждённый черновик');
+    assert(toasts.length > 0, 'нет уведомления об отсутствии подтверждения');
+}
+
+console.log('[OK] Messenger сохраняет неподтверждённый черновик при HTTP/WebSocket и требует событие сохранения');
