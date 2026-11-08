@@ -107,6 +107,7 @@ if (typeof MessengerApp !== 'function') fail('не удалось получит
 const rootElement = {
     dataset: { userUid: 'user-1', userName: 'Пользователь', socketUrl: '', socketTicket: '' },
     classList: { add() {}, remove() {} },
+    querySelector() { return null; },
 };
 
 class HangingWebSocket {
