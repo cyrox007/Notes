@@ -9,7 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  workspace-ajax-lifecycle:
+  messenger-two-users:
+    name: Проверка отправки обычных пользователей
     strategy:
       fail-fast: false
       matrix:
@@ -34,20 +35,20 @@ jobs:
           --health-retries=10
 
     steps:
-      - name: Checkout
+      - name: Получить исходники
         uses: actions/checkout@v4
 
-      - name: Setup PHP 8.3
+      - name: Подготовить PHP 8.3
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, fileinfo, gd
           coverage: none
 
-      - name: Install dependencies
+      - name: Установить зависимости
         run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
 
-      - name: Install Chromium
+      - name: Установить Chromium
         shell: bash
         run: |
           set -euo pipefail
@@ -201,13 +202,13 @@ jobs:
           printf 'E2E_TARGET_USER=%s\n' 'messenger-peer-12' >> "$GITHUB_ENV"
           printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Activate ephemeral CI license
+      - name: Подготовить временную лицензию
         shell: bash
         run: |
           set -euo pipefail
           php tests/support/ci_license_fixture.php
 
-      - name: Start subdirectory application
+      - name: Запустить сайт в подкаталоге
         shell: bash
         run: |
           set -euo pipefail
@@ -237,18 +238,18 @@ jobs:
           node --check tests/e2e/messenger-two-user-database-12.mjs
           node tests/e2e/messenger-two-user-database-12.mjs
 
-      - name: Logs on failure
+      - name: Вывести журналы при ошибке
         if: failure()
         shell: bash
         run: |
-          echo '--- PHP server ---'
+          echo '--- Сервер PHP ---'
           cat /tmp/messenger-browser-12-http.log || true
-          echo '--- PHP startup/application errors ---'
+          echo '--- Ошибки запуска и приложения ---'
           cat /tmp/workspace-organizer-startup.log || true
-          echo '--- application log ---'
+          echo '--- Журнал приложения ---'
           cat /tmp/messenger-browser-12/logs/app.log || true
 
-      - name: Stop local server
+      - name: Остановить тестовый сервер
         if: always()
         shell: bash
         run: |
