@@ -367,10 +367,6 @@ final class MessengerService
         if (!in_array($type, ['private', 'group'], true)) {
             throw new InvalidArgumentException('Неизвестный тип диалога');
         }
-        if ($encryptionMode === 'e2ee' && $type !== 'private') {
-            throw new DomainException('Групповой E2EE пока недоступен: требуется ротация ключей участников', 409);
-        }
-
         $participantUids = array_values(array_unique(array_filter(
             array_map(static fn ($uid): string => trim((string) $uid), $participantUids),
             static fn (string $uid): bool => $uid !== '' && $uid !== $userUid

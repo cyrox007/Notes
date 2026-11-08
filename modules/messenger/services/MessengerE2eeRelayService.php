@@ -89,6 +89,49 @@ final class MessengerE2eeRelayService
         );
     }
 
+    /**
+     * Копируем лишь состав обычной группы, не её сообщения и ключи.
+     * Менять режим исходного диалога запрещено. Создавать защищённую группу
+     * вправе владелец или администратор существующей группы.
+     *
+     * @return array<string,mixed>
+     */
+    public function createEncryptedGroup(int $actor, string $sourceUid): array
+    {
+        $source = $this->db->fetchOne(
+            'SELECT d.id, d.name, owner.role, u.uid AS creator_uid
+             FROM dialogs d
+             INNER JOIN user_to_dialogs owner
+               ON owner.dialog_id = d.id AND owner.user_id = :actor
+              AND owner.is_deleted = 0
+             INNER JOIN users u ON u.id = owner.user_id AND u.is_active = 1
+             WHERE d.uid = :uid AND d.type = \'group\'
+               AND d.encryption_mode = \'server_encrypted\' LIMIT 1',
+            [':actor' => $actor, ':uid' => $sourceUid]
+        );
+        if ($source === null || !in_array($source['role'], ['owner', 'admin'], true)) {
+            throw new DomainException('Создавать защищённую группу может только её управляющий', 403);
+        }
+        $rows = $this->db->fetchAll(
+            'SELECT u.uid FROM user_to_dialogs m
+             INNER JOIN users u ON u.id = m.user_id AND u.is_active = 1
+             WHERE m.dialog_id = :dialog AND m.is_deleted = 0
+             ORDER BY u.uid ASC LIMIT 101',
+            [':dialog' => (int) $source['id']]
+        );
+        if (count($rows) < 2 || count($rows) > 100) {
+            throw new DomainException('Для E2EE-группы требуется от 2 до 100 участников', 409);
+        }
+        $members = array_values(array_filter(
+            array_map(static fn (array $row): string => (string) $row['uid'], $rows),
+            static fn (string $uid): bool => $uid !== $source['creator_uid']
+        ));
+        return (new MessengerService($this->db))->createDialog(
+            (string) $source['creator_uid'], 'group', $members,
+            (string) ($source['name'] ?? 'Защищённая группа'), 'e2ee'
+        );
+    }
+
     private function targetUserForCreation(string $uid): int
     {
         if (preg_match('/^[a-fA-F0-9-]{36}$/D', $uid) !== 1) {
@@ -450,7 +493,6 @@ final class MessengerE2eeRelayService
             $params = [
                 ':dialog' => $dialog['id'], ':sender' => $actor,
                 ':device' => $senderDeviceId, ':txn' => $transactionId,
-                ':membership_version' => $membershipVersion,
             ];
             $existing = $this->db->fetchOne(
                 'SELECT id, encrypted_json FROM messenger_e2ee_events
@@ -479,7 +521,7 @@ final class MessengerE2eeRelayService
                 'INSERT INTO messenger_e2ee_events
                  (dialog_id, membership_version, sender_user_id, sender_device_id, transaction_id, encrypted_json)
                  VALUES (:dialog, :membership_version, :sender, :device, :txn, :encrypted)',
-                $params + [':encrypted' => $encoded]
+                $params + [':membership_version' => $membershipVersion, ':encrypted' => $encoded]
             );
             if ($attachmentUids !== []) {
                 $newEvent = (int)$this->db->lastInsertId();

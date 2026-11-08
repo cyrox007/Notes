@@ -25,6 +25,16 @@ final class MessengerE2eeRelayController extends Controller
         });
     }
 
+    public function createGroup(Request $request): void
+    {
+        $this->handle($request, static function (MessengerE2eeRelayService $service, int $user) use ($request): array {
+            $body = self::payload($request);
+            return ['dialog' => $service->createEncryptedGroup(
+                $user, self::field($body, 'source_dialog_uid')
+            )];
+        });
+    }
+
     public function participants(Request $request): void
     {
         $this->handle($request, static function (MessengerE2eeRelayService $service, int $user) use ($request): array {
@@ -89,7 +99,8 @@ final class MessengerE2eeRelayController extends Controller
                 self::field($body, 'recipient_device_id'),
                 self::field($body, 'dialog_uid'),
                 self::field($body, 'transaction_id'),
-                $body['envelope']
+                $body['envelope'],
+                self::membershipVersion($body)
             );
             return ['queued' => true];
         });
@@ -112,7 +123,8 @@ final class MessengerE2eeRelayController extends Controller
                 self::field($body, 'dialog_uid'),
                 self::field($body, 'transaction_id'),
                 $body['encrypted'],
-                $attachments
+                $attachments,
+                self::membershipVersion($body)
             );
             return ['stored' => true];
         });
@@ -211,6 +223,16 @@ final class MessengerE2eeRelayController extends Controller
         $value = $body[$key] ?? null;
         if (!is_string($value) || $value === '' || strlen($value) > 180) {
             throw new InvalidArgumentException('Отсутствует или некорректно поле ' . $key);
+        }
+        return $value;
+    }
+
+    /** @param array<string,mixed> $body */
+    private static function membershipVersion(array $body): int
+    {
+        $value = $body['membership_version'] ?? null;
+        if (!is_int($value) || $value < 1 || $value > 2147483647) {
+            throw new InvalidArgumentException('Нужна актуальная версия состава участников');
         }
         return $value;
     }

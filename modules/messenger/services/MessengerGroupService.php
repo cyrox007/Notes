@@ -81,6 +81,22 @@ final class MessengerGroupService
 
         $this->db->beginTransaction();
         try {
+            // Та же блокировка dialogs используется сервером раздачи ключей.
+            // После добавления никто не сможет опубликовать пакет старой эпохи.
+            $lockedVersion = $this->lockMembershipVersion($dialogId);
+            $this->requireManager($this->context($userUid, $dialogUid));
+            $nextVersion = $lockedVersion > 0 ? $lockedVersion + 1 : 1;
+            $changed = false;
+            if ($lockedVersion > 0) {
+                $active = (int) $this->db->fetchValue(
+                    'SELECT COUNT(*) FROM user_to_dialogs
+                     WHERE dialog_id = :dialog AND is_deleted = 0',
+                    [':dialog' => $dialogId]
+                );
+                if ($active + count($users) > 100) {
+                    throw new DomainException('Группа E2EE не может содержать более 100 участников', 409);
+                }
+            }
             foreach ($users as $user) {
                 $existing = $this->db->fetchOne(
                     'SELECT id, is_deleted FROM user_to_dialogs
@@ -92,10 +108,11 @@ final class MessengerGroupService
                     continue;
                 }
 
+                $changed = true;
                 if ($existing) {
                     $this->db->execute(
                         'UPDATE user_to_dialogs
-                         SET role = :role, joined_at = :joined_at,
+                         SET role = :role, joined_at = :joined_at, e2ee_join_version = :join_version,
                              last_delivered_message_id = :cursor,
                              last_read_message_id = :cursor,
                              is_deleted = 0, archived_at = NULL, muted_until = NULL, pinned_at = NULL
@@ -103,6 +120,7 @@ final class MessengerGroupService
                         [
                             ':role' => 'member',
                             ':joined_at' => $now,
+                            ':join_version' => $nextVersion,
                             ':cursor' => $latestMessageId ?: null,
                             ':id' => (int) $existing['id'],
                         ]
@@ -110,10 +128,10 @@ final class MessengerGroupService
                 } else {
                     $this->db->execute(
                         'INSERT INTO user_to_dialogs (
-                            dialog_id, user_id, role, joined_at,
+                            dialog_id, user_id, role, joined_at, e2ee_join_version,
                             last_delivered_message_id, last_read_message_id, is_deleted
                          ) VALUES (
-                            :dialog_id, :user_id, :role, :joined_at,
+                            :dialog_id, :user_id, :role, :joined_at, :join_version,
                             :delivered, :read_cursor, 0
                          )',
                         [
@@ -121,11 +139,15 @@ final class MessengerGroupService
                             ':user_id' => (int) $user['id'],
                             ':role' => 'member',
                             ':joined_at' => $now,
+                            ':join_version' => $nextVersion,
                             ':delivered' => $latestMessageId ?: null,
                             ':read_cursor' => $latestMessageId ?: null,
                         ]
                     );
                 }
+            }
+            if ($changed && $lockedVersion > 0) {
+                $this->advanceMembershipVersion($dialogId, $nextVersion);
             }
             $this->touchDialog($dialogId);
             $this->db->endTransaction(true);
@@ -154,8 +176,29 @@ final class MessengerGroupService
             throw new DomainException('Для выхода из группы используйте отдельное действие');
         }
 
-        $this->deactivateMembership((int) $target['membership_id']);
-        $this->touchDialog((int) $context['dialog_id']);
+        $this->db->beginTransaction();
+        try {
+            $dialogId = (int) $context['dialog_id'];
+            $lockedVersion = $this->lockMembershipVersion($dialogId);
+            $context = $this->context($userUid, $dialogUid);
+            $this->requireManager($context);
+            $target = $this->member($context, $memberUid);
+            if ($target['role'] === 'owner'
+                || ($context['role'] === 'admin' && $target['role'] !== 'member')
+                || (int) $target['user_id'] === (int) $context['user_id']) {
+                throw new DomainException('Недостаточно прав для исключения участника', 403);
+            }
+            $this->deactivateMembership((int) $target['membership_id']);
+            if ($lockedVersion > 0) {
+                $this->advanceMembershipVersion($dialogId, $lockedVersion + 1);
+                $this->discardQueuedRoomKeys($dialogId, (int) $target['user_id']);
+            }
+            $this->touchDialog($dialogId);
+            $this->db->endTransaction(true);
+        } catch (\Throwable $e) {
+            $this->db->endTransaction(false);
+            throw $e;
+        }
         return $this->snapshot($context);
     }
 
@@ -233,8 +276,25 @@ final class MessengerGroupService
             throw new DomainException('Перед выходом передайте права владельца другому участнику');
         }
 
-        $this->deactivateMembership((int) $context['membership_id']);
-        $this->touchDialog((int) $context['dialog_id']);
+        $this->db->beginTransaction();
+        try {
+            $dialogId = (int) $context['dialog_id'];
+            $lockedVersion = $this->lockMembershipVersion($dialogId);
+            $context = $this->context($userUid, $dialogUid);
+            if ($context['role'] === 'owner') {
+                throw new DomainException('Перед выходом передайте права владельца другому участнику', 409);
+            }
+            $this->deactivateMembership((int) $context['membership_id']);
+            if ($lockedVersion > 0) {
+                $this->advanceMembershipVersion($dialogId, $lockedVersion + 1);
+                $this->discardQueuedRoomKeys($dialogId, (int) $context['user_id']);
+            }
+            $this->touchDialog($dialogId);
+            $this->db->endTransaction(true);
+        } catch (\Throwable $e) {
+            $this->db->endTransaction(false);
+            throw $e;
+        }
         return ['dialog_uid' => $dialogUid, 'left' => true];
     }
 
@@ -374,6 +434,41 @@ final class MessengerGroupService
              FROM users
              WHERE is_active = 1 AND uid IN (' . implode(',', $placeholders) . ')',
             $params
+        );
+    }
+
+    /**
+     * Блокируем строку комнаты и упорядочиваем её изменения с E2EE-отправкой.
+     * Ноль означает обычную группу, чей состав не участвует в криптопротоколе.
+     */
+    private function lockMembershipVersion(int $dialogId): int
+    {
+        $room = $this->db->fetchOne(
+            'SELECT encryption_mode, e2ee_membership_version FROM dialogs
+             WHERE id = :id FOR UPDATE',
+            [':id' => $dialogId]
+        );
+        if ($room === null) {
+            throw new DomainException('Группа больше не существует', 404);
+        }
+        return $room['encryption_mode'] === 'e2ee'
+            ? (int) $room['e2ee_membership_version'] : 0;
+    }
+
+    private function advanceMembershipVersion(int $dialogId, int $newVersion): void
+    {
+        $this->db->execute(
+            'UPDATE dialogs SET e2ee_membership_version = :version WHERE id = :id',
+            [':version' => $newVersion, ':id' => $dialogId]
+        );
+    }
+
+    private function discardQueuedRoomKeys(int $dialogId, int $targetUser): void
+    {
+        $this->db->execute(
+            'DELETE FROM messenger_e2ee_mailbox
+             WHERE dialog_id = :dialog AND recipient_user_id = :recipient',
+            [':dialog' => $dialogId, ':recipient' => $targetUser]
         );
     }
 

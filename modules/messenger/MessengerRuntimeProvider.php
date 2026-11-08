@@ -79,6 +79,7 @@ final class MessengerRuntimeProvider implements ModuleRuntimeProvider
 
         $router
             ->add('POST', '/e2ee/dialogs', [MessengerE2eeRelayController::class, 'createDialog'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_create_dialog')
+            ->add('POST', '/e2ee/groups', [MessengerE2eeRelayController::class, 'createGroup'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_e2ee_create_group')
             ->add('GET', '/e2ee/participants', [MessengerE2eeRelayController::class, 'participants'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_participants')
             ->add('GET', '/e2ee/client/{str:filename}', [MessengerE2eeAssetsController::class, 'client'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_client_asset')
             ->add('GET', '/e2ee/sdk/{str:filename}', [MessengerE2eeAssetsController::class, 'sdk'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_e2ee_sdk_asset')
