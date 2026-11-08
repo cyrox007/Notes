@@ -51,9 +51,11 @@ try {
         .locator('input[type="checkbox"]').check();
     await alice.locator('#create-chat-button').click();
     await alice.waitForFunction(() => document.querySelector('#chat-active')?.hidden === false, null, { timeout: 30000 });
+    await alice.locator('#message-list[aria-busy="false"]').waitFor({ timeout: 30000 });
 
     const first = marker + '-отправитель';
     await alice.locator('#message-input').fill(first);
+    assert.equal(await alice.locator('#message-input').inputValue(), first, 'Набранный текст исчез до нажатия кнопки');
     console.log('[Перед отправкой]', await alice.evaluate(() => ({
         visible: !document.querySelector('#chat-active')?.hidden,
         draftLength: document.querySelector('#message-input')?.value.length,
@@ -76,6 +78,7 @@ try {
 
     await bob.locator('.messenger-dialog-item').first().waitFor({ timeout: 30000 });
     await bob.locator('.messenger-dialog-item').first().click();
+    await bob.locator('#message-list[aria-busy="false"]').waitFor({ timeout: 30000 });
     await displayed(bob, first);
     console.log('[OK] Второй участник получил первое сообщение');
 
