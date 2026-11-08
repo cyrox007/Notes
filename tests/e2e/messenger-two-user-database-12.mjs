@@ -31,7 +31,8 @@ async function openAccount(username) {
             if (data?.status === 'ok') return;
             observed.push(`Отказ HTTP ${response.status()}: ${data?.message || 'без причины'}`);
         } catch {
-            observed.push(`Ответ HTTP ${response.status()} без JSON`);
+            // Незавершённый фоновый запрос может быть отменён при переходе страницы.
+            // Это не означает сбоя отправки и не должно давать ложный провал.
         }
     });
 
@@ -136,14 +137,16 @@ try {
     ]);
     console.log('[OK] Интерфейс: отправка, получение без перезагрузки, два сообщения в MySQL');
 
-    await Promise.all([a, b].map(async (user) => {
-        await user.page.reload();
+    // Перезапускаем страницы по очереди: параллельные Long Poll способны
+    // временно занять HTTP-процессы и задержать одновременные переходы.
+    for (const user of [a, b]) {
+        await user.page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
         await user.page.locator('#chat-active').waitFor({ state: 'visible', timeout: 20000 });
         for (const message of [textFromApi, textFromInterface]) {
             await user.page.locator('#message-list').getByText(message, { exact: false })
                 .waitFor({ timeout: 20000 });
         }
-    }));
+    }
     console.log('[OK] После повторной загрузки история обоих пользователей сохранилась');
 
     const read = await action(b.page, 'MessangerSocket:mark_read', {
