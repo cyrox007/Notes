@@ -557,11 +557,15 @@ final class MessengerE2eeRelayService
                     u.uid AS sender_uid
              FROM messenger_e2ee_events e
              INNER JOIN users u ON u.id = e.sender_user_id
+             INNER JOIN user_to_dialogs membership
+               ON membership.dialog_id = e.dialog_id
+              AND membership.user_id = :viewer
+              AND membership.is_deleted = 0
+              AND e.membership_version >= membership.e2ee_join_version
              WHERE e.dialog_id = :dialog AND e.id > :after
-               AND e.membership_version >= :joined_version
              ORDER BY e.id ASC LIMIT 100',
             [':dialog' => $dialog['id'], ':after' => max(0, $after),
-             ':joined_version' => (int) $dialog['e2ee_join_version']]
+             ':viewer' => $actor]
         );
         return array_map(static fn (array $row): array => [
             'id' => (int) $row['id'],
