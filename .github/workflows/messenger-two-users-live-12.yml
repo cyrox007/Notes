@@ -270,6 +270,30 @@ jobs:
         run: |
           set -euo pipefail
           sed -i 's/^WS_ENABLED=false$/WS_ENABLED=true/' .env
+          # Уже запущенные PHP CLI-серверы сохраняют значения getenv().
+          # Перезапускаем HTTP-стенд, чтобы браузер получил новый WS_ENABLED.
+          OLD_PID="$(cat /tmp/workspace-ajax-browser-http.pid)"
+          pkill -TERM -P "$OLD_PID" >/dev/null 2>&1 || true
+          kill "$OLD_PID" >/dev/null 2>&1 || true
+          for i in {1..30}; do
+            if ! kill -0 "$OLD_PID" >/dev/null 2>&1; then break; fi
+            sleep 0.2
+          done
+          : > /tmp/workspace-ajax-browser-http.log
+          PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:18093 tests/e2e/router.php >/tmp/workspace-ajax-browser-http.log 2>&1 &
+          echo $! > /tmp/workspace-ajax-browser-http.pid
+          READY_HTTP=0
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:18093/workspace/auth/login/ >/dev/null; then
+              READY_HTTP=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$READY_HTTP" != '1' ]]; then
+            cat /tmp/workspace-ajax-browser-http.log >&2
+            exit 1
+          fi
           php ws_server/server.php check
           : > /tmp/workspace-ajax-browser-ws.log
           php ws_server/server.php start >/tmp/workspace-ajax-browser-ws.log 2>&1 &
