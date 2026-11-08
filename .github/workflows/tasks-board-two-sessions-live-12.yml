@@ -75,7 +75,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/messenger_schema.sql
+          # Используем штатные схемы модулей, а не устаревший объединённый SQL-файл.
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/core_identity_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/messenger_module_schema.sql
           mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/notes_schema.sql
           mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/file_manager_schema.sql
           mysql -h 127.0.0.1 -uroot -proot tasks_browser_lifecycle < database/user_fields_schema.sql

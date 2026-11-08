@@ -14,6 +14,13 @@ $db = DatabaseManager::getInstance();
 $changes = new WorkPermitChangeService($db);
 $documentId = $filled['id'];
 
+// Испытательный наряд относится к октябрю 2026 года. Фиксируем дату выдачи
+// внутри одноразовой базы, чтобы проверка продления не зависела от даты CI.
+wpAssert($db->execute(
+    'UPDATE work_permit_issuances SET issued_at=:issued_at WHERE document_id=:doc',
+    [':issued_at' => '2026-10-29 08:00:00', ':doc' => $documentId]
+) === 1, 'Дата выдачи испытательного наряда установлена');
+
 wpAssert((int) $drafts->detail($documentId, $userA)['version'] === 9,
     'Исходный многодневный наряд завершил второй рабочий день');
 $member = $refs->create('employees', [
