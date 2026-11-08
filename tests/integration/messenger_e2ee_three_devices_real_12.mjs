@@ -7,7 +7,7 @@ import {
     deviceComparisonCode, confirmIndependentDevice
 } from '../../modules/messenger/crypto/matrix-device-pairing.mjs';
 import {
-    notesMatrixUserId, publishInitialKeys
+    notesMatrixUserId, notesMatrixRoomId, publishInitialKeys
 } from '../../modules/messenger/crypto/matrix-device-bootstrap.mjs';
 
 globalThis.crypto ??= webcrypto;
@@ -28,6 +28,7 @@ test('Matrix Rust Crypto: второй аппарат того же пользо
     const members = [first,second];
     const fingerprint = createHash('sha256').update(members.join('\n')).digest('hex');
     let nextPacket=0;
+    let epoch=1;
 
     const getDevices = async uid => ({devices:(devices.get(uid)||[]).map(row=>({...row}))});
     const claim = async (uid,id) => {
@@ -69,10 +70,17 @@ test('Matrix Rust Crypto: второй аппарат того же пользо
         throw Error('Неизвестная операция');
     };
     const transport = (senderUid,senderDevice) => ({
-        participants: async()=>({members,fingerprint}),
+        participants: async()=>({members,fingerprint,membership_version:epoch}),
         getDevices,
         claimPrekey:claim,
         sendDevicePacket:async packet=>{
+            if (packet.membership_version !== epoch
+                || !devices.get(senderUid)?.some(row=>row.device_id===senderDevice)
+                || !devices.get(packet.recipient_user_uid)?.some(
+                    row=>row.device_id===packet.recipient_device_id
+                )) {
+                throw new Error('Ключевой пакет отклонён: отозванное устройство или старая эпоха');
+            }
             const name=packet.recipient_user_uid+':'+packet.recipient_device_id;
             const list=mailboxes.get(name)||[];
             list.push({
@@ -85,13 +93,22 @@ test('Matrix Rust Crypto: второй аппарат того же пользо
             mailboxes.set(name,list);
             return {queued:true};
         },
-        inbox:async id=>({messages:mailboxes.get(senderUid+':'+id)||[]}),
+        inbox:async id=>{
+            if (!devices.get(senderUid)?.some(row=>row.device_id===id)) {
+                throw new Error('Устройство отозвано и не получает ключи');
+            }
+            return {messages:mailboxes.get(senderUid+':'+id)||[]};
+        },
         acknowledge:async (id,ids)=>{
             const name=senderUid+':'+id;
             mailboxes.set(name,(mailboxes.get(name)||[]).filter(row=>!ids.includes(row.id)));
             return {acknowledged:true};
         },
         sendRoomEvent:async packet=>{
+            if (packet.membership_version !== epoch
+                || !devices.get(senderUid)?.some(row=>row.device_id===senderDevice)) {
+                throw new Error('Сервер отклонил публикацию старой эпохи');
+            }
             events.push({
                 id:events.length+1,
                 sender_uid:senderUid,
@@ -191,6 +208,42 @@ test('Matrix Rust Crypto: второй аппарат того же пользо
         const onPeerAgain=await peer.conversation.receive(roomUid,1);
         assert.deepEqual(onPc.messages.map(item=>item.text),[answer]);
         assert.deepEqual(onPeerAgain.messages.map(item=>item.text),[answer]);
+
+        // Пользователь на компьютере отзывает свой старый телефон. Список
+        // участников НЕ изменяется, но сервер увеличивает эпоху безопасности.
+        devices.set(first,devices.get(first).filter(row=>row.device_id!==phoneId));
+        mailboxes.delete(first+':'+phoneId);
+        epoch++;
+        const afterRevoke='Сообщение после отзыва телефона';
+        await pc.conversation.send(roomUid,afterRevoke);
+        assert.equal(events.length,3);
+        assert.equal(JSON.stringify(events).includes(afterRevoke),false);
+        const receivedAfterRevoke=await peer.conversation.receive(roomUid,2);
+        assert.deepEqual(receivedAfterRevoke.messages.map(item=>item.text),[afterRevoke]);
+        assert.equal((mailboxes.get(first+':'+phoneId)||[]).length,0,
+            'отозванный аппарат не получил новую Megolm-сессию');
+        await assert.rejects(phone.conversation.receive(roomUid,2),
+            /отозвано/);
+        await assert.rejects(phone.conversation.send(roomUid,'Попытка с отозванного устройства'),
+            /отклонён|отозван|не подтвержден/);
+        assert.equal(events.length,3,'после отзыва телефон не публикует события');
+
+        // Изолированная проверка самой криптобиблиотеки без маршрутов Notes:
+        // старые ключи Megolm не расшифровывают событие новой эпохи.
+        const latest=events[2];
+        const encryptedEvent={
+            event_id:'$notes-'+latest.id+':notes.local',
+            origin_server_ts:Date.parse('2026-11-07T21:00:00Z'),
+            room_id:notesMatrixRoomId(roomUid),
+            sender:notesMatrixUserId(first),
+            type:'m.room.encrypted',
+            content:latest.encrypted,
+        };
+        await assert.rejects(phone.machine.decryptRoomEvent(
+            JSON.stringify(encryptedEvent),
+            new sdk.RoomId(notesMatrixRoomId(roomUid)),
+            new sdk.DecryptionSettings(sdk.TrustRequirement.Untrusted)
+        ),'отозванный телефон не должен расшифровать новый комнатный ключ');
     }finally{
         for(const machine of opened)await machine.close();
     }
