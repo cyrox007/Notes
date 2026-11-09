@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core;
 
 require_once __DIR__ . '/SecurityEventLog.php';
+require_once __DIR__ . '/Environment.php';
 
 use InvalidArgumentException;
 use RuntimeException;
@@ -57,9 +58,14 @@ final class ModuleLifecycleStore
     public function reconcile(array $modules, string $coreVersion): array
     {
         $rows = $this->rows();
+        // Explicit local coexistence setting: another installation sharing this
+        // database can own these modules. Never remove or disable its rows.
+        $externalModules = array_filter(array_map('trim', explode(',',
+            (string) Environment::get('MODULE_SHARED_DB_EXTERNAL_MODULES'))));
 
         foreach ($rows as $moduleId => $row) {
-            if (!isset($modules[$moduleId]) && (string) $row['configured_state'] !== 'uninstalled') {
+            if (!isset($modules[$moduleId]) && (string) $row['configured_state'] !== 'uninstalled'
+                && !in_array($moduleId, $externalModules, true)) {
                 throw new RuntimeException("Registered module is missing from disk: {$moduleId}");
             }
         }
