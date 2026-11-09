@@ -106,4 +106,28 @@ checkLifecycleNoop($row['effective_state'] === 'disabled' && $row['last_error'] 
 $store->reconcile($modules, Version::VERSION);
 checkLifecycleNoop($writes() === 1, 'после отключения модуль повторно записывается без изменений');
 
+$priorExternal = getenv('MODULE_SHARED_DB_EXTERNAL_MODULES');
+try {
+    putenv('MODULE_SHARED_DB_EXTERNAL_MODULES');
+    $pdo->exec("INSERT INTO module_lifecycle
+        (module_id,installed_version,manifest_hash,configured_state,effective_state,last_error)
+        VALUES ('parallel-only','1.2.0','external-hash','enabled','enabled',NULL)");
+    $externalBefore = $pdo->query("SELECT * FROM module_lifecycle WHERE module_id='parallel-only'")->fetch(PDO::FETCH_ASSOC);
+    $rejected = false;
+    try { $store->reconcile($modules, Version::VERSION); }
+    catch (RuntimeException $error) { $rejected = str_contains($error->getMessage(), 'missing from disk: parallel-only'); }
+    checkLifecycleNoop($rejected, 'missing module must remain fatal by default');
+
+    putenv('MODULE_SHARED_DB_EXTERNAL_MODULES= parallel-only ');
+    $store->reconcile($modules, Version::VERSION);
+    checkLifecycleNoop($pdo->query("SELECT * FROM module_lifecycle WHERE module_id='parallel-only'")->fetch(PDO::FETCH_ASSOC)
+        === $externalBefore, 'parallel installation lifecycle row was modified');
+    $rejected = false;
+    try { $store->reconcile([], Version::VERSION); }
+    catch (RuntimeException $error) { $rejected = str_contains($error->getMessage(), 'missing from disk: defects'); }
+    checkLifecycleNoop($rejected, 'explicit external module must not hide other missing modules');
+} finally {
+    putenv($priorExternal === false ? 'MODULE_SHARED_DB_EXTERNAL_MODULES' : 'MODULE_SHARED_DB_EXTERNAL_MODULES=' . $priorExternal);
+}
+
 echo 'Согласование модулей: отсутствие лишних UPDATE и сохранение изменений проверены' . PHP_EOL;
