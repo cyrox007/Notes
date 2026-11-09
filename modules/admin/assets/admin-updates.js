@@ -64,8 +64,11 @@ window.wspace.page.register('modules/admin/assets/admin-updates.js', (pageScope)
     }
 
     async function runWebUpdate(form) {
+        if (form.dataset.updateRunning === 'true') return;
+        form.dataset.updateRunning = 'true';
         const confirmMessage = String(form.dataset.updateWebConfirm || '');
         if (confirmMessage && !window.confirm(confirmMessage)) {
+            delete form.dataset.updateRunning;
             return;
         }
 
@@ -106,6 +109,8 @@ window.wspace.page.register('modules/admin/assets/admin-updates.js', (pageScope)
 
             throw new Error('Updater завершился в неизвестном состоянии.');
         } catch (error) {
+            const button = form.querySelector('button[type="submit"], input[type="submit"]');
+            if (button instanceof HTMLButtonElement) button.textContent = 'Требуется повторная проверка';
             failProgress(
                 elements,
                 error instanceof Error

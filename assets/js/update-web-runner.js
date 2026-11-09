@@ -46,7 +46,17 @@
         }
     }
 
-    async function run(form, onProgress = null) {
+    const activeRuns = new WeakMap();
+
+    function run(form, onProgress = null) {
+        if (activeRuns.has(form)) return activeRuns.get(form);
+        const promise = execute(form, onProgress);
+        activeRuns.set(form, promise);
+        promise.then(() => activeRuns.delete(form), () => activeRuns.delete(form));
+        return promise;
+    }
+
+    async function execute(form, onProgress = null) {
         if (!(form instanceof HTMLFormElement)) {
             throw new Error('Не найдена форма запуска обновления.');
         }
