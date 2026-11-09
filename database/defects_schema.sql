@@ -104,3 +104,17 @@ CREATE TABLE IF NOT EXISTS `defect_history` (
     KEY `idx_defect_history_created` (`created_at`, `id`),
     UNIQUE KEY `uq_defect_history_command` (`entity_type`, `entity_id`, `event_type`, `command_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Initial module permissions must also exist on a clean installation.
+INSERT INTO `permissions` (`code`, `module_id`, `description`) VALUES
+('defects.use','defects','Просмотр и регистрация дефектов'),
+('defects.manage','defects','Управление справочниками и расширенными действиями')
+ON DUPLICATE KEY UPDATE `module_id`=VALUES(`module_id`),`description`=VALUES(`description`);
+
+INSERT IGNORE INTO `role_permissions` (`role_id`,`permission_id`)
+SELECT r.id,p.id FROM roles r JOIN permissions p ON p.code='defects.use'
+WHERE r.code IN ('user','admin','superadmin');
+
+INSERT IGNORE INTO `role_permissions` (`role_id`,`permission_id`)
+SELECT r.id,p.id FROM roles r JOIN permissions p ON p.code='defects.manage'
+WHERE r.code IN ('admin','superadmin');
