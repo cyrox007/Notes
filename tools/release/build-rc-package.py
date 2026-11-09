@@ -36,7 +36,7 @@ with tarfile.open(fileobj=io.BytesIO(archive)) as source, zipfile.ZipFile(path, 
         name = PurePosixPath(member.name)
         if '..' in name.parts or name.is_absolute():
             raise SystemExit('Unsafe archive entry')
-        include = name.parts[0] in allowed_dirs or member.name in allowed_root or member.name.startswith('docs/releases/') or member.name == 'tools/release/bootstrap-1.0.16-updater.php'
+        include = name.parts[0] in allowed_dirs or member.name in allowed_root or member.name.startswith('docs/releases/') or member.name in {'tools/release/bootstrap-1.0.16-updater.php', 'tools/release/prepare-1.1-updater-12.php'}
         if not include:
             continue
         if name.name == '.env' or name.suffix in {'.log', '.key', '.pem', '.license-secret', '.update-secret'}:

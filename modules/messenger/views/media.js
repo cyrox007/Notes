@@ -271,7 +271,7 @@ const setActivity = (activity, active, dialogUid) => {
                     setActivity(activity, true, initialDialogUid);
                     try {
                         const attachment = await uploadBinary(file);
-                        const sent = app.sendEvent('MediaSocket:send', {
+                        const sent = await app.sendEventConfirmed('MediaSocket:send', {
                             attachment_uid: attachment.uid,
                             caption: index === 0 ? caption : '',
                             reply_to_uid: index === 0 ? replyToUid : null
@@ -292,7 +292,7 @@ const setActivity = (activity, active, dialogUid) => {
                     app.clearComposeContext();
                 }
                 app.stopTyping();
-                app.showToast(list.length === 1 ? 'Вложение отправляется' : `Отправляется файлов: ${list.length}`);
+                app.showToast(list.length === 1 ? 'Вложение сохранено' : `Файлов сохранено: ${list.length}`);
                 return true;
             } catch (error) {
                 console.error(error);

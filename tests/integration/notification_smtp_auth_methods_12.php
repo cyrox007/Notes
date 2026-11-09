@@ -16,7 +16,26 @@ function smtpAuthAssert(bool $condition, string $message): void
 
 function smtpAuthSocketPair(): array
 {
-    $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+    if (PHP_OS_FAMILY === 'Windows') {
+        $listener = stream_socket_server('tcp://127.0.0.1:0', $errno, $error);
+        if (!is_resource($listener)) {
+            throw new RuntimeException('Cannot start local SMTP test listener');
+        }
+        try {
+            $client = stream_socket_client('tcp://' . stream_socket_get_name($listener, false), $errno, $error, 2);
+            $server = stream_socket_accept($listener, 2);
+            $pair = [$client, $server];
+        } finally {
+            fclose($listener);
+        }
+        if (!is_resource($client) || !is_resource($server)) {
+            if (is_resource($client)) fclose($client);
+            if (is_resource($server)) fclose($server);
+            throw new RuntimeException('Cannot connect local SMTP test sockets');
+        }
+    } else {
+        $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+    }
     if (!is_array($pair) || count($pair) !== 2) {
         throw new RuntimeException('Не удалось открыть локальные сокеты SMTP-теста');
     }

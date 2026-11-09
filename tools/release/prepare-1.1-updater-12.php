@@ -183,7 +183,9 @@ if (PHP_VERSION_ID < 80300) repairUpdaterFail('Для подготовки к 1.
 // Исходники ветки 1.2 до релиза ещё могут содержать VERSION_CODE=11000.
 // Отличаем их от опубликованного 1.1 по новым обязательным возможностям,
 // а оператор должен отдельно проверить доверенный SHA исходного дерева.
-if (!in_array([$sourceVersion, $sourceCode], [['1.1.0', 11000], ['1.2.0', 12000]], true)
+$compatibleSource = in_array([$sourceVersion, $sourceCode], [['1.1.0', 11000], ['1.2.0', 12000]], true)
+    || ($sourceCode === 12000 && preg_match('/^1\.2\.0-rc\.[1-9][0-9]*$/D', $sourceVersion) === 1);
+if (!$compatibleSource
     || !is_file($sourceRoot . '/core/UpdateMigrationPostcheck.php')
     || !is_file($sourceRoot . '/database/migrations/20261025_work_permits_period_workplace.sql')
     || !repairUpdaterContains($sourceRoot, 'core/MigrationBaseline.php', "11000 => '20261012_calendar_planning_links.sql'")) {
@@ -205,6 +207,7 @@ if (is_file($liveRoot . '/.env')) {
 // Переносится только исполнитель обновления. Version.php, миграции и прикладной
 // код сохраняют установленную версию до штатной транзакции.
 $files = [
+    'modules/admin/services/AdminUpdateService.php',
     'bin/migrate.php',
     'bin/update_external_apply.php',
     'core/Environment.php',

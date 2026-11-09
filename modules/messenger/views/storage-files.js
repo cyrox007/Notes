@@ -190,7 +190,7 @@ window.wspace.page.register('modules/messenger/views/storage-files.js', (pageSco
 
                 const caption = String(app.el.input?.value || '').trim();
                 const replyUid = app.replyTo?.uid || null;
-                const sent = app.sendEvent('MediaSocket:send', {
+                const sent = await app.sendEventConfirmed('MediaSocket:send', {
                     attachment_uid: data.attachment.uid,
                     caption,
                     reply_to_uid: replyUid
@@ -203,7 +203,7 @@ window.wspace.page.register('modules/messenger/views/storage-files.js', (pageSco
                 }
                 if (replyUid) app.clearComposeContext();
                 window.wspace.modalMotion.closeDialog(dialog);
-                app.showToast('Файл из хранилища отправляется');
+                app.showToast('Файл из хранилища отправлен');
             } catch (error) {
                 app.showToast(error instanceof Error ? error.message : 'Не удалось отправить файл');
             } finally {
@@ -237,7 +237,7 @@ window.wspace.page.register('modules/messenger/views/storage-files.js', (pageSco
                 const caption = String(app.el.input?.value || '').trim();
                 const linkText = `📎 ${fileName(selected)}\n${absoluteUrl}`;
                 const text = caption ? `${caption}\n\n${linkText}` : linkText;
-                const sent = app.sendEvent('MessangerSocket:message_send', {
+                const sent = await app.sendEventConfirmed('MessangerSocket:message_send', {
                     dialog_uid: initialDialog,
                     message: text,
                     reply_to_uid: app.replyTo?.uid || null
@@ -250,7 +250,7 @@ window.wspace.page.register('modules/messenger/views/storage-files.js', (pageSco
                 }
                 if (app.replyTo) app.clearComposeContext();
                 window.wspace.modalMotion.closeDialog(dialog);
-                app.showToast('Ссылка на файл отправляется');
+                app.showToast('Ссылка на файл отправлена');
             } catch (error) {
                 app.showToast(error instanceof Error ? error.message : 'Не удалось отправить ссылку');
             } finally {
