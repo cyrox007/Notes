@@ -446,6 +446,14 @@ window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => 
                 const response = await pageScope.fetch(endpoint, {
                     method: 'POST',
                     credentials: 'same-origin',
+                    // Запросы перечня и истории только читают состояние диалога.
+                    // Они не должны блокировать уход с открытой страницы Messenger.
+                    workspaceReadOnly: [
+                        'MessangerSocket:get_dialogs',
+                        'MessangerSocket:load',
+                        'DialogStateSocket:list',
+                        'ReceiptSocket:list',
+                    ].includes(action),
                     headers,
                     body
                 });
