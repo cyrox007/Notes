@@ -28,7 +28,9 @@ final class UpdateMigrationPreflight
     public function __construct(string $releaseRoot, ?string $sourceRoot = null)
     {
         $this->manifest = new MigrationManifest($releaseRoot);
-        if ($sourceRoot !== null) $this->sourceManifest = new MigrationManifest($sourceRoot);
+        if ($sourceRoot !== null && is_file(rtrim($sourceRoot, '/\\') . '/database/migrations/manifest.json')) {
+            $this->sourceManifest = new MigrationManifest($sourceRoot);
+        }
         if (is_dir(rtrim($releaseRoot, '/\\') . '/modules')) {
             $this->ownership = DatabaseOwnership::fromPackageRoot($releaseRoot);
         }
