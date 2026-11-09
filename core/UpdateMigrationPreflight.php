@@ -23,10 +23,14 @@ final class UpdateMigrationPreflight
 {
     private MigrationManifest $manifest;
     private ?DatabaseOwnership $ownership = null;
+    private ?MigrationManifest $sourceManifest = null;
 
-    public function __construct(string $releaseRoot)
+    public function __construct(string $releaseRoot, ?string $sourceRoot = null)
     {
         $this->manifest = new MigrationManifest($releaseRoot);
+        if ($sourceRoot !== null && is_file(rtrim($sourceRoot, '/\\') . '/database/migrations/manifest.json')) {
+            $this->sourceManifest = new MigrationManifest($sourceRoot);
+        }
         if (is_dir(rtrim($releaseRoot, '/\\') . '/modules')) {
             $this->ownership = DatabaseOwnership::fromPackageRoot($releaseRoot);
         }
@@ -96,11 +100,23 @@ final class UpdateMigrationPreflight
                 }
 
                 $targetIndex = (int) $target[$name]['index'];
-                if ($targetIndex <= $lastTargetIndex) {
+                if ($this->sourceManifest === null && $targetIndex <= $lastTargetIndex) {
                     throw new RuntimeException('Target migration manifest changes the order of already applied migrations');
                 }
                 $lastTargetIndex = $targetIndex;
                 $applied[$name] = true;
+            }
+            if ($this->sourceManifest !== null) {
+                // Ledger insertion order is application history, not canonical
+                // package order: modules can be installed independently.
+                $sourceApplied = array_values(array_filter($this->sourceManifest->names(),
+                    static fn (string $name): bool => isset($applied[$name])));
+                $sourceSet = array_fill_keys($sourceApplied, true);
+                $targetApplied = array_values(array_filter($canonicalFiles,
+                    static fn (string $name): bool => isset($sourceSet[$name])));
+                if ($sourceApplied !== $targetApplied) {
+                    throw new RuntimeException('Target migration manifest changes the order of already applied migrations');
+                }
             }
         } elseif (is_int($baselineVersionCode) && $baselineVersionCode > 0) {
             foreach (MigrationBaseline::appliedNames($canonicalFiles, $baselineVersionCode) as $name) {

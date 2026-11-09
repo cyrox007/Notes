@@ -1156,7 +1156,7 @@ final class UpdateApplyCommand
     ): array {
         $db = $this->database();
         try {
-            $result = (new UpdateMigrationPreflight($candidateRoot))->check(
+            $result = (new UpdateMigrationPreflight($candidateRoot, $this->appRoot))->check(
                 $db,
                 $baselineVersionCode
             );

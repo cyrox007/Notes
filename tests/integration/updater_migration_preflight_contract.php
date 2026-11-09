@@ -130,6 +130,22 @@ try {
     migrationPreflightAssert($reorderRejected, 'applied migration order change was accepted');
     migrationPreflightManifest($temp, [$alpha, $beta]);
 
+    $sourceRoot = $temp . '/source';
+    migrationPreflightWrite($sourceRoot . '/database/migrations/' . $alpha, $alphaSql);
+    migrationPreflightWrite($sourceRoot . '/database/migrations/' . $beta, $betaSql);
+    migrationPreflightManifest($sourceRoot, [$alpha, $beta]);
+    $db->query('UPDATE schema_migrations SET id = id + 10');
+    $db->query("UPDATE schema_migrations SET id=1 WHERE migration='{$beta}'");
+    $db->query("UPDATE schema_migrations SET id=2 WHERE migration='{$alpha}'");
+    $historical = (new UpdateMigrationPreflight($temp, $sourceRoot))->check($db);
+    migrationPreflightAssert($historical['pending'] === 0, 'independently installed module ledger rejected');
+    migrationPreflightManifest($temp, [$beta, $alpha]);
+    $reorderRejected = false;
+    try { (new UpdateMigrationPreflight($temp, $sourceRoot))->check($db); }
+    catch (Throwable $e) { $reorderRejected = str_contains($e->getMessage(), 'order'); }
+    migrationPreflightAssert($reorderRejected, 'source-manifest order change accepted');
+    migrationPreflightManifest($temp, [$alpha, $beta]);
+
     $db->query('DROP TABLE schema_migrations');
     $legacy = (new UpdateMigrationPreflight($temp))->check($db);
     migrationPreflightAssert(($legacy['ledger_present'] ?? true) === false, 'missing ledger was not detected');
