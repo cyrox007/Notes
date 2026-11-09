@@ -20,7 +20,7 @@ let source = fs.readFileSync(scriptPath, 'utf8')
     .replace(/^\{literal\}\s*/u, '')
     .replace(/\s*\{\/literal\}\s*$/u, '');
 
-const bootstrapMarker = "document.addEventListener('DOMContentLoaded'";
+const bootstrapMarker = 'pageScope.onInit( () => {';
 if (!source.includes(bootstrapMarker)) {
     fail('не найден bootstrap MessengerApp');
 }
@@ -48,6 +48,14 @@ const context = {
         },
         wspace: {
             path: (value) => value,
+            page: {
+                register(_name, callback) {
+                    callback({
+                        onInit() {},
+                        fetch(...args) { return context.fetch(...args); },
+                    });
+                },
+            },
         },
         setTimeout,
         clearTimeout,
@@ -118,6 +126,8 @@ function makeApp(text = 'Неотправленный текст') {
 
     const toasts = [];
     app.showToast = (message) => toasts.push(String(message));
+    app.receiveMessage = () => {};
+    app.receiveEditedMessage = () => {};
 
     return { app, input, send, toasts };
 }
@@ -132,7 +142,7 @@ function response(status, payload) {
     };
 }
 
-async function expectFailure(label, fetchImpl) {
+async function expectFailure(label, fetchImpl, expectedToast = 'Резервный канал временно недоступен') {
     const { app, input, send, toasts } = makeApp();
     context.fetch = fetchImpl;
 
@@ -142,7 +152,7 @@ async function expectFailure(label, fetchImpl) {
     assert(app.replyTo?.uid === 'reply-1', label + ': reply context потерян');
     assert(send.disabled === false, label + ': кнопка отправки осталась заблокирована');
     assert(
-        toasts.includes('Резервный канал временно недоступен'),
+        toasts.includes(expectedToast),
         label + ': пользователь не получил сообщение об отказе'
     );
 }
@@ -154,12 +164,20 @@ await expectFailure('сетевая ошибка', async () => {
 });
 await expectFailure(
     'ошибка обработчика внутри HTTP 200',
-    async () => response(200, { status: 'error', message: 'handler failed' })
+    async () => response(200, { status: 'error', message: 'Сервер отклонил сообщение' }),
+    'Сервер отклонил сообщение'
+);
+await expectFailure(
+    'HTTP 200 без подтверждения записи',
+    async () => response(200, { status: 'ok', events: [] })
 );
 
 {
     const { app, input, send } = makeApp();
-    context.fetch = async () => response(200, { status: 'ok', events: [] });
+    context.fetch = async () => response(200, {
+        status: 'ok',
+        events: [{ action: 'send_message', message: { uid: 'saved-message' } }]
+    });
 
     await app.submitComposer();
 
@@ -188,7 +206,10 @@ await expectFailure(
     assert(requests === 1, 'повторный submit во время pending-запроса создал дубликат');
 
     input.value = 'Новый текст после отправки';
-    resolveRequest(response(200, { status: 'ok', events: [] }));
+    resolveRequest(response(200, {
+        status: 'ok',
+        events: [{ action: 'send_message', message: { uid: 'saved-message' } }]
+    }));
     await first;
 
     assert(
@@ -201,4 +222,36 @@ await expectFailure(
     );
 }
 
-console.log('[OK] Messenger HTTP fallback сохраняет неподтверждённый черновик');
+{
+    const { app, input, toasts } = makeApp();
+    let sentThroughSocket = 0;
+    app.socketAuthorized = true;
+    app.socket = {
+        readyState: context.WebSocket.OPEN,
+        send() { sentThroughSocket++; }
+    };
+    context.fetch = async () => response(200, { status: 'ok', events: [] });
+
+    await app.submitComposer();
+
+    assert(sentThroughSocket === 0, 'подтверждаемая отправка обошла HTTP через WebSocket');
+    assert(input.value === 'Неотправленный текст', 'WebSocket очистил неподтверждённый черновик');
+    assert(toasts.length > 0, 'нет уведомления об отсутствии подтверждения');
+}
+
+{
+    const { app, toasts } = makeApp();
+    context.fetch = async () => response(200, { status: 'ok', events: [] });
+    const withoutReceipt = await app.sendEventConfirmed('MediaSocket:send', { attachment_uid: 'file-a' });
+    assert(withoutReceipt === false, 'запись вложения ошибочно подтверждена без события');
+    assert(toasts.length > 0, 'отсутствует сообщение об отказе вложения');
+
+    context.fetch = async () => response(200, {
+        status: 'ok',
+        events: [{ action: 'send_message', message: { uid: 'file-saved' } }],
+    });
+    const withReceipt = await app.sendEventConfirmed('MediaSocket:send', { attachment_uid: 'file-a' });
+    assert(withReceipt === true, 'подтверждённое вложение ошибочно отклонено');
+}
+
+console.log('[OK] Messenger сохраняет неподтверждённый черновик при HTTP/WebSocket и требует событие сохранения');
