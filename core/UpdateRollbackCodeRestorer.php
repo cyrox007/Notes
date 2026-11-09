@@ -92,6 +92,7 @@ final class UpdateRollbackCodeRestorer
             $budget?->checkpoint('rollback_code');
         }
 
+        $this->mutator->pruneEmptyReleaseDirectories();
         $this->verifyExactLiveSnapshot($backupMap);
 
         return [

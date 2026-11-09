@@ -114,6 +114,9 @@ try {
     fileRollbackWrite($live . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'user.bin', "user-data\n");
     fileRollbackWrite($live . DIRECTORY_SEPARATOR . 'tools' . DIRECTORY_SEPARATOR . 'vendor-update' . DIRECTORY_SEPARATOR . 'private.key', "must-survive\n");
 
+    mkdir($live . '/modules/defects/services', 0755, true);
+    mkdir($live . '/uploads/empty', 0755, true);
+    mkdir($live . '/tools/vendor-update/empty', 0755, true);
     $result = null;
     $pauses = 0;
     for ($attempt = 0; $attempt < 30 && $result === null; ++$attempt) {
@@ -142,6 +145,9 @@ try {
     fileRollbackAssert(file_get_contents($live . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'user.bin') === "user-data\n", 'Пользовательский файл изменён rollback');
     fileRollbackAssert(file_get_contents($live . DIRECTORY_SEPARATOR . 'tools' . DIRECTORY_SEPARATOR . 'vendor-update' . DIRECTORY_SEPARATOR . 'private.key') === "must-survive\n", 'Приватный vendor-update файл изменён rollback');
 
+    fileRollbackAssert(!is_dir($live . '/modules/defects'), 'Empty target module survived rollback');
+    fileRollbackAssert(is_dir($live . '/uploads/empty'), 'Preserved empty upload directory was removed');
+    fileRollbackAssert(is_dir($live . '/tools/vendor-update/empty'), 'Preserved empty private directory was removed');
     $restorerSource = file_get_contents($root . '/core/UpdateRollbackCodeRestorer.php');
     fileRollbackAssert(is_string($restorerSource) && str_contains($restorerSource, 'UpdateFileMutator'), 'Rollback не использует пофайловый mutator');
     fileRollbackAssert(!str_contains($restorerSource, 'failed-release'), 'Rollback всё ещё содержит quarantine целого release-каталога');
