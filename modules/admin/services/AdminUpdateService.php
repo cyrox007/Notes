@@ -294,6 +294,11 @@ final class AdminUpdateService
         int $expectedTargetVersionCode,
         string $expectedPackageSha256
     ): array {
+        // Do not create an unfinished transaction if the browser submits before
+        // its asynchronous updater handler has initialized.
+        if (PHP_OS_FAMILY === 'Windows' && PHP_SAPI !== 'cli') {
+            throw new RuntimeException('Для безопасного обновления на Windows обновите страницу и дождитесь её загрузки. Установка выполняется отдельными HTTP-запросами с JavaScript.');
+        }
         $started = $this->beginStagedWebApply(
             $actorId,
             $stageDir,

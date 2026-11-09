@@ -207,6 +207,7 @@ if (is_file($liveRoot . '/.env')) {
 // Переносится только исполнитель обновления. Version.php, миграции и прикладной
 // код сохраняют установленную версию до штатной транзакции.
 $files = [
+    'modules/admin/services/AdminUpdateService.php',
     'bin/migrate.php',
     'bin/update_external_apply.php',
     'core/Environment.php',
