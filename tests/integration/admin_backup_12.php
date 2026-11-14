@@ -41,6 +41,12 @@ if (!mkdir($private . '/user-data', 0700, true)) {
 }
 putenv('UPDATE_STATE_PATH=' . $private . '/updates');
 file_put_contents($private . '/user-data/document.txt', "Содержимое вложения №1\n");
+$legacyName = 'operator-fixture-' . bin2hex(random_bytes(6));
+$legacyDirectory = $root . '/uploads/' . $legacyName;
+if (!mkdir($legacyDirectory, 0700, true)) {
+    throw new RuntimeException('Не удалось создать старое вложение для проверки');
+}
+file_put_contents($legacyDirectory . '/avatar.jpg', 'исходный старый аватар');
 
 try {
     $service = new AdminBackupService($root, $private);
@@ -77,6 +83,7 @@ try {
     $db->query("UPDATE {$quoted} SET value_text='изменённое состояние' WHERE id=1");
     file_put_contents($private . '/user-data/document.txt', 'Изменённое вложение');
     file_put_contents($private . '/user-data/extra.txt', 'Лишний файл');
+    file_put_contents($legacyDirectory . '/avatar.jpg', 'изменённый старый аватар');
 
     $result = $service->restore($backup['id']);
     if ($result['id'] !== $backup['id']) throw new RuntimeException('Восстановлена не та копия');
@@ -89,6 +96,9 @@ try {
     }
     if (file_exists($private . '/user-data/extra.txt')) {
         throw new RuntimeException('Лишние файлы не удалены при восстановлении');
+    }
+    if (file_get_contents($legacyDirectory . '/avatar.jpg') !== 'исходный старый аватар') {
+        throw new RuntimeException('Старый аватар из uploads не восстановлен');
     }
     if ($prefix !== '') {
         if ((int) $db->query('SELECT COUNT(*) AS c FROM foreign_unrelated')->fetch_assoc()['c'] !== 1) {
@@ -106,4 +116,5 @@ try {
 } finally {
     $db->close();
     UpdatePath::removeTree($private);
+    UpdatePath::removeTree($legacyDirectory);
 }
