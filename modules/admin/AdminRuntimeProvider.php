@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace Modules\Admin;
+use App\Controllers\Admin\AdminBackupController;
 use App\Controllers\Admin\{AdminController,AuditController,LicenseController,ModuleManagementController,NotificationSettingsController,RegistrationSettingsController,RoleManagementController,SettingsController,UpdateController,UserProvisioningController};
 use App\Middlewares\{CSRFMiddleware,LoginRequared,RequireAdminAccess,RequireAdminAuditView,RequireAdminRolesManage,RequireAdminSettingsManage,RequireAdminUsersManage};
 use Core\{ModuleRuntimeLoader,ModuleRuntimeProvider,Router};
@@ -56,6 +57,10 @@ final class AdminRuntimeProvider implements ModuleRuntimeProvider
             ->add('GET', '/license', [LicenseController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_license')
             ->add('POST', '/license/activate', [LicenseController::class, 'activate'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_license_activate')
             ->add('POST', '/license/clear', [LicenseController::class, 'clear'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_license_clear')
+            ->add('GET', '/backups', [AdminBackupController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_backups')
+            ->add('POST', '/backups/create', [AdminBackupController::class, 'create'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_backups_create')
+            ->add('POST', '/backups/verify', [AdminBackupController::class, 'verify'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_backups_verify')
+            ->add('POST', '/backups/restore', [AdminBackupController::class, 'restore'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_backups_restore')
             ->add('GET', '/updates', [UpdateController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_updates')
             ->add('GET', '/updates/status', [UpdateController::class, 'status'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_updates_status')
             ->add('GET', '/updates/check', [UpdateController::class, 'check'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_updates_check')
