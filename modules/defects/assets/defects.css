@@ -92,3 +92,39 @@
 .defects-admin-grid input,.defects-admin-grid select{width:100%;box-sizing:border-box}
 [data-defects-admin-correct] textarea,[data-defects-admin-archive] textarea{width:100%;box-sizing:border-box}
 @media(max-width:580px){.defects-admin-grid{grid-template-columns:minmax(0,1fr)}}
+
+
+/* Патч обратной связи: читаемые кнопки и просторная карточка дефекта. */
+.defects-workspace .defects-panel {
+    width: min(820px, 100vw);
+    max-width: 100vw;
+    box-sizing: border-box;
+}
+.defects-workspace .defects-panel :is(.defects-form, .defects-detail-body) {
+    min-width: 0;
+}
+.defects-workspace .defects-close-form textarea,
+.defects-workspace [data-defects-admin-correct] textarea,
+.defects-workspace [data-defects-admin-archive] textarea {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+.defects-workspace .defects-close-form textarea[name="completed_work"],
+.defects-workspace [data-defects-admin-correct] textarea[name="completed_work"] {
+    min-height: 176px;
+}
+.defects-workspace .defects-close-form textarea[name="close_comment"] {
+    min-height: 112px;
+}
+.defects-workspace .defects-button--primary:not(:disabled):is(:hover, :focus-visible, :active) {
+    background: color-mix(in srgb, var(--df-action) 84%, #000);
+    border-color: color-mix(in srgb, var(--df-action) 84%, #000);
+    color: #fff;
+}
+@media (max-width: 520px) {
+    .defects-workspace .defects-panel {
+        width: 100vw;
+    }
+}
