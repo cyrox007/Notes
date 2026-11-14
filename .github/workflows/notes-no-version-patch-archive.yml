@@ -121,6 +121,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Не удалось подготовить исходную сборку" }
           Expand-Archive -LiteralPath $sourceZip -DestinationPath $base -Force
           Expand-Archive -LiteralPath 'dist/notes-repair-1.2.0-rc.1-r2.zip' -DestinationPath $patch -Force
+          python -c "import hashlib,json,pathlib,sys; b=pathlib.Path(sys.argv[1]); p=pathlib.Path(sys.argv[2]); m=json.loads((p/'manifest.json').read_text(encoding='utf8')); h=lambda q: hashlib.sha256(q.read_bytes()).hexdigest() if q.is_file() else None; bad=[(e['path'],e['base_sha256'],h(b/e['path'])) for e in m['changed_files'] if e['base_sha256']!=h(b/e['path'])]; print('Диагностика исходных файлов:',bad)" "$base" "$patch"
           php (Join-Path $patch 'repair.php') --check "--root=$base"
           if ($LASTEXITCODE -ne 0) { throw "Не пройдена проверка Windows" }
           php (Join-Path $patch 'repair.php') --yes "--root=$base"
