@@ -53,6 +53,18 @@ final class EnforceMaintenanceMode
             return false;
         }
 
+        // Операторская копия и восстановление не являются транзакцией updater.
+        // Автоматический откат обновлятора для них запрещён.
+        $transactionId = (string) ($state['transaction_id'] ?? '');
+        if (str_starts_with($transactionId, 'operator-') || str_starts_with($transactionId, 'restore-')) {
+            $this->reject(
+                $request,
+                'Резервное копирование или восстановление данных выполняется. Дождитесь завершения операции.',
+                $transactionId
+            );
+            return false;
+        }
+
         $recovery = $this->automaticRecovery->attempt($this->maintenance);
 
         try {
