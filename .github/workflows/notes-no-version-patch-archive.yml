@@ -1,0 +1,52 @@
+name: ZIP-патч Notes без изменения версии
+
+on:
+  push:
+    branches: ['feature/1.2-admin-backup-restore']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    name: Создать и проверить ZIP-патч
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Скачать исходники и базовую фиксацию
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Собрать пофайловый патч без изменения версии
+        run: |
+          python3 tools/release/build-notes-patch-archive.py \
+            --base 29b0dd959733651fc8e6f326af5c8997f4e337a8 \
+            --output dist/notes-patch-1.2.0-rc.1-20261114.zip
+      - name: Проверить архив и установщик
+        run: |
+          php -l tools/release/install-notes-patch.php
+          python3 - <<'PY'
+          import json, zipfile
+          name = 'dist/notes-patch-1.2.0-rc.1-20261114.zip'
+          with zipfile.ZipFile(name) as z:
+              assert z.testzip() is None
+              data = json.loads(z.read('manifest.json'))
+              assert data['application_version'] == '1.2.0-rc.1'
+              assert data['database_migrations'] is False
+              assert len(data['changed_files']) == 16
+              for e in data['changed_files']:
+                  assert 'files/' + e['path'] in z.namelist()
+          print('ZIP проверен: 16 файлов, версия не изменена')
+          PY
+          sha256sum dist/*.zip > dist/SHA256SUMS.txt
+          cat dist/SHA256SUMS.txt
+      - name: Опубликовать архив для скачивания
+        uses: actions/upload-artifact@v4
+        with:
+          name: Notes-patch-1.2.0-rc.1-20261114
+          path: |
+            dist/notes-patch-1.2.0-rc.1-20261114.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
