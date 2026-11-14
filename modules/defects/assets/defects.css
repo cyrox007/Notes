@@ -128,3 +128,20 @@
         width: 100vw;
     }
 }
+
+
+/* Форма закрытия должна занимать всю панель даже при общих стилях ui-form. */
+[data-defects-close] > label {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    align-self: stretch;
+}
+[data-defects-close] textarea[name="completed_work"] {
+    width: 100%;
+    min-height: 176px !important;
+}
+[data-defects-close] textarea[name="close_comment"] {
+    width: 100%;
+    min-height: 112px !important;
+}
