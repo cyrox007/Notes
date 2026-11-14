@@ -122,7 +122,11 @@ jobs:
           gh release download v1.2.0-rc.1 --repo cyrox007/Notes --pattern workspace-organizer-v1.2.0-rc.1.zip --dir $work
           if ($LASTEXITCODE -ne 0) { throw "Не удалось скачать опубликованную исходную сборку" }
           Expand-Archive -LiteralPath $sourceZip -DestinationPath $base -Force
-          $versionFiles = @(Get-ChildItem -LiteralPath $base -File -Filter 'Version.php' -Recurse | Where-Object { $_.FullName -match '[\\/]core[\\/]Version\.php
+          $versionFiles = @(Get-ChildItem -LiteralPath $base -File -Filter 'Version.php' -Recurse | Where-Object { $_.FullName -match '[\\/]core[\\/]Version\.php$' })
+          if ($versionFiles.Count -ne 1) { throw "Не найден один корень приложения в официальном ZIP" }
+          $base = Split-Path (Split-Path $versionFiles[0].FullName -Parent) -Parent
+          Write-Output "Корень опубликованной сборки: $base"
+          Expand-Archive -LiteralPath 'dist/notes-repair-1.2.0-rc.1-r2.zip' -DestinationPath $patch -Force
           php (Join-Path $patch 'repair.php') --check "--root=$base"
           if ($LASTEXITCODE -ne 0) { throw "Не пройдена проверка Windows" }
           php (Join-Path $patch 'repair.php') --yes "--root=$base"
@@ -152,10 +156,10 @@ jobs:
       - name: Опубликовать ZIP и сумму
         shell: bash
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          PATCH_TAG="notes-repair-1.2.0-rc.1-r2-\${GITHUB_SHA:0:8}"
+          PATCH_TAG="notes-repair-1.2.0-rc.1-r2-${GITHUB_SHA:0:8}"
           cat > dist/RELEASE_NOTES_RU.md <<'EOF'
           # Исправительный патч Notes 1.2.0-rc.1 — r2
 
@@ -182,70 +186,6 @@ jobs:
             dist/notes-repair-1.2.0-rc.1-r2.zip.sha256 \
             --target "$GITHUB_SHA" \
             --prerelease \
-            --title "Notes 1.2.0-rc.1 — исправительный патч r2 (\${GITHUB_SHA:0:8})" \
-            --notes-file dist/RELEASE_NOTES_RU.md
-          echo "Опубликован: https://github.com/cyrox007/Notes/releases/tag/$PATCH_TAG"
- })
-          if ($versionFiles.Count -ne 1) { throw "Не найден один корень приложения в официальном ZIP" }
-          $base = Split-Path (Split-Path $versionFiles[0].FullName -Parent) -Parent
-          Write-Output "Корень опубликованной сборки: $base"
-          Expand-Archive -LiteralPath 'dist/notes-repair-1.2.0-rc.1-r2.zip' -DestinationPath $patch -Force
-          php (Join-Path $patch 'repair.php') --check "--root=$base"
-          if ($LASTEXITCODE -ne 0) { throw "Не пройдена проверка Windows" }
-          php (Join-Path $patch 'repair.php') --yes "--root=$base"
-          if ($LASTEXITCODE -ne 0) { throw "Не прошла установка Windows" }
-          php (Join-Path $patch 'repair.php') --yes "--root=$base"
-          if ($LASTEXITCODE -ne 0) { throw "Не прошла повторная установка Windows" }
-          python -c "import json,pathlib,hashlib,sys; b=pathlib.Path(sys.argv[1]); p=pathlib.Path(sys.argv[2]); m=json.loads((p/'manifest.json').read_text(encoding='utf8')); assert all(hashlib.sha256((b/e['path']).read_bytes()).hexdigest()==e['target_sha256'] for e in m['changed_files'])" "$base" "$patch"
-          if ($LASTEXITCODE -ne 0) { throw "Не совпали итоговые суммы файлов Windows" }
-          $copies = @(Get-ChildItem -LiteralPath $work -Force -Directory | Where-Object { $_.Name -like '.base-notes-repair-*' })
-          if ($copies.Count -eq 0) { throw "Автоматическая защитная копия не создана" }
-          Write-Output 'Установка Windows и автоматическая резервная копия проверены'
-
-  publish:
-    name: Опубликовать исправительный выпуск GitHub
-    needs: [linux, windows]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Получить проверенный ZIP
-        uses: actions/download-artifact@v4
-        with:
-          name: notes-repair-1.2.0-rc.1-r2
-          path: dist
-      - name: Опубликовать ZIP и сумму
-        shell: bash
-        env:
-          GH_TOKEN: \${{ github.token }}
-        run: |
-          set -euo pipefail
-          PATCH_TAG="notes-repair-1.2.0-rc.1-r2-\${GITHUB_SHA:0:8}"
-          cat > dist/RELEASE_NOTES_RU.md <<'EOF'
-          # Исправительный патч Notes 1.2.0-rc.1 — r2
-
-          Новый привычный формат патча: один файл repair.php, одна команда, защитная копия создаётся автоматически вне установленного сайта.
-          В корне ZIP лежат 16 изменённых файлов в штатной структуре, manifest.json и инструкция на русском.
-
-          Предназначен только для исходного v1.2.0-rc.1 (коммит 29b0dd959733651fc8e6f326af5c8997f4e337a8).
-          Исправления «Дефектов», ЖНДР и новая страница резервных копий администратора. Номер версии и БД не изменяются.
-
-          Windows OSPanel: распакуйте архив отдельно от сайта, затем выполните:
-
-              php repair.php --yes --root="C:\OSPanel\home\notes.local"
-
-          Никакие --backup, --apply или предварительные команды не нужны.
-
-          Важно: перед работой сохраните независимую резервную копию MySQL и приватного хранилища. Механизм восстановления из админки ещё не принят при аварийном прерывании на Windows. Пакет не предназначен для штатного подписанного обновлятора.
-          EOF
-          if gh release view "$PATCH_TAG" >/dev/null 2>&1; then
-            echo "Этот выпуск уже опубликован: $PATCH_TAG"
-            exit 0
-          fi
-          gh release create "$PATCH_TAG" \
-            dist/notes-repair-1.2.0-rc.1-r2.zip \
-            dist/notes-repair-1.2.0-rc.1-r2.zip.sha256 \
-            --target "$GITHUB_SHA" \
-            --prerelease \
-            --title "Notes 1.2.0-rc.1 — исправительный патч r2 (\${GITHUB_SHA:0:8})" \
+            --title "Notes 1.2.0-rc.1 — исправительный патч r2 (${GITHUB_SHA:0:8})" \
             --notes-file dist/RELEASE_NOTES_RU.md
           echo "Опубликован: https://github.com/cyrox007/Notes/releases/tag/$PATCH_TAG"
