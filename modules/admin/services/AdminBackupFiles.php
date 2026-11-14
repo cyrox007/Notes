@@ -31,6 +31,11 @@ final class AdminBackupFiles
         }
     }
 
+    public function estimateBytes(): int
+    {
+        return array_sum(array_column($this->inventory($this->root, true), 'size'));
+    }
+
     /** @return list<array{path:string,size:int,sha256:string}> */
     public function snapshot(string $destination): array
     {
