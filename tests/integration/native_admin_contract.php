@@ -21,6 +21,7 @@ $views = [
     'modules/admin/views/updates.php',
     'modules/admin/views/license.php',
     'modules/admin/views/audit.php',
+    'modules/admin/views/backups.php',
 ];
 foreach ($views as $relative) {
     $path = $root . '/' . $relative;
@@ -65,7 +66,26 @@ nativeAdminAssert(str_contains($adminNav, "['/admin/modules', 'fa-cubes', 'Мо�
 nativeAdminAssert(str_contains($adminNav, "['/admin/updates', 'fa-refresh', 'Обновления']"), 'Admin section navigation does not expose signed updates');
 nativeAdminAssert(str_contains($adminNav, "['/admin/audit', 'fa-history', 'Журнал действий']"), 'Admin section navigation does not expose the user action journal');
 nativeAdminAssert(str_contains($adminNav, 'window.wspaceRuntime?.adminAudit'), 'Admin audit navigation is not permission-aware');
+nativeAdminAssert(str_contains($adminNav, "window.wspaceRuntime?.adminBackups"), 'Меню резервных копий не проверяет право доступа');
+nativeAdminAssert(str_contains((string) file_get_contents($root . '/app/views/core/base.php'), "'adminBackups' => !empty(\$access['admin_backups'])"), 'Навигация не получила серверное разрешение');
 nativeAdminAssert(!str_contains($index, '<div class="admin-user-actions">\n            <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route(\'admin_registration\')) ?>">'), 'Admin hero still duplicates the section navigation');
+
+$backupView = (string) file_get_contents($root . '/modules/admin/views/backups.php');
+foreach (['admin_backups_create', 'admin_backups_verify', 'admin_backups_restore'] as $backupRoute) {
+    nativeAdminAssert(str_contains($backupView, "route('{$backupRoute}')"), 'В админке отсутствует действие резервирования: ' . $backupRoute);
+}
+nativeAdminAssert(substr_count($backupView, '$view->csrfInput()') >= 3, 'Формы резервирования потеряли CSRF');
+nativeAdminAssert(str_contains($backupView, 'current_password'), 'Восстановление не требует пароль');
+nativeAdminAssert(str_contains($backupView, 'ВОССТАНОВИТЬ'), 'Восстановление не требует явную фразу');
+nativeAdminAssert(!str_contains($backupView, 'type="file"'), 'Опасная загрузка произвольного SQL в интерфейсе резервирования');
+$backupController = (string) file_get_contents($root . '/modules/admin/controllers/AdminBackupController.php');
+nativeAdminAssert(str_contains($backupController, "hasRole(\$actor, 'superadmin')"), 'Создание копии доступно без роли суперпользователя');
+nativeAdminAssert(str_contains($backupController, 'verifyPassword('), 'Создание/восстановление не перепроверяет пароль');
+$maintenanceMiddleware = (string) file_get_contents($root . '/app/middlewares/EnforceMaintenanceMode.php');
+nativeAdminAssert(
+    strpos($maintenanceMiddleware, "str_starts_with(\$transactionId, 'restore-')") < strpos($maintenanceMiddleware, 'automaticRecovery->attempt'),
+    'Восстановление копии может ошибочно запускать откат обновлятора'
+);
 
 $audit = (string) file_get_contents($root . '/modules/admin/views/audit.php');
 nativeAdminAssert(str_contains($audit, 'class="admin-toolbar admin-audit-toolbar"'), 'audit journal does not use the responsive Admin audit toolbar');
@@ -212,6 +232,11 @@ nativeAdminAssert(
 nativeAdminAssert(str_contains($router, "->add('POST', '/settings/upload-limit'"), 'upload limit settings route missing');
 nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_settings_upload_limit'"), 'upload limit settings route lost CSRF/admin protection');
 nativeAdminAssert(str_contains($router, "->add('POST', '/updates/apply'"), 'signed updater apply route missing');
+foreach (['create', 'verify', 'restore'] as $backupAction) {
+    nativeAdminAssert(str_contains($router, "->add('POST', '/backups/{$backupAction}'"), 'Отсутствует маршрут резервирования ' . $backupAction);
+    nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_backups_{$backupAction}'"), 'Маршрут резервирования потерял защиту CSRF');
+}
+nativeAdminAssert(str_contains($router, "->add('GET', '/backups'"), 'Отсутствует страница резервных копий');
 nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_apply'"), 'signed updater apply middleware contract missing');
 
 foreach ([
