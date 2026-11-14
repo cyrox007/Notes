@@ -76,6 +76,7 @@ $runtimeConfig = json_encode([
     'licenseReadOnly' => $licenseReadOnly,
     'licenseCode' => isset($licenseState['code']) ? (string) $licenseState['code'] : '',
     'adminAudit' => !empty($access['admin_audit']),
+    'adminBackups' => !empty($access['admin_backups']),
 ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
 $partialData = [
     'sitename' => $siteName,
