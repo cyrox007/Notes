@@ -203,6 +203,9 @@ class Controller
             'profile' => $active('workspace.profile') && in_array('profile.use', $permissions, true),
             'admin' => $adminActive && in_array('admin.access', $permissions, true),
             'admin_audit' => $adminActive && in_array('admin.audit.view', $permissions, true),
+            'admin_backups' => $adminActive
+                && in_array('admin.settings.manage', $permissions, true)
+                && (new PermissionService())->hasRole($viewerId, 'superadmin'),
             // Управление лицензией остаётся доступно через core recovery-маршрут,
             // даже когда Admin не разрешён текущей лицензией.
             'license_manage' => in_array('admin.settings.manage', $permissions, true),
@@ -223,6 +226,7 @@ class Controller
             'profile' => false,
             'admin' => false,
             'admin_audit' => false,
+            'admin_backups' => false,
             'license_manage' => false,
         ];
     }
