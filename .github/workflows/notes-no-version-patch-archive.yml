@@ -148,6 +148,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
+      - name: Подготовить репозиторий для публикации
+        uses: actions/checkout@v4
       - name: Получить проверенный ZIP
         uses: actions/download-artifact@v4
         with:
