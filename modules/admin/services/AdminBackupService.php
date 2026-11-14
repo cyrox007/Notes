@@ -274,6 +274,15 @@ final class AdminBackupService
             (int) (getenv('DBPORT') ?: 3306)
         );
         $db->set_charset('utf8mb4');
+        // В общей базе допускаются только таблицы этой установки.
+        // Неизвестные триггеры запрещают операторское восстановление.
+        $triggers = $db->query('SHOW TRIGGERS');
+        while ($row = $triggers->fetch_assoc()) {
+            if (!$db->namespace->ownsTable((string) ($row['Table'] ?? ''))) {
+                $db->close();
+                throw new RuntimeException('Обнаружены сторонние триггеры; восстановление требует изолированной БД');
+            }
+        }
         return $db;
     }
 
@@ -324,6 +333,8 @@ final class AdminBackupService
 
     private function maintenance(): \App\Services\MaintenanceModeService
     {
-        return new MaintenanceModeService(null, $this->applicationRoot);
+        $configured = trim((string) (getenv('UPDATE_STATE_PATH') ?: ''));
+        $stateRoot = $configured !== '' ? $configured : $this->privateRoot . '/updates';
+        return new MaintenanceModeService($stateRoot, $this->applicationRoot);
     }
 }
