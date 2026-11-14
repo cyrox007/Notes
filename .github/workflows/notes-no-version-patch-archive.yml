@@ -111,17 +111,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Ошибка синтаксиса PHP" }
       - name: Проверить замену файлов, повтор и копию на Windows
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $work = Join-Path $env:RUNNER_TEMP 'notes-repair-windows'
           $base = Join-Path $work 'base'
           $patch = Join-Path $work 'patch'
           New-Item -ItemType Directory -Path $base, $patch -Force | Out-Null
-          $sourceZip = Join-Path $work 'base.zip'
-          git archive --format=zip "--output=$sourceZip" 29b0dd959733651fc8e6f326af5c8997f4e337a8
-          if ($LASTEXITCODE -ne 0) { throw "Не удалось подготовить исходную сборку" }
+          $sourceZip = Join-Path $work 'workspace-organizer-v1.2.0-rc.1.zip'
+          gh release download v1.2.0-rc.1 --repo cyrox007/Notes --pattern workspace-organizer-v1.2.0-rc.1.zip --dir $work
+          if ($LASTEXITCODE -ne 0) { throw "Не удалось скачать опубликованную исходную сборку" }
           Expand-Archive -LiteralPath $sourceZip -DestinationPath $base -Force
           Expand-Archive -LiteralPath 'dist/notes-repair-1.2.0-rc.1-r2.zip' -DestinationPath $patch -Force
-          python -c "import hashlib,json,pathlib,sys; b=pathlib.Path(sys.argv[1]); p=pathlib.Path(sys.argv[2]); m=json.loads((p/'manifest.json').read_text(encoding='utf8')); h=lambda q: hashlib.sha256(q.read_bytes()).hexdigest() if q.is_file() else None; bad=[(e['path'],e['base_sha256'],h(b/e['path'])) for e in m['changed_files'] if e['base_sha256']!=h(b/e['path'])]; print('MISMATCH:',bad)" "$base" "$patch"
           php (Join-Path $patch 'repair.php') --check "--root=$base"
           if ($LASTEXITCODE -ne 0) { throw "Не пройдена проверка Windows" }
           php (Join-Path $patch 'repair.php') --yes "--root=$base"
