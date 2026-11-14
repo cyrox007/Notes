@@ -126,3 +126,21 @@
 .wp-journal__row[data-state="draft"]{box-shadow:inset 4px 0 0 var(--ui-warning);background:color-mix(in srgb,var(--ui-warning-soft) 52%,var(--ui-surface))}
 .wp-journal__row[data-state="issued"]{box-shadow:inset 4px 0 0 var(--ui-success);background:color-mix(in srgb,var(--ui-success-soft) 44%,var(--ui-surface))}
 .wp-journal__row[data-state="closed"]{background:var(--ui-surface)}
+
+
+/* Патч интерфейса ЖНДР: каждому разделу соответствует отдельный адрес. */
+.wp-journal__shortcuts a[aria-current="page"] {
+    background: var(--ui-primary-soft);
+    color: var(--ui-primary);
+    border-color: var(--ui-primary);
+    font-weight: 750;
+}
+.wp-journal__shortcuts .wp-journal__shortcuts-primary:is(:hover, :focus-visible) {
+    background: var(--ui-primary-hover, var(--ui-primary));
+    color: #fff;
+}
+.wp-journal[data-wp-section="documents"] > :is([data-wp-management], [data-wp-admin], [data-wp-template-admin]),
+.wp-journal[data-wp-section="journal"] > :is([data-wp-personal], [data-wp-create-panel], [data-wp-editor], [data-wp-admin], [data-wp-template-admin]),
+.wp-journal[data-wp-section="references"] > section:not([data-wp-admin]):not([data-wp-template-admin]) {
+    display: none !important;
+}
