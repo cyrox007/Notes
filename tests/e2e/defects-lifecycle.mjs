@@ -276,7 +276,8 @@ try {
     await closeDefect(page, concurrent, 'Устаревшая попытка закрытия', 409);
     check((await page.locator('[data-defects-close-error]').innerText()).includes('изменилась'),
         'Конфликт версии не показан пользователю');
-    await page.locator('[data-defects-detail-close]').first().click();
+    // В расширенной панели центр фона перекрыт формой: закрываем её кнопкой в заголовке.
+    await page.locator('[data-defects-detail-close]').last().click();
 
     const manager = page.locator('[data-defects-reference-manager]');
     await page.locator('.defects-administration summary').click();
