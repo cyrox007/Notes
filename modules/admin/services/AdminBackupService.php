@@ -78,6 +78,7 @@ final class AdminBackupService
                 'version' => (string) $manifest['version'],
                 'files' => count($manifest['files']),
                 'bytes' => array_sum(array_column($manifest['files'], 'size'))
+                    + array_sum(array_column($manifest['legacy_files'] ?? [], 'size'))
                     + (int) ($manifest['database_bytes'] ?? 0),
             ];
         }
