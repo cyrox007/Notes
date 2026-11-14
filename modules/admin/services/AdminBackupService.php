@@ -384,7 +384,13 @@ final class AdminBackupService
     private function maintenance(): \App\Services\MaintenanceModeService
     {
         $configured = trim((string) (getenv('UPDATE_STATE_PATH') ?: ''));
-        $stateRoot = $configured !== '' ? $configured : $this->privateRoot . '/updates';
+        $privateConfigured = trim((string) (getenv('PRIVATE_STORAGE_PATH') ?: ''));
+        if ($configured === '' && $privateConfigured === '') {
+            throw new RuntimeException(
+                'Не задан общий режим обслуживания. Настройте PRIVATE_STORAGE_PATH или UPDATE_STATE_PATH'
+            );
+        }
+        $stateRoot = $configured !== '' ? $configured : rtrim($privateConfigured, '/\\') . '/updates';
         return new MaintenanceModeService($stateRoot, $this->applicationRoot);
     }
 }
