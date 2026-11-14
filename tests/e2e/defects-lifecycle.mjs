@@ -171,7 +171,15 @@ try {
     const writingArea = await page.locator('[data-defects-close]').evaluate(form => {
         const work = form.querySelector('[name="completed_work"]').getBoundingClientRect();
         const comment = form.querySelector('[name="close_comment"]').getBoundingClientRect();
-        return { workWidth: work.width, workHeight: work.height, commentHeight: comment.height };
+        const workNode = form.querySelector('[name="completed_work"]');
+        const style = getComputedStyle(workNode);
+        return {
+            workWidth: work.width, workHeight: work.height, commentHeight: comment.height,
+            formWidth: form.getBoundingClientRect().width,
+            parentWidth: workNode.parentElement.getBoundingClientRect().width,
+            css: { width: style.width, minHeight: style.minHeight, maxHeight: style.maxHeight,
+                display: style.display, boxSizing: style.boxSizing },
+        };
     });
     check(writingArea.workWidth >= 550 && writingArea.workHeight >= 170
         && writingArea.commentHeight >= 105,
