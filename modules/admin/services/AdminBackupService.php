@@ -240,6 +240,15 @@ final class AdminBackupService
     /** @return array<string,mixed> */
     private function createInsideMaintenance(string $id): array
     {
+        $dataBytes = $this->files->estimateBytes() + ($this->legacyFiles?->estimateBytes() ?? 0);
+        $freeBytes = disk_free_space($this->backupRoot);
+        if (!is_float($freeBytes) && !is_int($freeBytes)) {
+            throw new RuntimeException('Не удалось определить свободное место для резервной копии');
+        }
+        if ($freeBytes < $dataBytes + 67108864) {
+            throw new RuntimeException('Недостаточно места для резервной копии и защитного запаса');
+        }
+
         $db = $this->database();
         try {
             $snapshot = $this->manager->create($id, $db);
