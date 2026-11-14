@@ -7,6 +7,7 @@ namespace App\Services;
 require_once dirname(__DIR__, 3) . '/core/UpdatePath.php';
 
 use Core\UpdatePath;
+use RecursiveCallbackFilterIterator;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use RuntimeException;
@@ -146,10 +147,17 @@ final class AdminBackupFiles
     private function inventory(string $directory, bool $excludeService): array
     {
         $entries = [];
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::LEAVES_ONLY
+        $source = new RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS);
+        $filter = new RecursiveCallbackFilterIterator(
+            $source,
+            function (\SplFileInfo $item) use ($directory, $excludeService): bool {
+                if (!$excludeService) return true;
+                $relative = str_replace('\\', '/', substr($item->getPathname(), strlen($directory) + 1));
+                $top = explode('/', $relative, 2)[0];
+                return !$this->excluded($top);
+            }
         );
+        $iterator = new RecursiveIteratorIterator($filter, RecursiveIteratorIterator::LEAVES_ONLY);
         foreach ($iterator as $item) {
             $absolute = $item->getPathname();
             $relative = substr($absolute, strlen($directory) + 1);
