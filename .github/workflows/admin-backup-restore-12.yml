@@ -56,6 +56,8 @@ jobs:
           php -l modules/admin/views/backups.php
           php -l modules/admin/AdminRuntimeProvider.php
           php -l tests/integration/admin_backup_12.php
+          php -l tests/integration/native_admin_contract.php
+          php tests/integration/native_admin_contract.php
           node --check modules/admin/assets/admin-settings-nav.js
       - name: Проверить создание, повреждение и восстановление
         env:
