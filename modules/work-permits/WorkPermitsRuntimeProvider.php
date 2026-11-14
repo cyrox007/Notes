@@ -32,6 +32,9 @@ final class WorkPermitsRuntimeProvider implements ModuleRuntimeProvider
     {
         $router->group('/work-permits')
             ->add('GET', '/', [WorkPermitController::class, 'index'], [LoginRequared::class], 'work_permits')
+            ->add('GET', '/documents', [WorkPermitController::class, 'index'], [LoginRequared::class], 'work_permits_documents')
+            ->add('GET', '/journal', [WorkPermitController::class, 'journal'], [LoginRequared::class], 'work_permits_journal')
+            ->add('GET', '/references', [WorkPermitController::class, 'referencesPage'], [LoginRequared::class], 'work_permits_references_page')
             ->endGroup();
 
         $router->group('/api/work-permits')
