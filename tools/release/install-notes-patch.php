@@ -5,8 +5,9 @@ declare(strict_types=1);
 /**
  * Установщик пофайлового патча Notes без смены версии.
  *
- * Проверяет каждую исходную контрольную сумму ДО изменений. По умолчанию
- * работает только в режиме проверки. Применение требует внешней папки копии.
+ * Проверяет файлы до применения, сам создаёт защитную копию вне сайта
+ * и возвращает прежние файлы при штатно перехваченной ошибке.
+ * Установка: php repair.php --yes --root=/путь/к/Notes.
  * Ни базу данных, ни приватные пользовательские файлы не меняет.
  */
 function finishWithError(string $message): never
@@ -73,8 +74,8 @@ function copyWithHash(string $source, string $target, string $hash): void
         }
         @chmod($temp, 0644);
         if (!@rename($temp, $target)) {
-            // На Windows замена существующего файла через rename может быть запрещена.
-            if (!is_file($target) || !@unlink($target) || !@rename($temp, $target)) {
+            // Windows может запрещать rename поверх файла: не удаляем оригинал до успешной записи.
+            if (!@copy($temp, $target)) {
                 throw new RuntimeException('Не удалось заменить файл: ' . basename($target));
             }
         }
@@ -90,7 +91,7 @@ function entryData(string $dir): array
 {
     $file = $dir . '/manifest.json';
     if (!is_file($file) || is_link($file)) {
-        finishWithError('Не найден реестр manifest.json рядом с apply.php');
+        finishWithError('Не найден реестр manifest.json рядом с repair.php');
     }
     $decoded = json_decode((string) file_get_contents($file), true);
     if (!is_array($decoded)
@@ -106,19 +107,29 @@ if (PHP_SAPI !== 'cli') {
     exit('Установщик доступен только через PHP CLI');
 }
 
-$args = getopt('', ['check', 'apply', 'target:', 'backup:']);
+$args = getopt('', ['root:', 'yes', 'check', 'help']);
+if (isset($args['help'])) {
+    echo "Патч Notes 1.2.0-rc.1 без смены версии\n";
+    echo "Установка: php repair.php --yes --root=/путь/к/Notes\n";
+    echo "Проверка (необязательно): php repair.php --check --root=/путь/к/Notes\n";
+    exit(0);
+}
 $check = array_key_exists('check', $args);
-$apply = array_key_exists('apply', $args);
+$apply = array_key_exists('yes', $args);
 if (($apply && $check) || (!$apply && !$check)) {
-    finishWithError('Укажите ровно один режим: --check или --apply');
+    finishWithError('Для установки укажите --yes --root=/путь/к/Notes');
 }
 
-$target = isset($args['target']) && is_string($args['target'])
-    ? realpath($args['target']) : false;
-if (!is_string($target) || !is_dir($target) || is_link($target)) {
-    finishWithError('Укажите существующую папку сайта: --target=/путь/к/Notes');
+$rootArg = $args['root'] ?? null;
+$target = is_string($rootArg) ? realpath($rootArg) : false;
+if (!is_string($target) || !is_dir($target) || is_link((string) $rootArg)) {
+    finishWithError('Укажите существующий корень сайта через --root=/путь/к/Notes');
 }
 $target = rtrim($target, '/\\');
+$patchDir = realpath(__DIR__);
+if (!is_string($patchDir) || within($patchDir, $target) || within($target, $patchDir)) {
+    finishWithError('Распакуйте архив отдельно от каталога установленного сайта');
+}
 $manifest = entryData(__DIR__);
 
 $expectedVersion = (string) ($manifest['application_version'] ?? '');
@@ -145,7 +156,7 @@ foreach ($entries as $entry) {
     if (isset($seen[$relative])) finishWithError('Повторяющийся путь: ' . $relative);
     $seen[$relative] = true;
     $live = safeFile($target, $relative);
-    $bundle = safeFile(__DIR__ . '/files', $relative);
+    $bundle = safeFile(__DIR__, $relative);
     $hash = (string) ($entry['target_sha256'] ?? '');
     if (!preg_match('/^[0-9a-f]{64}$/D', $hash)
         || !is_file($bundle) || is_link($bundle)
@@ -176,25 +187,38 @@ if (!$allBase) {
 
 if ($check) {
     echo 'Проверка успешна. Базовая сборка подходит, рабочих файлов: ' . count($entries) . PHP_EOL;
-    echo "Для установки создайте внешнюю папку резервирования и выполните --apply --target=... --backup=...\n";
+    echo "Установка: php repair.php --yes --root=/путь/к/Notes\n";
     exit(0);
 }
 
-$backupArg = $args['backup'] ?? null;
-$backupRoot = is_string($backupArg) ? realpath($backupArg) : false;
-if (!is_string($backupRoot) || !is_dir($backupRoot) || is_link($backupRoot)
-    || !is_writable($backupRoot) || within($backupRoot, $target)
-    || within($target, $backupRoot)) {
-    finishWithError('Для --apply нужна существующая доступная папка --backup вне дерева сайта');
+$parent = dirname($target);
+if (!is_dir($parent) || !is_writable($parent)) {
+    finishWithError('Нет прав на создание автоматической защитной копии рядом с каталогом сайта');
 }
-
-$lock = @fopen($backupRoot . '/.notes-patch-install.lock', 'c+b');
+$lockPath = $parent . '/.' . basename($target) . '-notes-repair.lock';
+if (is_link($lockPath)) {
+    finishWithError('Небезопасный путь файла блокировки');
+}
+$lock = @fopen($lockPath, 'c+b');
 if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
     finishWithError('Установка патча уже выполняется');
 }
-$backupDir = $backupRoot . '/patch-' . gmdate('Ymd-His') . '-' . bin2hex(random_bytes(6));
+
+// Повторно проверяем файлы после получения блокировки, до первой замены.
+foreach ($entries as $entry) {
+    $live = safeFile($target, $entry['path']);
+    $base = $entry['base_sha256'];
+    $current = is_file($live) ? hash_file('sha256', $live) : null;
+    if ($base === null ? $current !== null
+        : !is_string($current) || !hash_equals($base, $current)) {
+        finishWithError('Исходные файлы изменились после проверки: ' . $entry['path']);
+    }
+}
+
+$backupDir = $parent . '/.' . basename($target)
+    . '-notes-repair-' . gmdate('Ymd-His') . '-' . bin2hex(random_bytes(6));
 if (!@mkdir($backupDir, 0700)) {
-    finishWithError('Не удалось создать защитный каталог: ' . $backupDir);
+    finishWithError('Не удалось автоматически создать защитную копию: ' . $backupDir);
 }
 $replaced = [];
 
@@ -225,14 +249,14 @@ try {
         $relative = $entry['path'];
         $replaced[] = $entry;
         copyWithHash(
-            safeFile(__DIR__ . '/files', $relative),
+            safeFile(__DIR__, $relative),
             safeFile($target, $relative),
             $entry['target_sha256']
         );
     }
     echo 'Патч установлен. Файлов: ' . count($replaced) . PHP_EOL;
     echo 'Защитная копия прежних файлов: ' . $backupDir . PHP_EOL;
-    echo "Номер версии не изменён. Очистите кэш PHP и проверьте сайт.\n";
+    echo "Номер версии не изменён. Перезапустите PHP и обновите браузер через Ctrl+F5.\n";
 } catch (Throwable $error) {
     fwrite(STDERR, 'Не удалось установить патч: ' . $error->getMessage() . PHP_EOL);
     $rollbackFailed = false;
