@@ -61,12 +61,12 @@ def main() -> None:
         )
 
     base_version = git("show", f"{base}:core/Version.php").decode()
-    target_version = (ROOT / "core/Version.php").read_text()
+    target_version = (ROOT / "core/Version.php").read_text(encoding="utf-8")
     marker = f"public const VERSION = '{VERSION}'"
     if marker not in base_version or marker not in target_version:
         raise SystemExit("Номер версии изменён: архив без смены версии запрещён")
     base_module = json.loads(git("show", f"{base}:modules/work-permits/module.json"))
-    target_module = json.loads((ROOT / "modules/work-permits/module.json").read_text())
+    target_module = json.loads((ROOT / "modules/work-permits/module.json").read_text(encoding="utf-8"))
     if base_module["version"] != target_module["version"]:
         raise SystemExit("Изменился номер версии ЖНДР")
 
