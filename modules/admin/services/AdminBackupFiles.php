@@ -20,6 +20,7 @@ final class AdminBackupFiles
 {
     private const EXCLUDED = [
         'admin-backups', 'updates', 'update-continuations',
+        'logs', 'cache', 'sessions',
         'workspace-maintenance.json', '.workspace-maintenance.lock',
     ];
 
