@@ -142,6 +142,37 @@ try {
         'Работник получил администраторскую панель');
     check(await http(worker, 'GET', '/management'), 'Управление работнику', 403);
 
+    // Три самостоятельных раздела ЖНДР должны быть доступны по разным URL.
+    const journalPage = await first.goto(base + '/work-permits/journal', {
+        waitUntil: 'domcontentloaded',
+    });
+    assert.equal(journalPage?.status(), 200, 'Журнал выдачи недоступен');
+    assert.equal(await first.locator('[data-work-permits]').getAttribute('data-wp-section'), 'journal');
+    assert.equal(await first.locator('[data-wp-nav="journal"]').getAttribute('aria-current'), 'page');
+    assert.equal(await first.locator('[data-wp-management]').isVisible(), true);
+    assert.equal(await first.locator('[data-wp-create-panel]').isVisible(), false);
+
+    const referencesPage = await first.goto(base + '/work-permits/references', {
+        waitUntil: 'domcontentloaded',
+    });
+    assert.equal(referencesPage?.status(), 200, 'Страница справочников недоступна');
+    assert.equal(await first.locator('[data-work-permits]').getAttribute('data-wp-section'), 'references');
+    assert.equal(await first.locator('[data-wp-nav="references"]').getAttribute('aria-current'), 'page');
+    assert.equal(await first.locator('[data-wp-admin]').isVisible(), true);
+    assert.equal(await first.locator('[data-wp-personal]').isVisible(), false);
+
+    const documentsPage = await first.goto(base + '/work-permits/documents', {
+        waitUntil: 'domcontentloaded',
+    });
+    assert.equal(documentsPage?.status(), 200, 'Страница документов недоступна');
+    assert.equal(await first.locator('[data-wp-nav="documents"]').getAttribute('aria-current'), 'page');
+    assert.equal(await first.locator('[data-wp-create-panel]').isVisible(), true);
+    assert.equal(await first.locator('[data-wp-management]').isVisible(), false);
+    for (const name of ['journal', 'references']) {
+        const response = await worker.context().request.get(base + '/work-permits/' + name);
+        assert.equal(response.status(), 403, 'Обычный работник получил доступ к ' + name);
+    }
+
     const orgs = check(await http(first, 'GET', '/references/organizations'), 'Организации').items;
     const org = Number(orgs[0].id);
     const sites = check(await http(first, 'GET', '/references/facilities?organization_id=' + org), 'Объекты').items;

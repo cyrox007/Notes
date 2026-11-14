@@ -29,10 +29,25 @@ final class WorkPermitController extends Controller
 {
     public function index(Request $request): void
     {
+        $this->renderSection($request, 'documents');
+    }
+
+    public function journal(Request $request): void
+    {
+        $this->renderSection($request, 'journal');
+    }
+
+    public function referencesPage(Request $request): void
+    {
+        $this->renderSection($request, 'references');
+    }
+
+    private function renderSection(Request $request, string $section): void
+    {
         $id = (int) $request->session('user_id', 0);
         if (!(new PermissionService())->hasPermission($id, 'work_permits.use')) {
             http_response_code(403);
-            echo 'Нет доступа к модулю «Наряды и допуски»';
+            echo 'Нет доступа к модулю «Журнал нарядов допусков и распоряжений»';
             return;
         }
         $user = DatabaseManager::getInstance()->fetchOne(
@@ -43,10 +58,17 @@ final class WorkPermitController extends Controller
             http_response_code(404);
             return;
         }
+        $canManage = (new PermissionService())->hasPermission($id, 'work_permits.manage');
+        if ($section !== 'documents' && !$canManage) {
+            http_response_code(403);
+            echo 'Нет прав для просмотра этого раздела ЖНДР';
+            return;
+        }
         $this->render_template('@work-permits/index', [
             'user' => $user,
             'csrf_input' => $this->getCSRFInputTag(),
-            'can_manage_references' => (new PermissionService())->hasPermission($id, 'work_permits.manage'),
+            'can_manage_references' => $canManage,
+            'section' => $section,
         ]);
     }
 

@@ -1,7 +1,7 @@
 name: Наряды 1.2 — реальный HTTP, MySQL и две сессии
 on:
   pull_request:
-    branches: ['1.2']
+    branches: ['1.2', 'fix/1.2-release-preparation']
     paths:
       - 'modules/work-permits/**'
       - 'tests/e2e/work-permits-live-*'

@@ -139,6 +139,23 @@ try {
     observe(page);
     await login(page, required('E2E_USER'));
     await openWorkspace(page);
+    const primaryButton = page.locator('[data-defects-create-open]');
+    await primaryButton.hover();
+    const buttonContrast = await primaryButton.evaluate(node => {
+        const style = getComputedStyle(node);
+        return { text: style.color, background: style.backgroundColor };
+    });
+    check(buttonContrast.text !== buttonContrast.background
+        && buttonContrast.background !== 'rgb(255, 255, 255)',
+        'При наведении кнопка регистрации становится белой на белом: '
+        + JSON.stringify(buttonContrast));
+    await primaryButton.click();
+    const expandedPanel = page.locator('[data-defects-create-overlay] .defects-panel');
+    const panelWidth = await expandedPanel.evaluate(node => node.getBoundingClientRect().width);
+    check(panelWidth >= 780 && panelWidth <= 1280,
+        'Правая панель должна быть шире прежних 560 пикселей: ' + panelWidth);
+    await page.locator('[data-defects-create-overlay] [data-defects-create-cancel]').last().click();
+    await page.locator('[data-defects-create-overlay]').waitFor({ state: 'hidden' });
     await page.locator('[data-defects-display="table"]').click();
     await page.locator('.defects-table th', { hasText: 'Плановый срок' }).waitFor({ state: 'visible' });
     const sortedRequest = ajaxResponse(page, 'sort=due_desc', 'GET');
@@ -151,6 +168,22 @@ try {
     const marker = Date.now();
     const first = await createDefect(page, 'Браузерная проверка ' + marker + ' — повреждён изолятор');
     await detail(page, first);
+    const writingArea = await page.locator('[data-defects-close]').evaluate(form => {
+        const work = form.querySelector('[name="completed_work"]').getBoundingClientRect();
+        const comment = form.querySelector('[name="close_comment"]').getBoundingClientRect();
+        const workNode = form.querySelector('[name="completed_work"]');
+        const style = getComputedStyle(workNode);
+        return {
+            workWidth: work.width, workHeight: work.height, commentHeight: comment.height,
+            formWidth: form.getBoundingClientRect().width,
+            parentWidth: workNode.parentElement.getBoundingClientRect().width,
+            css: { width: style.width, minHeight: style.minHeight, maxHeight: style.maxHeight,
+                display: style.display, boxSizing: style.boxSizing },
+        };
+    });
+    check(writingArea.workWidth >= 550 && writingArea.workHeight >= 170
+        && writingArea.commentHeight >= 105,
+        'Поля закрытия дефекта остались слишком тесными: ' + JSON.stringify(writingArea));
     check((await page.locator('[data-defects-history-list]').innerText()).includes('Зарегистрирован'),
         'Регистрация отсутствует в истории');
     const editServices = page.locator('form[data-defects-services-edit]');
@@ -243,7 +276,8 @@ try {
     await closeDefect(page, concurrent, 'Устаревшая попытка закрытия', 409);
     check((await page.locator('[data-defects-close-error]').innerText()).includes('изменилась'),
         'Конфликт версии не показан пользователю');
-    await page.locator('[data-defects-detail-close]').first().click();
+    // В расширенной панели центр фона перекрыт формой: закрываем её кнопкой в заголовке.
+    await page.locator('[data-defects-detail-close]').last().click();
 
     const manager = page.locator('[data-defects-reference-manager]');
     await page.locator('.defects-administration summary').click();

@@ -4,23 +4,26 @@ declare(strict_types=1);
 
 /** @var \Core\NativeViewRenderer $view */
 $baseUrl = rtrim((string) ($base_url ?? ''), '/');
+$activeSection = in_array($section ?? '', ['documents', 'journal', 'references'], true)
+    ? $section : 'documents';
 ob_start();
 ?>
-<main class="wp-journal ui-form" data-work-permits data-base-url="<?= $view->e($baseUrl) ?>" data-wp-can-manage="<?= !empty($can_manage_references) ? '1' : '0' ?>">
+<main class="wp-journal ui-form" data-wp-section="<?= $view->e($activeSection) ?>" data-work-permits data-base-url="<?= $view->e($baseUrl) ?>" data-wp-can-manage="<?= !empty($can_manage_references) ? '1' : '0' ?>">
     <?= $csrf_input ?? '' ?>
     <header class="module-page-header">
-        <h1>Наряды и допуски</h1>
-        <p>Сначала выберите документ в журнале или создайте новый. Дальнейшие действия появятся в карточке документа.</p>
+        <h1>Журнал нарядов допусков и распоряжений</h1>
+        <p>ЖНДР: документы, журнал выдачи и справочники разделены для удобной работы. Изменения порядка оформления бланка согласовываются отдельно.</p>
     </header>
     <p data-wp-feedback role="status" aria-live="polite" hidden></p>
     <nav class="wp-journal__shortcuts" aria-label="Разделы журнала">
-        <a class="ui-button ui-button--secondary" href="#wp-registry-title"><i class="fa fa-folder-open-o" aria-hidden="true"></i> Мои документы</a>
+        <a class="ui-button ui-button--secondary" data-wp-nav="documents" href="<?= $view->e($baseUrl) ?>/work-permits/documents" <?= $activeSection === 'documents' ? 'aria-current="page"' : '' ?>><i class="fa fa-folder-open-o" aria-hidden="true"></i> Документы</a>
         <?php if (!empty($can_manage_references)): ?>
-            <a class="ui-button ui-button--secondary" href="#wp-management-title"><i class="fa fa-clipboard" aria-hidden="true"></i> Журнал выдачи</a>
+            <a class="ui-button ui-button--secondary" data-wp-nav="journal" href="<?= $view->e($baseUrl) ?>/work-permits/journal" <?= $activeSection === 'journal' ? 'aria-current="page"' : '' ?>><i class="fa fa-clipboard" aria-hidden="true"></i> Журнал</a>
+            <a class="ui-button ui-button--secondary" data-wp-nav="references" href="<?= $view->e($baseUrl) ?>/work-permits/references" <?= $activeSection === 'references' ? 'aria-current="page"' : '' ?>><i class="fa fa-book" aria-hidden="true"></i> Справочники и шаблоны</a>
         <?php endif; ?>
-        <a href="#wp-form-title" class="wp-journal__shortcuts-primary ui-button ui-button--primary"><i class="fa fa-plus" aria-hidden="true"></i> Создать документ</a>
+        <a href="<?= $view->e($baseUrl) ?>/work-permits/documents#wp-form-title" class="wp-journal__shortcuts-primary ui-button ui-button--primary"><i class="fa fa-plus" aria-hidden="true"></i> Создать документ</a>
     </nav>
-    <section class="calendar-shell wp-journal__registry" aria-labelledby="wp-registry-title">
+    <section class="calendar-shell wp-journal__registry" data-wp-personal aria-labelledby="wp-registry-title">
         <h2 id="wp-registry-title">Мои документы за последний месяц</h2>
         <label>Показывать
             <select data-wp-personal-state>
@@ -49,7 +52,7 @@ ob_start();
         <button class="ui-button ui-button--secondary" type="button" data-wp-management-more hidden>Показать ещё</button>
     </section>
     <?php endif; ?>
-    <section class="calendar-shell wp-journal__editor" aria-labelledby="wp-form-title">
+    <section class="calendar-shell wp-journal__editor" data-wp-create-panel aria-labelledby="wp-form-title">
         <h2 id="wp-form-title">Новый документ</h2>
         <form data-wp-form>
             <label>Тип документа
@@ -462,7 +465,7 @@ ob_start();
 <?php
 $content = (string) ob_get_clean();
 echo $view->layout('core/base', [
-    'title' => 'Наряды и допуски',
+    'title' => 'Журнал нарядов допусков и распоряжений',
     'user' => $user ?? [],
     'module_styles' => [$view->moduleAsset('work-permits', 'work-permits.css')],
     'module_scripts' => [
