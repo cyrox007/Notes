@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   archive:
@@ -39,7 +39,8 @@ jobs:
                   assert 'files/' + e['path'] in z.namelist()
           print('ZIP проверен: 16 файлов, версия не изменена')
           PY
-          sha256sum dist/*.zip > dist/SHA256SUMS.txt
+          (cd dist && sha256sum notes-patch-1.2.0-rc.1-20261114.zip > notes-patch-1.2.0-rc.1-20261114.zip.sha256)
+          cp dist/notes-patch-1.2.0-rc.1-20261114.zip.sha256 dist/SHA256SUMS.txt
           cat dist/SHA256SUMS.txt
       - name: Опубликовать архив для скачивания
         uses: actions/upload-artifact@v4
@@ -48,5 +49,44 @@ jobs:
           path: |
             dist/notes-patch-1.2.0-rc.1-20261114.zip
             dist/SHA256SUMS.txt
+            dist/notes-patch-1.2.0-rc.1-20261114.zip.sha256
           if-no-files-found: error
           retention-days: 30
+
+      - name: Опубликовать ZIP и контрольную сумму на странице выпусков GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PATCH_TAG="notes-patch-1.2.0-rc.1-20261114-${GITHUB_SHA:0:8}"
+          if gh release view "$PATCH_TAG" >/dev/null 2>&1; then
+            echo "Предварительный выпуск уже существует: $PATCH_TAG"
+            exit 0
+          fi
+          cat > dist/RELEASE_NOTES_RU.md <<'EOF'
+          # Исправительный патч Notes 1.2.0-rc.1 без смены версии
+
+          Патч предназначен только для исходной сборки `v1.2.0-rc.1` (коммит `29b0dd959733651fc8e6f326af5c8997f4e337a8`).
+          Меняет 16 файлов приложения: формы «Дефекты», навигацию ЖНДР и раздел резервных копий в админке.
+          Пользовательские данные, БД, ключи, `.env` и номер версии не изменяются.
+
+          **Важное ограничение:** восстановление из админки ещё не прошло финальную проверку на Windows и при аварийном обрыве.
+          Перед любым применением сохраните независимую копию БД и приватных файлов; не используйте патч для другой сборки.
+          Не распаковывайте содержимое прямо поверх сайта.
+
+          Распакуйте ZIP отдельно. Проверьте совпадение исходных файлов:
+          ```shell
+          php apply.php --check --target="/путь/к/Notes"
+          ```
+          Только при успешной проверке используйте инструкцию `ИНСТРУКЦИЯ.md` из ZIP.
+          Это файловый патч с проверками и защитной копией, **не** подписанный пакет для раздела «Админка → Обновления».
+          EOF
+          gh release create "$PATCH_TAG" \
+            dist/notes-patch-1.2.0-rc.1-20261114.zip \
+            dist/notes-patch-1.2.0-rc.1-20261114.zip.sha256 \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Патч Notes 1.2.0-rc.1 — 14.11.2026 (${GITHUB_SHA:0:8})" \
+            --notes-file dist/RELEASE_NOTES_RU.md
+          echo "Опубликован: https://github.com/cyrox007/Notes/releases/tag/$PATCH_TAG"
