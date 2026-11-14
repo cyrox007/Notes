@@ -1,4 +1,4 @@
-name: ZIP-патч Notes без изменения версии
+name: Проверка и выпуск исправительного патча Notes
 
 on:
   push:
@@ -9,84 +9,174 @@ permissions:
   contents: write
 
 jobs:
-  archive:
-    name: Создать и проверить ZIP-патч
+  linux:
+    name: Сборка и испытание на Linux
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - name: Скачать исходники и базовую фиксацию
+      - name: Скачать исходники и базовую версию
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Собрать пофайловый патч без изменения версии
+      - name: Собрать исправительный ZIP
         run: |
           python3 tools/release/build-notes-patch-archive.py \
             --base 29b0dd959733651fc8e6f326af5c8997f4e337a8 \
-            --output dist/notes-patch-1.2.0-rc.1-20261114.zip
-      - name: Проверить архив и установщик
+            --output dist/notes-repair-1.2.0-rc.1-r2.zip
+      - name: Проверить состав ZIP и код PHP
         run: |
           php -l tools/release/install-notes-patch.php
           python3 - <<'PY'
-          import json, zipfile
-          name = 'dist/notes-patch-1.2.0-rc.1-20261114.zip'
+          import hashlib, json, zipfile
+          name = 'dist/notes-repair-1.2.0-rc.1-r2.zip'
           with zipfile.ZipFile(name) as z:
               assert z.testzip() is None
-              data = json.loads(z.read('manifest.json'))
-              assert data['application_version'] == '1.2.0-rc.1'
-              assert data['database_migrations'] is False
-              assert len(data['changed_files']) == 16
-              for e in data['changed_files']:
-                  assert 'files/' + e['path'] in z.namelist()
-          print('ZIP проверен: 16 файлов, версия не изменена')
+              manifest = json.loads(z.read('manifest.json'))
+              assert manifest['application_version'] == '1.2.0-rc.1'
+              assert manifest['database_migrations'] is False
+              assert manifest['changes_application_version'] is False
+              entries = manifest['changed_files']
+              assert len(entries) == 16
+              expected = {'manifest.json', 'repair.php', 'ИНСТРУКЦИЯ.md'}
+              for e in entries:
+                  p = e['path']
+                  assert p not in expected
+                  expected.add(p)
+                  assert hashlib.sha256(z.read(p)).hexdigest() == e['target_sha256']
+              assert set(z.namelist()) == expected
+              assert 'core/Version.php' not in expected
+          print('Структура и суммы 16 файлов проверены')
           PY
-          (cd dist && sha256sum notes-patch-1.2.0-rc.1-20261114.zip > notes-patch-1.2.0-rc.1-20261114.zip.sha256)
-          cp dist/notes-patch-1.2.0-rc.1-20261114.zip.sha256 dist/SHA256SUMS.txt
-          cat dist/SHA256SUMS.txt
-      - name: Опубликовать архив для скачивания
-        uses: actions/upload-artifact@v4
-        with:
-          name: Notes-patch-1.2.0-rc.1-20261114
-          path: |
-            dist/notes-patch-1.2.0-rc.1-20261114.zip
-            dist/SHA256SUMS.txt
-            dist/notes-patch-1.2.0-rc.1-20261114.zip.sha256
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Опубликовать ZIP и контрольную сумму на странице выпусков GitHub
-        env:
-          GH_TOKEN: ${{ github.token }}
+          (cd dist && sha256sum notes-repair-1.2.0-rc.1-r2.zip > notes-repair-1.2.0-rc.1-r2.zip.sha256)
+      - name: Проверить установку, повтор и отказ при чужой сборке
         shell: bash
         run: |
           set -euo pipefail
-          PATCH_TAG="notes-patch-1.2.0-rc.1-20261114-${GITHUB_SHA:0:8}"
+          ROOT="$RUNNER_TEMP/notes-repair-check"
+          mkdir -p "$ROOT/base" "$ROOT/patch" "$ROOT/changed"
+          git archive 29b0dd959733651fc8e6f326af5c8997f4e337a8 | tar -x -C "$ROOT/base"
+          git archive 29b0dd959733651fc8e6f326af5c8997f4e337a8 | tar -x -C "$ROOT/changed"
+          unzip -q dist/notes-repair-1.2.0-rc.1-r2.zip -d "$ROOT/patch"
+          php "$ROOT/patch/repair.php" --check --root="$ROOT/base"
+          php "$ROOT/patch/repair.php" --yes --root="$ROOT/base"
+          php "$ROOT/patch/repair.php" --yes --root="$ROOT/base"
+          python3 - "$ROOT/base" "$ROOT/patch" <<'PY'
+          import hashlib, json, pathlib, sys
+          base, patch = map(pathlib.Path, sys.argv[1:])
+          m = json.loads((patch / 'manifest.json').read_text())
+          for e in m['changed_files']:
+              p = base / e['path']
+              assert p.is_file(), e['path']
+              assert hashlib.sha256(p.read_bytes()).hexdigest() == e['target_sha256'], e['path']
+          backups = list(base.parent.glob('.base-notes-repair-*'))
+          assert backups, 'Не создана автоматическая защитная копия'
+          print('Установка, повтор, суммы файлов и автоматическая копия проверены')
+          PY
+          printf '\nПОСТОРОННЕЕ ИЗМЕНЕНИЕ\n' >> "$ROOT/changed/core/Controller.php"
+          if php "$ROOT/patch/repair.php" --yes --root="$ROOT/changed"; then
+            echo "ОШИБКА: принят изменённый исходный файл"
+            exit 1
+          fi
+          echo "Чужая сборка отклонена корректно"
+      - name: Сохранить пакет для публикации
+        uses: actions/upload-artifact@v4
+        with:
+          name: notes-repair-1.2.0-rc.1-r2
+          path: |
+            dist/notes-repair-1.2.0-rc.1-r2.zip
+            dist/notes-repair-1.2.0-rc.1-r2.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  windows:
+    name: Проверить установщик на Windows
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - name: Скачать исходники
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Собрать патч
+        shell: pwsh
+        run: |
+          python tools/release/build-notes-patch-archive.py --base 29b0dd959733651fc8e6f326af5c8997f4e337a8 --output dist/notes-repair-1.2.0-rc.1-r2.zip
+          if ($LASTEXITCODE -ne 0) { throw "Не удалось собрать ZIP" }
+          php -l tools/release/install-notes-patch.php
+          if ($LASTEXITCODE -ne 0) { throw "Ошибка синтаксиса PHP" }
+      - name: Проверить замену файлов, повтор и копию на Windows
+        shell: pwsh
+        run: |
+          $work = Join-Path $env:RUNNER_TEMP 'notes-repair-windows'
+          $base = Join-Path $work 'base'
+          $patch = Join-Path $work 'patch'
+          New-Item -ItemType Directory -Path $base, $patch -Force | Out-Null
+          $sourceZip = Join-Path $work 'base.zip'
+          git archive --format=zip "--output=$sourceZip" 29b0dd959733651fc8e6f326af5c8997f4e337a8
+          if ($LASTEXITCODE -ne 0) { throw "Не удалось подготовить исходную сборку" }
+          Expand-Archive -LiteralPath $sourceZip -DestinationPath $base -Force
+          Expand-Archive -LiteralPath 'dist/notes-repair-1.2.0-rc.1-r2.zip' -DestinationPath $patch -Force
+          php (Join-Path $patch 'repair.php') --check "--root=$base"
+          if ($LASTEXITCODE -ne 0) { throw "Не пройдена проверка Windows" }
+          php (Join-Path $patch 'repair.php') --yes "--root=$base"
+          if ($LASTEXITCODE -ne 0) { throw "Не прошла установка Windows" }
+          php (Join-Path $patch 'repair.php') --yes "--root=$base"
+          if ($LASTEXITCODE -ne 0) { throw "Не прошла повторная установка Windows" }
+          python -c "import json,pathlib,hashlib,sys; b=pathlib.Path(sys.argv[1]); p=pathlib.Path(sys.argv[2]); m=json.loads((p/'manifest.json').read_text(encoding='utf8')); assert all(hashlib.sha256((b/e['path']).read_bytes()).hexdigest()==e['target_sha256'] for e in m['changed_files'])" "$base" "$patch"
+          if ($LASTEXITCODE -ne 0) { throw "Не совпали итоговые суммы файлов Windows" }
+          $copies = @(Get-ChildItem -LiteralPath $work -Force -Directory | Where-Object { $_.Name -like '.base-notes-repair-*' })
+          if ($copies.Count -eq 0) { throw "Автоматическая защитная копия не создана" }
+          Write-Output 'Установка Windows и автоматическая резервная копия проверены'
+
+  publish:
+    name: Опубликовать исправительный выпуск GitHub
+    needs: [linux, windows]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Получить проверенный ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: notes-repair-1.2.0-rc.1-r2
+          path: dist
+      - name: Опубликовать ZIP и сумму
+        shell: bash
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          set -euo pipefail
+          PATCH_TAG="notes-repair-1.2.0-rc.1-r2-\${GITHUB_SHA:0:8}"
+          cat > dist/RELEASE_NOTES_RU.md <<'EOF'
+          # Исправительный патч Notes 1.2.0-rc.1 — r2
+
+          Новый привычный формат патча: один файл repair.php, одна команда, защитная копия создаётся автоматически вне установленного сайта.
+          В корне ZIP лежат 16 изменённых файлов в штатной структуре, manifest.json и инструкция на русском.
+
+          Предназначен только для исходного v1.2.0-rc.1 (коммит 29b0dd959733651fc8e6f326af5c8997f4e337a8).
+          Исправления «Дефектов», ЖНДР и новая страница резервных копий администратора. Номер версии и БД не изменяются.
+
+          Windows OSPanel: распакуйте архив отдельно от сайта, затем выполните:
+
+              php repair.php --yes --root="C:\OSPanel\home\notes.local"
+
+          Никакие --backup, --apply или предварительные команды не нужны.
+
+          Важно: перед работой сохраните независимую резервную копию MySQL и приватного хранилища. Механизм восстановления из админки ещё не принят при аварийном прерывании на Windows. Пакет не предназначен для штатного подписанного обновлятора.
+          EOF
           if gh release view "$PATCH_TAG" >/dev/null 2>&1; then
-            echo "Предварительный выпуск уже существует: $PATCH_TAG"
+            echo "Этот выпуск уже опубликован: $PATCH_TAG"
             exit 0
           fi
-          cat > dist/RELEASE_NOTES_RU.md <<'EOF'
-          # Исправительный патч Notes 1.2.0-rc.1 без смены версии
-
-          Патч предназначен только для исходной сборки `v1.2.0-rc.1` (коммит `29b0dd959733651fc8e6f326af5c8997f4e337a8`).
-          Меняет 16 файлов приложения: формы «Дефекты», навигацию ЖНДР и раздел резервных копий в админке.
-          Пользовательские данные, БД, ключи, `.env` и номер версии не изменяются.
-
-          **Важное ограничение:** восстановление из админки ещё не прошло финальную проверку на Windows и при аварийном обрыве.
-          Перед любым применением сохраните независимую копию БД и приватных файлов; не используйте патч для другой сборки.
-          Не распаковывайте содержимое прямо поверх сайта.
-
-          Распакуйте ZIP отдельно. Проверьте совпадение исходных файлов:
-          ```shell
-          php apply.php --check --target="/путь/к/Notes"
-          ```
-          Только при успешной проверке используйте инструкцию `ИНСТРУКЦИЯ.md` из ZIP.
-          Это файловый патч с проверками и защитной копией, **не** подписанный пакет для раздела «Админка → Обновления».
-          EOF
           gh release create "$PATCH_TAG" \
-            dist/notes-patch-1.2.0-rc.1-20261114.zip \
-            dist/notes-patch-1.2.0-rc.1-20261114.zip.sha256 \
+            dist/notes-repair-1.2.0-rc.1-r2.zip \
+            dist/notes-repair-1.2.0-rc.1-r2.zip.sha256 \
             --target "$GITHUB_SHA" \
             --prerelease \
-            --title "Патч Notes 1.2.0-rc.1 — 14.11.2026 (${GITHUB_SHA:0:8})" \
+            --title "Notes 1.2.0-rc.1 — исправительный патч r2 (\${GITHUB_SHA:0:8})" \
             --notes-file dist/RELEASE_NOTES_RU.md
           echo "Опубликован: https://github.com/cyrox007/Notes/releases/tag/$PATCH_TAG"
