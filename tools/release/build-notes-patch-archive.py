@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import subprocess
+import sys
 import zipfile
 from pathlib import Path
 
@@ -39,6 +40,8 @@ def sha(data: bytes) -> str:
 
 
 def main() -> None:
+    # Сборщик всегда пишет сообщения на UTF-8, в том числе в Windows PowerShell.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", required=True, help="Точная базовая фиксация")
     parser.add_argument("--output", required=True, help="Путь итогового ZIP")
