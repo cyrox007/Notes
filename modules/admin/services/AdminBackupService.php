@@ -30,6 +30,7 @@ final class AdminBackupService
     private string $backupRoot;
     private UpdateBackupManager $manager;
     private AdminBackupFiles $files;
+    private ?AdminBackupFiles $legacyFiles = null;
 
     public function __construct(?string $applicationRoot = null, ?string $privateRoot = null)
     {
@@ -50,6 +51,13 @@ final class AdminBackupService
         $this->backupRoot = $this->privateRoot . '/admin-backups';
         $this->manager = new UpdateBackupManager($this->backupRoot, $app, [$private]);
         $this->files = new AdminBackupFiles($this->privateRoot);
+        $legacyRoot = $this->applicationRoot . '/uploads';
+        if (is_link($legacyRoot)) {
+            throw new RuntimeException('Публичный каталог старых вложений не может быть ссылкой');
+        }
+        if (is_dir($legacyRoot)) {
+            $this->legacyFiles = new AdminBackupFiles($legacyRoot);
+        }
     }
 
     /** @return list<array{id:string,created_at:int,version:string,files:int,bytes:int}> */
@@ -103,6 +111,14 @@ final class AdminBackupService
             throw new RuntimeException('Реестр копии не совпадает со снимком базы данных');
         }
         $this->files->verify($directory . '/private', $manifest['files']);
+        if ($this->legacyFiles !== null && !is_array($manifest['legacy_files'] ?? null)) {
+            throw new RuntimeException('В резервной копии отсутствуют старые вложения');
+        }
+        if ($this->legacyFiles !== null) {
+            $this->legacyFiles->verify($directory . '/legacy-uploads', $manifest['legacy_files']);
+        } elseif (!empty($manifest['legacy_files'])) {
+            throw new RuntimeException('Каталог старых вложений отсутствует в этой установке');
+        }
         if ((string) $manifest['application_root'] !== $this->applicationRoot
             || (string) $manifest['private_root'] !== $this->privateRoot) {
             throw new RuntimeException('Копия принадлежит другой установке');
@@ -128,6 +144,7 @@ final class AdminBackupService
         $changed = false;
         $recovered = true;
         $stage = null;
+        $legacyStage = null;
         try {
             // Повторно проверяем источник уже после блокировки изменения данных.
             $source = $this->verify($id);
@@ -141,6 +158,14 @@ final class AdminBackupService
                 bin2hex(random_bytes(8))
             );
 
+            if ($this->legacyFiles !== null) {
+                $legacyStage = $this->legacyFiles->prepareRestore(
+                    $this->backupRoot . '/' . $id . '/legacy-uploads',
+                    $source['manifest']['legacy_files'],
+                    bin2hex(random_bytes(8))
+                );
+            }
+
             // С этого места вмешательство в рабочую БД возможно.
             $changed = true;
             $this->restoreDatabase($source);
@@ -150,6 +175,14 @@ final class AdminBackupService
                 bin2hex(random_bytes(8))
             );
             $stage = null;
+            if ($this->legacyFiles !== null && $legacyStage !== null) {
+                $this->legacyFiles->applyPrepared(
+                    $legacyStage,
+                    $source['manifest']['legacy_files'],
+                    bin2hex(random_bytes(8))
+                );
+                $legacyStage = null;
+            }
             return ['id' => $id, 'safety_id' => $safety['id']];
         } catch (Throwable $error) {
             if ($changed && $safety !== null) {
@@ -167,6 +200,17 @@ final class AdminBackupService
                         $safe['manifest']['files'],
                         bin2hex(random_bytes(8))
                     );
+                    if ($this->legacyFiles !== null) {
+                        $legacyFallback = $this->legacyFiles->prepareRestore(
+                            $this->backupRoot . '/' . $safety['id'] . '/legacy-uploads',
+                            $safe['manifest']['legacy_files'],
+                            bin2hex(random_bytes(8))
+                        );
+                        $this->legacyFiles->applyPrepared(
+                            $legacyFallback, $safe['manifest']['legacy_files'],
+                            bin2hex(random_bytes(8))
+                        );
+                    }
                     $recovered = true;
                 } catch (Throwable $rollbackError) {
                     error_log('Критическая ошибка отката резервной копии: ' . $rollbackError->getMessage());
@@ -183,6 +227,9 @@ final class AdminBackupService
             if ($stage !== null && is_dir($stage)) {
                 UpdatePath::removeTree($stage);
             }
+            if ($legacyStage !== null && is_dir($legacyStage)) {
+                UpdatePath::removeTree($legacyStage);
+            }
             if ($recovered) {
                 $maintenance->leave($transaction);
             }
@@ -197,6 +244,7 @@ final class AdminBackupService
             $snapshot = $this->manager->create($id, $db);
             $directory = $snapshot['backup_dir'];
             $files = $this->files->snapshot($directory . '/private');
+            $legacyFiles = $this->legacyFiles?->snapshot($directory . '/legacy-uploads') ?? [];
             $manifest = [
                 'schema' => 1,
                 'id' => $id,
@@ -209,6 +257,7 @@ final class AdminBackupService
                 'table_prefix' => (string) $snapshot['database']['table_prefix'],
                 'backup_sha256' => hash_file('sha256', $directory . '/backup.json'),
                 'files' => $files,
+                'legacy_files' => $legacyFiles,
             ];
             $this->writeManifest($directory, $manifest);
             $this->verify($id);
