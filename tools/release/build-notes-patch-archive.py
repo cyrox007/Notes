@@ -100,10 +100,11 @@ def main() -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
         archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
-        archive.write(ROOT / "tools/release/install-notes-patch.php", "apply.php")
+        archive.write(ROOT / "tools/release/install-notes-patch.php", "repair.php")
         archive.write(ROOT / "tools/release/NOTES_PATCH_README_RU.md", "ИНСТРУКЦИЯ.md")
         for path in FILES:
-            archive.writestr("files/" + path, data[path])
+            # Файлы лежат в корне ZIP с той же структурой, что и у сайта.
+            archive.writestr(path, data[path])
     print(f"Патч собран: {destination}")
     print(f"Рабочих файлов: {len(FILES)}")
     print(f"Размер архива: {destination.stat().st_size} байт")
