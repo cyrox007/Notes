@@ -1,0 +1,70 @@
+name: Админка — резервные копии и восстановление MySQL
+
+on:
+  pull_request:
+    branches: ['1.2', 'patch/1.2-feedback-20261114']
+    paths:
+      - 'modules/admin/**'
+      - 'tests/integration/admin_backup_12.php'
+      - '.github/workflows/admin-backup-restore-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  operator-backups:
+    name: "Снимок и восстановление (${{ matrix.prefix_label }})"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - prefix: ""
+            prefix_label: "без префикса"
+          - prefix: "test_"
+            prefix_label: "DBPREFIX=test_"
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_backup_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, sodium, mbstring, fileinfo, gd
+          coverage: none
+      - name: Проверить синтаксис изменений
+        run: |
+          php -l modules/admin/controllers/AdminBackupController.php
+          php -l modules/admin/services/AdminBackupFiles.php
+          php -l modules/admin/services/AdminBackupService.php
+          php -l modules/admin/views/backups.php
+          php -l modules/admin/AdminRuntimeProvider.php
+          php -l tests/integration/admin_backup_12.php
+          php -l tests/integration/native_admin_contract.php
+          php tests/integration/native_admin_contract.php
+          node --check modules/admin/assets/admin-settings-nav.js
+      - name: Проверить создание, повреждение и восстановление
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: '3306'
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_backup_ci
+          DBPREFIX: ${{ matrix.prefix }}
+        run: php -d max_execution_time=0 tests/integration/admin_backup_12.php

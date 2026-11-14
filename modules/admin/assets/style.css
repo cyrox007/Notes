@@ -548,3 +548,20 @@
 .admin-notification-settings [data-notification-feedback][data-state="success"]{background:var(--ui-success-soft);color:var(--ui-success)}
 .admin-notification-settings [data-notification-feedback][data-state="warning"]{background:var(--ui-warning-soft);color:var(--ui-warning)}
 .admin-notification-settings [data-notification-feedback][data-state="error"]{background:var(--ui-danger-soft);color:var(--ui-danger)}
+
+/* Резервные копии: отдельная страница и явное подтверждение восстановления. */
+.admin-backups__form{display:grid;gap:12px;padding:16px 18px;max-width:560px}
+.admin-backups__form label{display:grid;gap:6px;color:var(--ui-text);font-size:12px;font-weight:700}
+.admin-backups__form input{width:100%;max-width:440px;box-sizing:border-box;padding:9px 12px;border:1px solid var(--ui-border-strong);border-radius:9px;background:var(--ui-surface);color:var(--ui-text)}
+.admin-backups__form .admin-action{justify-self:start;white-space:normal;min-height:40px}
+.admin-backups__list{display:grid;gap:12px;padding:16px 18px}
+.admin-backups__entry{display:grid;gap:12px;align-items:start;border:1px solid var(--ui-border);border-radius:11px;padding:14px}
+.admin-backups__meta{display:grid;gap:4px;min-width:0}
+.admin-backups__meta span{font-size:12px;overflow-wrap:anywhere}
+.admin-backups__meta small{color:var(--ui-muted)}
+.admin-backups__restore{border-top:1px solid var(--ui-border);padding-top:12px}
+.admin-backups__restore summary{cursor:pointer;color:var(--ui-danger);font-weight:700}
+.admin-backups__restore p,.admin-backups__notice p{font-size:13px;line-height:1.55}
+.admin-backups__restore .admin-backups__form{padding:10px 0}
+.admin-backups__notice{padding:12px 18px}
+@media(max-width:700px){.admin-backups__form{max-width:100%}.admin-backups__form .admin-action{width:100%}}

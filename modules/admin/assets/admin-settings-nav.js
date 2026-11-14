@@ -23,6 +23,7 @@ window.wspace.page.register('modules/admin/assets/admin-settings-nav.js', (pageS
             ['/admin/notifications', 'fa-envelope', 'Каналы уведомлений'],
             ['/admin/license', 'fa-key', 'Лицензия'],
             ['/admin/updates', 'fa-refresh', 'Обновления'],
+            ...(window.wspaceRuntime?.adminBackups ? [['/admin/backups', 'fa-database', 'Резервные копии']] : []),
         ];
 
         const nav = document.createElement('nav');
