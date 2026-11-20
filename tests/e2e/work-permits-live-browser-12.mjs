@@ -124,7 +124,9 @@ async function layout(page, width) {
     const contentWidth = await page.locator('.wrapper__content').evaluate(
         element => element.getBoundingClientRect().width
     );
-    const expectedWidth = width <= 900 ? width - 5 : width - 300;
+    // В Windows полоса вертикальной прокрутки занимает часть innerWidth.
+    // Доступную рабочую ширину определяет clientWidth, а не ширина окна.
+    const expectedWidth = width <= 900 ? measured.viewport - 5 : measured.viewport - 300;
     assert.ok(scrolledX <= 1 && contentWidth >= expectedWidth,
         'Содержимое смещается по горизонтали на ' + width + ': '
         + JSON.stringify({ ...measured, scrolledX, contentWidth }));

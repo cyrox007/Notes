@@ -101,7 +101,8 @@ ob_start();
                             <?php elseif ($required): ?>
                                 <span class="admin-user-actions__locked">Отключение запрещено</span>
                             <?php elseif ($canToggle): ?>
-                                <form action="<?= $view->e($view->route('admin_modules_state')) ?>" method="post" class="admin-user-actions"
+                                <?php // A module toggle changes the shell; avoid consuming its flash in a fetch before the required full navigation. ?>
+                                <form action="<?= $view->e($view->route('admin_modules_state')) ?>" method="post" class="admin-user-actions" data-native-navigation
                                       data-confirm-message="<?= $nextEnabled ? 'Включить модуль?' : 'Отключить модуль во всей установке?' ?>"
                                       data-confirm-title="<?= $nextEnabled ? 'Включение модуля' : 'Отключение модуля' ?>"
                                       data-confirm-text="<?= $nextEnabled ? 'Включить' : 'Отключить' ?>">

@@ -77,6 +77,11 @@ final class CalendarApiController extends Controller
             (new PermissionService())->requirePermission($userId, 'calendar.use');
             $this->json($operation($userId));
         } catch (DomainException $e) {
+            if ($e->getCode() === 404) {
+                // Не раскрываем, отсутствует ли событие совсем или принадлежит другому пользователю.
+                $this->json(['status' => 'error', 'code' => 'calendar_not_found', 'message' => 'Событие Calendar не найдено'], 404);
+                return;
+            }
             $status = $e->getCode() === 401 ? 401 : 403;
             $this->json(['status' => 'error', 'code' => 'calendar_access_denied', 'message' => $e->getMessage()], $status);
         } catch (InvalidArgumentException $e) {

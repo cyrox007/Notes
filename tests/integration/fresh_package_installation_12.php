@@ -39,6 +39,13 @@ if ((int)$calendarRoles !== 3) {
     throw new RuntimeException('Чистая установка не назначила calendar.use стандартным ролям');
 }
 $state=Core\SchemaReadiness::inspect($root);
+foreach (['defects.use' => 3, 'defects.manage' => 2, 'work_permits.use' => 3, 'work_permits.manage' => 2] as $permission => $expectedRoles) {
+    $statement = $pdo->prepare("SELECT COUNT(DISTINCT r.code) FROM roles r JOIN role_permissions rp ON rp.role_id=r.id JOIN permissions p ON p.id=rp.permission_id WHERE p.code=? AND r.code IN ('user','admin','superadmin')");
+    $statement->execute([$permission]);
+    if ((int)$statement->fetchColumn() !== $expectedRoles) {
+        throw new RuntimeException('Fresh module permissions missing: ' . $permission);
+    }
+}
 if(!$state['ready'])throw new RuntimeException('Incomplete fresh schema: '.json_encode($state));
 $temporary=tempnam(sys_get_temp_dir(),'wo-prefix-env-');
 if(!is_string($temporary))throw new RuntimeException('Cannot prepare isolated environment check');

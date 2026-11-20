@@ -11,10 +11,11 @@ if ($name === '' || !str_contains(strtolower($name), 'test')) {
     throw new RuntimeException('Выполнение разрешено только на отдельной тестовой БД');
 }
 
-require_once $root . '/core/UpdateDatabaseMigrator.php';
-require_once $root . '/core/MigrationManifest.php';
-require_once $root . '/core/MigrationBaseline.php';
-require_once $root . '/core/DatabaseOwnership.php';
+$runtimeRoot = (string) (getenv('UPGRADE_FROZEN_RUNTIME_ROOT') ?: $root);
+require_once $runtimeRoot . '/core/UpdateDatabaseMigrator.php';
+require_once $runtimeRoot . '/core/MigrationManifest.php';
+require_once $runtimeRoot . '/core/MigrationBaseline.php';
+require_once $runtimeRoot . '/core/DatabaseOwnership.php';
 
 $manifest = new \Core\MigrationManifest($root);
 $names = $manifest->names();

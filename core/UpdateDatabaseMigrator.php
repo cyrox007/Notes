@@ -53,6 +53,18 @@ final class UpdateDatabaseMigrator
 
         $db = $this->connect();
         try {
+            // The frozen recovery runtime contains the source release's SQL
+            // identifiers. Extend this connection from verified target data,
+            // otherwise its metadata filter hides newly created module tables.
+            if ($db instanceof PrefixMysqli) {
+                $objects = [];
+                foreach ($manifest as $filename) {
+                    $sql = $canonicalManifest->readMigration($filename);
+                    preg_match_all('/\b(?:CONSTRAINT|TRIGGER|PROCEDURE|FUNCTION)\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?`?([a-zA-Z_][a-zA-Z0-9_]*)/i', $sql, $matches);
+                    foreach ($matches[1] as $name) $objects[] = strtolower($name);
+                }
+                $db->namespace->includeTargetIdentifiers($currentTables, array_values(array_unique($objects)));
+            }
             $ledgerPresent = $this->migrationTableExists($db);
             $applied = $this->appliedMigrations($db);
             $this->verifyAppliedChecksums($canonicalManifest, $canonical, $applied);

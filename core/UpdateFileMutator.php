@@ -265,6 +265,39 @@ final class UpdateFileMutator
         }
     }
 
+    /** Remove empty release directories left by interrupted file operations. */
+    public function pruneEmptyReleaseDirectories(string $relative = ''): void
+    {
+        $directory = $this->appRoot;
+        if ($relative !== '') {
+            $relative = $this->validateRelative($relative);
+            $directory .= DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+        }
+        if (is_link($directory) || !is_dir($directory)) {
+            throw new RuntimeException('Unsafe updater cleanup directory: ' . $relative);
+        }
+        $items = scandir($directory);
+        if (!is_array($items)) {
+            throw new RuntimeException('Cannot inspect updater cleanup directory: ' . $relative);
+        }
+        foreach (array_diff($items, ['.', '..']) as $name) {
+            $child = $relative === '' ? $name : $relative . '/' . $name;
+            if (!$this->isReleaseOwned($child)) continue;
+            $absolute = $directory . DIRECTORY_SEPARATOR . $name;
+            if (is_link($absolute)) {
+                throw new RuntimeException('Symlink in updater cleanup: ' . $child);
+            }
+            if (is_dir($absolute)) $this->pruneEmptyReleaseDirectories($child);
+        }
+        $remaining = scandir($directory);
+        if (!is_array($remaining)) {
+            throw new RuntimeException('Cannot verify updater cleanup directory: ' . $relative);
+        }
+        if ($relative !== '' && array_diff($remaining, ['.', '..']) === [] && !@rmdir($directory)) {
+            throw new RuntimeException('Cannot remove empty updater directory: ' . $relative);
+        }
+    }
+
     private function pruneParents(string $relative): void
     {
         $parent = str_replace('\\', '/', dirname($relative));

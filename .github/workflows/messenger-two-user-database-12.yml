@@ -1,0 +1,260 @@
+name: Messenger — два пользователя и фактическая запись в MySQL
+
+on:
+  pull_request:
+    branches: ['1.2']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  messenger-two-users:
+    name: Проверка отправки обычных пользователей
+    strategy:
+      fail-fast: false
+      matrix:
+        prefix: ['', 'test_']
+    env:
+      DBPREFIX: ${{ matrix.prefix }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: messenger_browser_12
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, fileinfo, gd
+          coverage: none
+
+      - name: Установить зависимости
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+
+      - name: Установить Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Подготовить схему БД из состава пакета 1.2
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: messenger_browser_12
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          require_once 'core/PrefixPDO.php';
+          require_once 'core/InstallerEnvironmentService.php';
+          require_once 'core/InstallerDatabaseService.php';
+          require_once 'core/ModuleManifest.php';
+          require_once 'core/DatabaseOwnership.php';
+          $schemas = array_map(
+              static fn (string $path): string => getcwd() . '/' . $path,
+              Core\DatabaseOwnership::fromPackageRoot(getcwd())->schemaFiles()
+          );
+          foreach ([
+              'database/migrations/20261017_mutation_commands.sql',
+              'database/migrations/20261019_defects_foundation.sql',
+              'database/migrations/20261021_notification_action_tokens.sql',
+          ] as $migration) {
+              $schemas[] = getcwd() . '/' . $migration;
+          }
+          (new Core\InstallerDatabaseService())->importSchemas(
+              getenv('DBHOST'),
+              (int) getenv('DBPORT'),
+              getenv('DBNAME'),
+              getenv('DBUSER'),
+              getenv('DBPASS'),
+              $schemas
+          );
+          PHP
+
+      - name: Создать двух обычных пользователей и окружение
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: messenger_browser_12
+        run: |
+          set -euo pipefail
+          TEST_PASSWORD="$(php -r 'echo bin2hex(random_bytes(18));')"
+          APP_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          MESSAGE_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          TICKET_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          echo "::add-mask::$TEST_PASSWORD"
+          echo "::add-mask::$APP_KEY"
+          echo "::add-mask::$MESSAGE_KEY"
+          echo "::add-mask::$TICKET_KEY"
+          export TEST_PASSWORD
+
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          require_once 'core/PrefixPDO.php';
+          require_once 'core/InstallerDatabaseService.php';
+          require_once 'core/ModuleManifest.php';
+          require_once 'core/DatabaseOwnership.php';
+          require_once 'core/UpdateDatabaseMigrator.php';
+          $pdo = new Core\PrefixPDO(
+              sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', getenv('DBHOST'), getenv('DBPORT'), getenv('DBNAME')),
+              getenv('DBUSER'),
+              getenv('DBPASS'),
+              [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+          );
+          $stmt = $pdo->prepare(
+              'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at) '
+              . 'VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,:role,1,NOW(),NOW())'
+          );
+          $hash = password_hash((string) getenv('TEST_PASSWORD'), PASSWORD_ARGON2ID);
+          $stmt->execute([
+              ':uid' => 'ba5e0000-0000-4000-8000-000000000018',
+              ':username' => 'messenger-actor-12',
+              ':email' => 'messenger-actor@example.test',
+              ':password_hash' => $hash,
+              ':firstname' => 'Admin',
+              ':lastname' => 'Lifecycle',
+              ':role' => 888,
+          ]);
+          $stmt->execute([
+              ':uid' => 'ba5e0000-0000-4000-8000-000000000019',
+              ':username' => 'messenger-peer-12',
+              ':email' => 'messenger-peer@example.test',
+              ':password_hash' => $hash,
+              ':firstname' => 'Target',
+              ':lastname' => 'User',
+              ':role' => 888,
+          ]);
+          // Приёмка должна проверять разрешения обычных пользователей,
+          // а не обход прав через суперпользователя.
+          $check = $pdo->query(
+              "SELECT COUNT(*) FROM user_roles ur
+               INNER JOIN roles r ON r.id=ur.role_id AND r.code='user'
+               INNER JOIN users u ON u.id=ur.user_id
+               WHERE u.username IN ('messenger-actor-12','messenger-peer-12')"
+          );
+          if ((int) $check->fetchColumn() !== 2) {
+              throw new RuntimeException('Двум обычным пользователям не назначена роль user');
+          }
+          PHP
+
+          rm -rf /tmp/messenger-browser-12
+          mkdir -p /tmp/messenger-browser-12/logs compile cache
+          chmod 700 /tmp/messenger-browser-12 /tmp/messenger-browser-12/logs
+          rm -f /tmp/workspace-organizer-startup.log
+
+          cat > .env <<ENV
+          DBDRIVER=mysql
+          DBHOST=127.0.0.1
+          DBPORT=3306
+          DBUSER=root
+          DBPASS=root
+          DBNAME=messenger_browser_12
+          DBPREFIX=${DBPREFIX}
+          UNIQUE_KEY=${APP_KEY}
+          MSG_SECRET_KEY=${MESSAGE_KEY}
+          WS_TICKET_SECRET=${TICKET_KEY}
+          PRIVATE_STORAGE_PATH=/tmp/messenger-browser-12
+          RATE_LIMIT_STORAGE_PATH=/tmp/messenger-browser-12/rate-limit
+          SITEURL=http://127.0.0.1:18093
+          BASE_PATH=/workspace/
+          WS_HOST=127.0.0.1
+          WS_PORT=27806
+          WS_PUBLIC_URL=ws://127.0.0.1:27806/workspace/ws
+          WS_ALLOWED_ORIGINS=http://127.0.0.1:18093
+          AUTH_RATE_LIMIT_ATTEMPTS=50
+          AUTH_RATE_LIMIT_WINDOW_SECONDS=60
+          UPLOAD_RATE_LIMIT_ATTEMPTS=100
+          UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+          LOG_LEVEL=INFO
+          LOG_FILE=/tmp/messenger-browser-12/logs/app.log
+          CSRF_ENABLED=true
+          ENV
+          chmod 600 .env
+
+          printf 'E2E_USER=%s\n' 'messenger-actor-12' >> "$GITHUB_ENV"
+          printf 'E2E_TARGET_USER=%s\n' 'messenger-peer-12' >> "$GITHUB_ENV"
+          printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Подготовить временную лицензию
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/support/ci_license_fixture.php
+
+      - name: Запустить сайт в подкаталоге
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/messenger-browser-12-http.log
+          PHP_CLI_SERVER_WORKERS=8 php -S 127.0.0.1:18093 tests/e2e/router.php >/tmp/messenger-browser-12-http.log 2>&1 &
+          echo $! >/tmp/messenger-browser-12-http.pid
+          READY=0
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:18093/workspace/auth/login/ >/dev/null; then
+              READY=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$READY" != '1' ]]; then
+            cat /tmp/messenger-browser-12-http.log >&2
+            exit 1
+          fi
+
+      - name: Проверить отправку Messenger в двух браузерах с реальной MySQL
+        shell: bash
+        env:
+          E2E_ORIGIN: http://127.0.0.1:18093
+          E2E_BASE_PATH: /workspace
+        run: |
+          php -l tests/e2e/messenger-two-user-db-12.php
+          node --check tests/e2e/messenger-two-user-database-12.mjs
+          node tests/e2e/messenger-two-user-database-12.mjs
+
+      - name: Вывести журналы при ошибке
+        if: failure()
+        shell: bash
+        run: |
+          echo '--- Сервер PHP ---'
+          cat /tmp/messenger-browser-12-http.log || true
+          echo '--- Ошибки запуска и приложения ---'
+          cat /tmp/workspace-organizer-startup.log || true
+          echo '--- Журнал приложения ---'
+          cat /tmp/messenger-browser-12/logs/app.log || true
+
+      - name: Остановить тестовый сервер
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f /tmp/messenger-browser-12-http.pid ]]; then
+            PID="$(cat /tmp/messenger-browser-12-http.pid)"
+            pkill -TERM -P "$PID" >/dev/null 2>&1 || true
+            kill "$PID" >/dev/null 2>&1 || true
+          fi

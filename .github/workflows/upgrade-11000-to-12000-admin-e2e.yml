@@ -77,9 +77,14 @@ jobs:
           node --check tests/e2e/admin-update-apply.mjs
           python3 -m py_compile tests/support/admin_update_https_fixture.py
           php -l tests/support/admin_update_preservation_probe.php
-          # В 1.2 до окончательного релиза версия кода намеренно остаётся 1.1.0.
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.1.0'
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '11000'
+          # Development, RC and final source identities all exercise the same
+          # synthetic target below. The published source tag stays exact.
+          php -r '
+            require "core/Version.php";
+            $v = Core\Version::VERSION; $c = Core\Version::VERSION_CODE;
+            if (!(($v === "1.1.0" && $c === 11000)
+                || ($c === 12000 && preg_match("/^1\\.2\\.0(?:-rc\\.[1-9][0-9]*)?$/D", $v)))) exit(1);
+          '
           git rev-parse --verify refs/tags/v1.1.0
 
       - name: Подготовить опубликованную v1.1.0 и тестовую БД
@@ -309,17 +314,15 @@ jobs:
           rsync -a "$GITHUB_WORKSPACE/" "$TARGET/"             --exclude '.git'             --exclude '.github'             --exclude '.env'             --exclude 'vendor'             --exclude 'node_modules'             --exclude 'tests'             --exclude 'tools'             --exclude 'cache/*'             --exclude 'compile/*'             --exclude '*.license-secret'             --exclude '*.update-secret'             --exclude '*.log'
           mkdir -p "$TARGET/cache" "$TARGET/compile"
 
-          # В дереве разработки пока версия 1.1.0. Меняем только
-          # изолированную копию кандидата, не исходный коммит и не тег.
+          # Меняем только изолированную копию кандидата, не исходный коммит и не тег.
           # Это испытательный пакет, а НЕ публикуемый exact-head 1.2.0.
           php -r '
             $path = $argv[1];
             $data = file_get_contents($path);
             if (!is_string($data)) exit(1);
-            $old = ["public const VERSION = \x271.1.0\x27;", "public const VERSION_CODE = 11000;"];
-            $new = ["public const VERSION = \x271.2.0\x27;", "public const VERSION_CODE = 12000;"];
-            if (substr_count($data, $old[0]) !== 1 || substr_count($data, $old[1]) !== 1) exit(1);
-            $data = str_replace($old, $new, $data);
+            $data = preg_replace("/public const VERSION = \x27[^\x27]+\x27;/", "public const VERSION = \x271.2.0\x27;", $data, -1, $versions);
+            $data = preg_replace("/public const VERSION_CODE = [0-9]+;/", "public const VERSION_CODE = 12000;", $data, -1, $codes);
+            if ($versions !== 1 || $codes !== 1) exit(1);
             if (file_put_contents($path, $data, LOCK_EX) !== strlen($data)) exit(1);
           ' "$TARGET/core/Version.php"
                     cp "$LIVE/config/license_trusted_keys.php" "$TARGET/config/license_trusted_keys.php"

@@ -364,11 +364,9 @@ window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => 
         }
 
         async sendEventConfirmed(action, data = {}) {
-            if (this.socket && this.socket.readyState === WebSocket.OPEN && this.socketAuthorized) {
-                this.socket.send(JSON.stringify({ action, data }));
-                return true;
-            }
-
+            // Отправка в открытый WebSocket подтверждает только передачу байтов,
+            // но не запись в БД. Операции редактора выполняем через HTTP
+            // с проверкой ответа обработчика; WebSocket продолжает доставлять события.
             return this.sendHttpEventConfirmed(action, data);
         }
 
@@ -408,12 +406,22 @@ window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => 
             }
 
             try {
-                await this.performHttpEvent(action, data);
+                const result = await this.performHttpEvent(action, data);
+                const expected = {
+                    'MessangerSocket:message_send': 'send_message',
+                    'MessangerSocket:edit_message': 'message_edited',
+                    'MediaSocket:send': 'send_message'
+                }[action];
+                if (expected && !result?.events?.some(event => event?.action === expected)) {
+                    throw new Error('Сервер не подтвердил сохранение сообщения');
+                }
                 return true;
             } catch (error) {
                 if (error?.code === 'session_unavailable') return false;
                 console.warn('Messenger HTTP fallback action failed', error);
-                this.showToast('Резервный канал временно недоступен');
+                this.showToast(error?.code === 'server_rejected' && error?.message
+                    ? error.message
+                    : 'Резервный канал временно недоступен');
                 return false;
             }
         }
@@ -438,6 +446,14 @@ window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => 
                 const response = await pageScope.fetch(endpoint, {
                     method: 'POST',
                     credentials: 'same-origin',
+                    // Запросы перечня и истории только читают состояние диалога.
+                    // Они не должны блокировать уход с открытой страницы Messenger.
+                    workspaceReadOnly: [
+                        'MessangerSocket:get_dialogs',
+                        'MessangerSocket:load',
+                        'DialogStateSocket:list',
+                        'ReceiptSocket:list',
+                    ].includes(action),
                     headers,
                     body
                 });
@@ -453,7 +469,9 @@ window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => 
 
                 const payload = await response.json();
                 if (payload?.status !== 'ok') {
-                    throw new Error(payload?.message || 'Резервный обработчик отклонил действие');
+                    const rejection = new Error(payload?.message || 'Сервер отклонил действие');
+                    rejection.code = 'server_rejected';
+                    throw rejection;
                 }
 
                 this.dispatchRealtimeEvents(payload.events);

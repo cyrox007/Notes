@@ -55,7 +55,7 @@ async function login(page) {
   await page.locator('#login').fill(username);
   await page.locator('#password').fill(password);
   await Promise.all([
-    page.waitForURL((url) => !url.pathname.includes('/auth/login'), { timeout: 15000 }),
+    page.waitForURL((url) => !url.pathname.includes('/auth/login'), { timeout: 15000, waitUntil: 'domcontentloaded' }),
     page.getByRole('button', { name: 'Войти' }).click(),
   ]);
 }
@@ -142,7 +142,7 @@ try {
   await Promise.all([
     page.waitForURL(
       (url) => url.pathname.replace(/\/+$/, '') === `${basePath}/profile/user/${otherUid}`,
-      { timeout: 15000 }
+      { timeout: 15000, waitUntil: 'domcontentloaded' }
     ),
     foundUser.click(),
   ]);
@@ -248,7 +248,12 @@ try {
     if (publicBody.includes(secretValue)) throw new Error(`Other-user profile leaked private value: ${secretValue}`);
   }
   if (await page.locator('.profile__edit_user-info').count()) throw new Error('Other-user profile exposed own-profile edit control');
-  if (await page.locator('.profile-public__item a').count()) throw new Error('Public profile exposed direct content/storage links');
+  for (const href of await page.locator('.profile-public__item a').evaluateAll(links => links.map(link => link.href))) {
+    const target = new URL(href);
+    if (target.origin !== origin || !target.pathname.startsWith(`${basePath}/files/published/`)) {
+      throw new Error('Public profile exposed a non-public content/storage link');
+    }
+  }
 
   const ownPublicResponse = await page.goto(`${baseUrl}/profile/user/${ownUid}`, { waitUntil: 'domcontentloaded' });
   if (!ownPublicResponse || ownPublicResponse.status() !== 200) {

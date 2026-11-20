@@ -1,0 +1,35 @@
+name: Notes 1.2 — отсутствие и приватность событий Calendar
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/calendar/controllers/CalendarApiController.php'
+      - 'modules/calendar/services/CalendarEventService.php'
+      - 'tests/integration/calendar_private_event_visibility_12.php'
+      - '.github/workflows/calendar-private-event-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  calendar-private-event:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверить синтаксис
+        run: |
+          set -euo pipefail
+          php -l modules/calendar/controllers/CalendarApiController.php
+          php -l modules/calendar/services/CalendarEventService.php
+          php -l tests/integration/calendar_private_event_visibility_12.php
+      - name: Проверить отсутствие и изоляцию событий
+        run: php tests/integration/calendar_private_event_visibility_12.php

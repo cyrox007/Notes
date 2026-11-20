@@ -40,7 +40,20 @@ const app = {
 let ready;
 vm.runInNewContext(source, {
     window: {
-        wspace: { messenger: app }, addEventListener() {},
+        wspace: {
+            messenger: app,
+            page: {
+                register(_name, callback) {
+                    callback({
+                        onInit(fn) { ready = fn; },
+                        setTimeout: setTimer,
+                        setInterval: setTimer,
+                        listen() {},
+                        refresh() {},
+                    });
+                },
+            },
+        }, addEventListener() {},
         setTimeout: setTimer, clearTimeout: (id) => timers.delete(id),
         clearInterval() {},
     },

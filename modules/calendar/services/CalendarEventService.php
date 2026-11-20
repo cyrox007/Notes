@@ -8,6 +8,7 @@ use Core\DatabaseManager;
 use Core\Uuid;
 use DateTimeImmutable;
 use DateTimeZone;
+use DomainException;
 use InvalidArgumentException;
 use Throwable;
 
@@ -130,7 +131,7 @@ final class CalendarEventService
                 [':user_id' => $userId, ':uid' => $this->normalizeUid($uid)]
             );
             if (!is_array($row)) {
-                throw new InvalidArgumentException('Событие Calendar не найдено');
+                throw new DomainException('Событие Calendar не найдено', 404);
             }
             $eventId = (int) $row['id'];
             $this->db->execute(
@@ -179,7 +180,7 @@ final class CalendarEventService
                 [':user_id' => $userId, ':uid' => $uid]
             );
             if (!is_array($row)) {
-                throw new InvalidArgumentException('Событие Calendar не найдено');
+                throw new DomainException('Событие Calendar не найдено', 404);
             }
             $eventId = (int) $row['id'];
             $this->db->execute(
@@ -293,7 +294,7 @@ final class CalendarEventService
             [':user_id' => $userId, ':uid' => $this->normalizeUid($uid)]
         );
         if (!is_array($row)) {
-            throw new InvalidArgumentException('Событие Calendar не найдено');
+            throw new DomainException('Событие Calendar не найдено', 404);
         }
         return $row;
     }

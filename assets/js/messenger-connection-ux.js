@@ -199,6 +199,8 @@ window.wspace.page.register('assets/js/messenger-connection-ux.js', (pageScope) 
                     const response = await pageScope.fetch(endpoint, {
                         method: 'POST',
                         credentials: 'same-origin',
+                        // Обновление билета не сохраняет пользовательские данные.
+                        workspaceReadOnly: true,
                         headers: { 'Accept': 'application/json' }
                     });
 

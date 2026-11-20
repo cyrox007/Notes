@@ -1,0 +1,38 @@
+name: Notes 1.2 — фоновое чтение Messenger и навигация
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'assets/js/page-runtime.js'
+      - 'assets/js/messenger-connection-ux.js'
+      - 'modules/messenger/views/script.js'
+      - 'tests/integration/messenger_ajax_navigation_guard_12.mjs'
+      - '.github/workflows/messenger-ajax-navigation-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  messenger-ajax-navigation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Проверить синтаксис
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/js/page-runtime.js
+          node --check assets/js/messenger-connection-ux.js
+          sed '/^{literal}$/d;/^{\/literal}$/d' modules/messenger/views/script.js > /tmp/notes-messenger-ajax.js
+          node --check /tmp/notes-messenger-ajax.js
+          node --check tests/integration/messenger_ajax_navigation_guard_12.mjs
+      - name: Проверить безопасную навигацию и запрет ухода при сохранении
+        run: node tests/integration/messenger_ajax_navigation_guard_12.mjs

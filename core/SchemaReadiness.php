@@ -46,6 +46,7 @@ final class SchemaReadiness
 
         $db = self::connect();
         try {
+            $db->namespace->includeTargetIdentifiers($requiredTables);
             $existingTables = [];
             $existingUserColumns = [];
 
